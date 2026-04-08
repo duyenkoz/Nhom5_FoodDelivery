@@ -1,0 +1,31 @@
+<header class="site-header">
+    <div class="container site-header__inner">
+        <a class="brand" href="{{ url_for('home.index') }}" aria-label="fiveFood">
+            <span class="brand__mark">five</span>Food
+        </a>
+
+        {% if show_search|default(true) %}
+        <form class="site-search" action="{{ url_for('home.index') }}" method="get" role="search">
+            <span class="site-search__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                </svg>
+            </span>
+            <input
+                type="search"
+                name="q"
+                value="{{ request.args.get('q', '') }}"
+                placeholder="Tìm món ăn hoặc nhà hàng"
+                aria-label="Tìm món ăn hoặc nhà hàng"
+            >
+        </form>
+        {% else %}
+        <div class="site-header__spacer"></div>
+        {% endif %}
+
+        {% if show_auth|default(true) %}
+        <a class="site-header__auth" href="{{ url_for('auth.login') }}">Đăng nhập / Đăng ký</a>
+        {% endif %}
+    </div>
+</header>

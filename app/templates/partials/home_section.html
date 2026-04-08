@@ -1,0 +1,22 @@
+<section class="home-section">
+    <div class="home-section__header">
+        <h2>{{ section.title }}</h2>
+    </div>
+
+    {% if section["items"] %}
+    <div class="restaurant-grid">
+        {% for item in section["items"] %}
+            {% include "partials/home_card.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>{{ page.empty_title }}</h3>
+        <p>{{ page.empty_description }}</p>
+    </div>
+    {% endif %}
+
+    <div class="home-section__footer">
+        <a class="home-more" href="{{ url_for('home.index') }}">{{ section.load_more_label }}</a>
+    </div>
+</section>

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng nhập | fiveFood{% endblock %}
+
+{% block content %}
+<section class="auth-page">
+    <div class="auth-card">
+        <p class="auth-card__eyebrow">Tài khoản</p>
+        <h1>Đăng nhập / Đăng ký</h1>
+        <p>Trang này là placeholder để giữ route cho CTA trong header. Sau này có thể mở rộng thành form đăng nhập thật.</p>
+        <a class="auth-card__link" href="{{ url_for('home.index') }}">Quay về trang chủ</a>
+    </div>
+</section>
+{% endblock %}
