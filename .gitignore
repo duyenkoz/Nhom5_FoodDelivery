@@ -8,3 +8,6 @@ instance/
 .mypy_cache/
 .venv/
 venv/
+server.out.log
+server.err.log
+*.out.log
