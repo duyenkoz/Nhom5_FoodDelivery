@@ -1,0 +1,225 @@
+import os
+import re
+
+from flask import current_app
+from werkzeug.utils import secure_filename
+
+from app.extensions import db
+from app.models.customer import Customer
+from app.models.restaurant import Restaurant
+from app.models.user import User
+
+
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{3,30}$")
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+PHONE_PATTERN = re.compile(r"^(03|05|07|08|09)[0-9]{8}$")
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
+
+def normalize_role(role_raw):
+    return "customer" if role_raw == "KHACHHANG" else "restaurant"
+
+
+def _clean(value):
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _validate_customer_profile(form):
+    display_name = _clean(form.get("tenHienThi"))
+    address = _clean(form.get("diaChi"))
+    area = _clean(form.get("khuVuc"))
+    errors = {}
+
+    if not display_name:
+        errors["tenHienThi"] = "Vui lòng nhập tên hiển thị."
+    elif len(display_name) > 100:
+        errors["tenHienThi"] = "Tên hiển thị không được vượt quá 100 ký tự."
+
+    if not address:
+        errors["diaChi"] = "Vui lòng nhập địa chỉ."
+    elif len(address) > 200:
+        errors["diaChi"] = "Địa chỉ không được vượt quá 200 ký tự."
+
+    if area not in {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng"}:
+        errors["khuVuc"] = "Vui lòng chọn khu vực hợp lệ."
+
+    if errors:
+        raise ValueError(errors)
+
+    return {
+        "tenHienThi": display_name,
+        "diaChi": address,
+        "khuVuc": area,
+    }
+
+
+def _validate_restaurant_profile(form, file_storage=None):
+    display_name = _clean(form.get("tenNhaHang"))
+    address = _clean(form.get("diaChi"))
+    area = _clean(form.get("khuVuc"))
+    description = _clean(form.get("moTa"))
+    errors = {}
+
+    if not display_name:
+        errors["tenNhaHang"] = "Vui lòng nhập tên nhà hàng."
+    elif len(display_name) > 100:
+        errors["tenNhaHang"] = "Tên nhà hàng không được vượt quá 100 ký tự."
+
+    if not address:
+        errors["diaChi"] = "Vui lòng nhập địa chỉ."
+    elif len(address) > 200:
+        errors["diaChi"] = "Địa chỉ không được vượt quá 200 ký tự."
+
+    if area not in {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Cần Thơ"}:
+        errors["khuVuc"] = "Vui lòng chọn khu vực hợp lệ."
+
+    if description and len(description) > 500:
+        errors["moTa"] = "Mô tả không được vượt quá 500 ký tự."
+
+    if file_storage and file_storage.filename:
+        filename = file_storage.filename.strip()
+        if "." not in filename:
+            errors["anhNhaHang"] = "Vui lòng chọn ảnh hợp lệ."
+        else:
+            ext = filename.rsplit(".", 1)[1].lower()
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
+                errors["anhNhaHang"] = "Ảnh phải có định dạng jpg, jpeg, png, gif hoặc webp."
+
+    if errors:
+        raise ValueError(errors)
+
+    return {
+        "tenNhaHang": display_name,
+        "diaChi": address,
+        "khuVuc": area,
+        "moTa": description,
+    }
+
+
+def _validate_registration(form):
+    username = _clean(form.get("username"))
+    email = _clean(form.get("email"))
+    phone = _clean(form.get("phone"))
+    password = form.get("password") or ""
+    password_confirm = form.get("password_confirm") or ""
+    role_raw = form.get("role")
+
+    errors = {}
+
+    if not username:
+        errors["username"] = "Vui lòng nhập tên đăng nhập."
+    elif not USERNAME_PATTERN.fullmatch(username):
+        errors["username"] = "Tên đăng nhập chỉ gồm chữ, số, dấu gạch dưới và dài 3-30 ký tự."
+    elif username_exists(username):
+        errors["username"] = "Tên đăng nhập đã tồn tại."
+
+    if not email:
+        errors["email"] = "Vui lòng nhập email."
+    elif not EMAIL_PATTERN.fullmatch(email):
+        errors["email"] = "Email không hợp lệ."
+    elif User.query.filter_by(email=email).first() is not None:
+        errors["email"] = "Email đã được sử dụng."
+
+    if not phone:
+        errors["phone"] = "Vui lòng nhập số điện thoại."
+    elif not PHONE_PATTERN.fullmatch(phone):
+        errors["phone"] = "Số điện thoại phải bắt đầu bằng 03, 05, 07, 08 hoặc 09 và có 10 số."
+
+    if not password:
+        errors["password"] = "Vui lòng nhập mật khẩu."
+    elif len(password) < 6:
+        errors["password"] = "Mật khẩu phải có ít nhất 6 ký tự."
+    elif len(password) > 72:
+        errors["password"] = "Mật khẩu quá dài."
+
+    if password_confirm != password:
+        errors["password_confirm"] = "Mật khẩu nhập lại không khớp."
+
+    if role_raw not in {"KHACHHANG", "NHAHANG"}:
+        errors["role"] = "Vui lòng chọn vai trò hợp lệ."
+
+    if errors:
+        raise ValueError(errors)
+
+    return {
+        "username": username,
+        "email": email,
+        "phone": phone,
+        "password": password,
+        "role": role_raw,
+    }
+
+
+def create_registration_user(form):
+    data = _validate_registration(form)
+    user = User(
+        username=data["username"],
+        email=data["email"],
+        phone=data["phone"],
+        password=data["password"],
+        role=normalize_role(data["role"]),
+        status=True,
+    )
+    db.session.add(user)
+    db.session.commit()
+    return user
+
+
+def get_user_by_id(user_id):
+    if not user_id:
+        return None
+    try:
+        return db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return None
+
+
+def complete_customer_profile(user_id, form):
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+
+    data = _validate_customer_profile(form)
+    user.display_name = data["tenHienThi"]
+    customer = Customer(
+        customer_id=user.user_id,
+        address=data["diaChi"],
+        area=data["khuVuc"],
+    )
+    db.session.add(customer)
+    db.session.commit()
+    return user
+
+
+def complete_restaurant_profile(user_id, form, file_storage=None):
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+
+    data = _validate_restaurant_profile(form, file_storage)
+    user.display_name = data["tenNhaHang"]
+
+    filename = ""
+    if file_storage and file_storage.filename:
+        filename = secure_filename(file_storage.filename)
+        upload_dir = os.path.join(current_app.static_folder, "uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        file_storage.save(os.path.join(upload_dir, filename))
+
+    restaurant = Restaurant(
+        restaurant_id=user.user_id,
+        image=filename,
+        address=data["diaChi"],
+        area=data["khuVuc"],
+        description=data["moTa"],
+        platform_fee=0,
+    )
+    db.session.add(restaurant)
+    db.session.commit()
+    return user
+
+
+def username_exists(username):
+    if not username:
+        return False
+    return User.query.filter_by(username=username).first() is not None

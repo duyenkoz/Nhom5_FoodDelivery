@@ -1,0 +1,148 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hoàn thiện thông tin nhà hàng | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+<div class="auth-page auth-page--restaurant">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4">
+                <h3 class="text-center mb-4">Hoàn thiện thông tin nhà hàng</h3>
+                <form id="restaurantForm" method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label" for="tenNhaHang">Tên nhà hàng *</label>
+                        <input
+                            type="text"
+                            id="tenNhaHang"
+                            name="tenNhaHang"
+                            class="form-control{% if form_errors.tenNhaHang %} is-invalid{% endif %}"
+                            required
+                            maxlength="100"
+                            value="{{ form_values.get('tenNhaHang', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.tenNhaHang }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <input
+                            type="text"
+                            id="diaChi"
+                            name="diaChi"
+                            class="form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                            required
+                            maxlength="200"
+                            value="{{ form_values.get('diaChi', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="khuVuc">Khu vực *</label>
+                        <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
+                            <option value="">-- Chọn khu vực --</option>
+                            <option value="Hồ Chí Minh" {% if form_values.get('khuVuc') == 'Hồ Chí Minh' %}selected{% endif %}>Hồ Chí Minh</option>
+                            <option value="Hà Nội" {% if form_values.get('khuVuc') == 'Hà Nội' %}selected{% endif %}>Hà Nội</option>
+                            <option value="Đà Nẵng" {% if form_values.get('khuVuc') == 'Đà Nẵng' %}selected{% endif %}>Đà Nẵng</option>
+                            <option value="Cần Thơ" {% if form_values.get('khuVuc') == 'Cần Thơ' %}selected{% endif %}>Cần Thơ</option>
+                        </select>
+                        <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="anhNhaHang">Ảnh nhà hàng</label>
+                        <div class="image-preview" aria-live="polite">
+                            <img
+                                id="restaurantImagePreview"
+                                class="image-preview__img"
+                                alt="Xem trước ảnh nhà hàng"
+                            >
+                            <div class="image-preview__empty" id="restaurantImageEmpty">
+                                <strong>Chưa có ảnh</strong>
+                                <span>Chọn ảnh để xem trước</span>
+                            </div>
+                        </div>
+                        <div class="file-upload">
+                            <input
+                                type="file"
+                                id="anhNhaHang"
+                                name="anhNhaHang"
+                                class="file-upload__input"
+                                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                            >
+                            <label class="file-upload__button" for="anhNhaHang">Chọn ảnh</label>
+                            <span class="file-upload__name" id="anhNhaHangName">Chưa có file nào được chọn</span>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.anhNhaHang }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="moTa">Mô tả</label>
+                        <textarea
+                            id="moTa"
+                            name="moTa"
+                            class="form-control{% if form_errors.moTa %} is-invalid{% endif %}"
+                            rows="3"
+                            maxlength="500"
+                        >{{ form_values.get('moTa', '') }}</textarea>
+                        <div class="invalid-feedback text-danger">{{ form_errors.moTa }}</div>
+                    </div>
+                    <button class="btn btn-success w-100" type="submit">Hoàn tất</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const restaurantImageInput = document.getElementById("anhNhaHang");
+const restaurantImageName = document.getElementById("anhNhaHangName");
+const restaurantImagePreview = document.getElementById("restaurantImagePreview");
+const restaurantImageEmpty = document.getElementById("restaurantImageEmpty");
+const restaurantForm = document.getElementById("restaurantForm");
+
+let restaurantImageObjectUrl = "";
+
+function revokeRestaurantObjectUrl() {
+    if (restaurantImageObjectUrl) {
+        URL.revokeObjectURL(restaurantImageObjectUrl);
+        restaurantImageObjectUrl = "";
+    }
+}
+
+function syncRestaurantPreview() {
+    const selectedFile = restaurantImageInput.files && restaurantImageInput.files.length
+        ? restaurantImageInput.files[0]
+        : null;
+
+    if (!selectedFile) {
+        revokeRestaurantObjectUrl();
+        restaurantImagePreview.style.display = "none";
+        restaurantImagePreview.removeAttribute("src");
+        restaurantImageEmpty.style.display = "flex";
+        restaurantImagePreview.style.transform = "scale(1)";
+        return;
+    }
+
+    revokeRestaurantObjectUrl();
+    restaurantImageObjectUrl = URL.createObjectURL(selectedFile);
+    restaurantImagePreview.src = restaurantImageObjectUrl;
+    restaurantImagePreview.style.display = "block";
+    restaurantImageEmpty.style.display = "none";
+    restaurantImagePreview.style.transform = "scale(1)";
+}
+
+if (restaurantImageInput && restaurantImageName) {
+    restaurantImageInput.addEventListener("change", function () {
+        const selectedFile = this.files && this.files.length ? this.files[0] : null;
+        restaurantImageName.textContent = selectedFile
+            ? selectedFile.name
+            : "Chưa có file nào được chọn";
+        syncRestaurantPreview();
+    });
+}
+
+syncRestaurantPreview();
+</script>
+{% endblock %}
