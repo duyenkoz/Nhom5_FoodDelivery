@@ -2,6 +2,7 @@ import importlib
 
 from flask import Flask
 
+from app.commands import register_commands
 from config import Config
 from app.extensions import db, login_manager, migrate
 
@@ -20,12 +21,13 @@ def create_app(config_class=Config):
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     from app.routes.auth import bp as auth_bp
     from app.routes.home import bp as home_bp
 
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)
+    register_commands(app)
 
     return app

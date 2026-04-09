@@ -16,7 +16,9 @@
     </div>
     {% endif %}
 
+    {% if section.show_load_more %}
     <div class="home-section__footer">
-        <a class="home-more" href="{{ url_for('home.index') }}">{{ section.load_more_label }}</a>
+        <a class="home-more" href="{{ section.load_more_href }}">{{ section.load_more_label }}</a>
     </div>
+    {% endif %}
 </section>

@@ -1,5 +1,6 @@
 <article class="dish-card">
     <div class="dish-card__media">
+        <img class="dish-card__image" src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.name }}">
         {% if item.corner_badge %}
         <span class="dish-card__corner-badge dish-card__corner-badge--{{ item.corner_badge_kind }}">
             {{ item.corner_badge }}
