@@ -6,10 +6,18 @@ from app.extensions import db
 class Order(db.Model):
     __tablename__ = "orders"
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    restaurant_id = db.Column(db.Integer, db.ForeignKey("restaurants.id"), nullable=False)
-    status = db.Column(db.String(30), nullable=False, default="pending")
-    total_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    order_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customers.customer_id"), nullable=True)
+    voucher_id = db.Column(db.Integer, db.ForeignKey("vouchers.voucher_id"), nullable=True)
+    order_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
+    total_amount = db.Column(db.Integer, nullable=True)
+    delivery_fee = db.Column(db.Integer, nullable=True)
+    delivery_address = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(50), nullable=True)
+    restaurant_id = db.Column(db.Integer, db.ForeignKey("restaurants.restaurant_id"), nullable=True)
 
+    customer = db.relationship("Customer", back_populates="orders")
+    voucher = db.relationship("Voucher", back_populates="orders")
+    restaurant = db.relationship("Restaurant", back_populates="orders")
+    items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    payment = db.relationship("Payment", back_populates="order", uselist=False)

@@ -1,4 +1,11 @@
 from app.models.user import User
+from app.models.customer import Customer
 from app.models.restaurant import Restaurant
+from app.models.dish import Dish
+from app.models.cart import Cart
+from app.models.cart_item import CartItem
 from app.models.order import Order
-
+from app.models.order_item import OrderItem
+from app.models.payment import Payment
+from app.models.review import Review
+from app.models.voucher import Voucher

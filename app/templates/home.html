@@ -1,10 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Trang chủ | Food Delivery{% endblock %}
+{% block title %}Trang chủ | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
 
 {% block content %}
-<section class="hero">
-    <h1>Food Delivery Flask Project</h1>
-    <p>Cấu trúc cơ bản đã sẵn sàng để team phát triển tính năng đặt món, quản lý nhà hàng và đơn hàng.</p>
+<section class="home-hero">
+    <h1 class="home-hero__title">{{ page.hero_title }}</h1>
+
+    <div class="delivery-address">
+        <div class="delivery-address__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"></path>
+                <circle cx="12" cy="10" r="2.4"></circle>
+            </svg>
+        </div>
+        <p class="delivery-address__placeholder">{{ page.hero_placeholder }}</p>
+    </div>
 </section>
+
+{% for section in page.sections %}
+    {% include "partials/home_section.html" %}
+{% endfor %}
 {% endblock %}
