@@ -39,11 +39,11 @@
             </div>
         </details>
         {% elif show_auth|default(true) %}
-        <div class="site-header__auth" aria-label="Đăng nhập hoặc đăng ký">
-            <a class="site-header__auth-link" href="{{ url_for('auth.login') }}">Đăng nhập</a>
+        <a class="site-header__auth" href="{{ url_for('auth.login') }}" aria-label="Đăng nhập hoặc đăng ký">
+            <span class="site-header__auth-link">Đăng nhập</span>
             <span class="site-header__auth-sep" aria-hidden="true">/</span>
             <span class="site-header__auth-text">Đăng ký</span>
-        </div>
+        </a>
         {% endif %}
     </div>
 </header>

@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+﻿from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import or_
 
 from app.models.user import User
@@ -6,6 +6,7 @@ from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
     create_registration_user,
+    USERNAME_PATTERN,
     username_exists,
 )
 
@@ -25,7 +26,13 @@ def _is_email_or_phone(value):
 
 
 def _find_user_by_identifier(identifier):
-    return User.query.filter(or_(User.email == identifier, User.phone == identifier)).one_or_none()
+    return User.query.filter(
+        or_(User.email == identifier, User.phone == identifier, User.username == identifier)
+    ).one_or_none()
+
+
+def _is_login_identifier(value):
+    return _is_email_or_phone(value) or bool(USERNAME_PATTERN.fullmatch(value))
 
 
 def _mask_identifier(user):
@@ -56,9 +63,9 @@ def login():
         form_errors = {}
 
         if not identifier:
-            form_errors["identifier"] = "Vui lòng nhập email hoặc số điện thoại."
-        elif not _is_email_or_phone(identifier):
-            form_errors["identifier"] = "Email hoặc số điện thoại không hợp lệ."
+            form_errors["identifier"] = "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập."
+        elif not _is_login_identifier(identifier):
+            form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không hợp lệ."
 
         if not password:
             form_errors["password"] = "Vui lòng nhập mật khẩu."
@@ -69,7 +76,7 @@ def login():
             user = _find_user_by_identifier(identifier)
 
             if not user:
-                form_errors["identifier"] = "Email hoặc số điện thoại không đúng. Vui lòng nhập lại."
+                form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không đúng. Vui lòng nhập lại."
             elif user.password != password:
                 form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
             else:
@@ -120,9 +127,9 @@ def forgot_password_lookup():
     identifier = _clean(data.get("identifier"))
 
     if not identifier:
-        return jsonify({"ok": False, "message": "Vui lòng nhập email hoặc số điện thoại."}), 400
-    if not _is_email_or_phone(identifier):
-        return jsonify({"ok": False, "message": "Email hoặc số điện thoại không hợp lệ."}), 400
+        return jsonify({"ok": False, "message": "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập."}), 400
+    if not _is_login_identifier(identifier):
+        return jsonify({"ok": False, "message": "Email, số điện thoại hoặc tên đăng nhập không hợp lệ."}), 400
 
     user = _find_user_by_identifier(identifier)
     if not user:

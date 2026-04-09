@@ -25,7 +25,7 @@
                     <div class="auth-login__alert" role="alert">{{ server_error_message }}</div>
                     {% endif %}
                     <div class="mb-3">
-                        <label class="form-label" for="identifier">Email hoặc Số điện thoại</label>
+                        <label class="form-label" for="identifier">Email, Số điện thoại hoặc Tên đăng nhập</label>
                         <div class="input-group">
                             <span class="input-group-text input-group-text--left" aria-hidden="true">
                                 <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
@@ -39,7 +39,7 @@
                                 required
                                 maxlength="100"
                                 value="{{ form_values.get('identifier', '') }}"
-                                placeholder="Nhập email hoặc số điện thoại"
+                                placeholder="Nhập email, số điện thoại hoặc tên đăng nhập"
                             >
                         </div>
                         <div class="invalid-feedback text-danger" id="identifierError">{{ form_errors.identifier }}</div>
@@ -119,14 +119,14 @@
             </div>
             <div class="auth-modal__body forgot-modal__body">
                 <div class="forgot-modal__step is-active" id="forgotStepLookup">
-                    <p class="forgot-modal__note">Nhập email hoặc số điện thoại, mình sẽ kiểm tra tài khoản giúp bạn.</p>
+                    <p class="forgot-modal__note">Nhập email, số điện thoại hoặc tên đăng nhập, mình sẽ kiểm tra tài khoản giúp bạn.</p>
                     <div class="forgot-modal__field">
-                        <label class="form-label" for="forgotIdentifier">Email hoặc Số điện thoại</label>
+                        <label class="form-label" for="forgotIdentifier">Email, Số điện thoại hoặc Tên đăng nhập</label>
                         <input
                             type="text"
                             id="forgotIdentifier"
                             class="form-control"
-                            placeholder="Nhập email hoặc số điện thoại"
+                            placeholder="Nhập email, số điện thoại hoặc tên đăng nhập"
                             autocomplete="off"
                         >
                     </div>
@@ -227,7 +227,8 @@ function checkEmptyField(input, errorId, message) {
 function validateIdentifier(value) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    return emailRegex.test(value) || phoneRegex.test(value);
+    const usernameRegex = /^[A-Za-z0-9_]{3,30}$/;
+    return emailRegex.test(value) || phoneRegex.test(value) || usernameRegex.test(value);
 }
 
 function validateInput() {
@@ -235,10 +236,10 @@ function validateInput() {
     const identifierValue = identifierInput.value.trim();
     const passwordValue = passwordInput.value;
 
-    if (!checkEmptyField(identifierInput, "identifierError", "Vui lòng nhập email hoặc số điện thoại")) {
+    if (!checkEmptyField(identifierInput, "identifierError", "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập")) {
         isValid = false;
     } else if (!validateIdentifier(identifierValue)) {
-        setFieldError(identifierInput, "identifierError", "Email hoặc số điện thoại không hợp lệ");
+        setFieldError(identifierInput, "identifierError", "Email, số điện thoại hoặc tên đăng nhập không hợp lệ");
         isValid = false;
     }
 
@@ -403,12 +404,12 @@ async function handleForgotLookup() {
     const identifier = forgotIdentifierInput.value.trim();
 
     if (!identifier) {
-        setForgotMessage(forgotLookupMessage, "Vui lòng nhập email hoặc số điện thoại.");
+        setForgotMessage(forgotLookupMessage, "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập.");
         return;
     }
 
     if (!validateIdentifier(identifier)) {
-        setForgotMessage(forgotLookupMessage, "Email hoặc số điện thoại không hợp lệ.");
+        setForgotMessage(forgotLookupMessage, "Email, số điện thoại hoặc tên đăng nhập không hợp lệ.");
         return;
     }
 
@@ -449,11 +450,11 @@ async function handleForgotAccept() {
 identifierInput.addEventListener("input", function () {
     const value = this.value.trim();
     if (!value) {
-        setFieldError(this, "identifierError", "Vui lòng nhập email hoặc số điện thoại");
+        setFieldError(this, "identifierError", "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập");
         return;
     }
     if (!validateIdentifier(value)) {
-        setFieldError(this, "identifierError", "Email hoặc số điện thoại không hợp lệ");
+        setFieldError(this, "identifierError", "Email, số điện thoại hoặc tên đăng nhập không hợp lệ");
         return;
     }
     clearFieldError(this, "identifierError");
