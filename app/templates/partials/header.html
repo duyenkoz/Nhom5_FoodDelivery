@@ -24,8 +24,26 @@
         <div class="site-header__spacer"></div>
         {% endif %}
 
-        {% if show_auth|default(true) %}
-        <a class="site-header__auth" href="{{ url_for('auth.login') }}">Đăng nhập / Đăng ký</a>
+        {% if session.get('auth_state') == 'logged_in' and session.get('user_role') == 'customer' %}
+        <details class="site-header__user-menu">
+            <summary class="site-header__user" aria-label="Tài khoản của bạn" title="Tài khoản của bạn">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 21a8 8 0 0 0-16 0"></path>
+                    <circle cx="12" cy="8" r="4"></circle>
+                </svg>
+            </summary>
+            <div class="site-header__menu" role="menu" aria-label="Tài khoản">
+                <a class="site-header__menu-item" href="{{ url_for('auth.account') }}" role="menuitem">Thông tin tài khoản</a>
+                <a class="site-header__menu-item" href="{{ url_for('auth.orders') }}" role="menuitem">Đơn hàng</a>
+                <a class="site-header__menu-item site-header__menu-item--danger" href="{{ url_for('auth.logout') }}" role="menuitem">Đăng xuất</a>
+            </div>
+        </details>
+        {% elif show_auth|default(true) %}
+        <div class="site-header__auth" aria-label="Đăng nhập hoặc đăng ký">
+            <a class="site-header__auth-link" href="{{ url_for('auth.login') }}">Đăng nhập</a>
+            <span class="site-header__auth-sep" aria-hidden="true">/</span>
+            <span class="site-header__auth-text">Đăng ký</span>
+        </div>
         {% endif %}
     </div>
 </header>

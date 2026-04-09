@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from sqlalchemy import or_
 
+from app.models.user import User
 from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
@@ -10,8 +12,83 @@ from app.services.auth_service import (
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
-@bp.route("/login")
+def _clean(value):
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _is_email_or_phone(value):
+    if not value:
+        return False
+    email_ok = "@" in value and "." in value
+    phone_ok = value.startswith(("03", "05", "07", "08", "09")) and len(value) == 10 and value.isdigit()
+    return email_ok or phone_ok
+
+
+def _find_user_by_identifier(identifier):
+    return User.query.filter(or_(User.email == identifier, User.phone == identifier)).one_or_none()
+
+
+def _mask_identifier(user):
+    if not user:
+        return ""
+
+    if user.email:
+        local_part, domain_part = user.email.split("@", 1)
+        if len(local_part) <= 2:
+            masked_local = local_part[:1] + "*"
+        else:
+            masked_local = local_part[:2] + "*" * max(1, len(local_part) - 2)
+        return f"{masked_local}@{domain_part}"
+
+    if user.phone:
+        return f"{user.phone[:3]}****{user.phone[-3:]}"
+
+    return ""
+
+
+@bp.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "POST":
+        identifier = _clean(request.form.get("identifier"))
+        password = request.form.get("password") or ""
+        remember = request.form.get("remember") == "on"
+        form_values = request.form
+        form_errors = {}
+
+        if not identifier:
+            form_errors["identifier"] = "Vui lòng nhập email hoặc số điện thoại."
+        elif not _is_email_or_phone(identifier):
+            form_errors["identifier"] = "Email hoặc số điện thoại không hợp lệ."
+
+        if not password:
+            form_errors["password"] = "Vui lòng nhập mật khẩu."
+        elif len(password) < 6:
+            form_errors["password"] = "Mật khẩu tối thiểu 6 ký tự."
+
+        if not form_errors:
+            user = _find_user_by_identifier(identifier)
+
+            if not user:
+                form_errors["identifier"] = "Email hoặc số điện thoại không đúng. Vui lòng nhập lại."
+            elif user.password != password:
+                form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
+            else:
+                session["user_id"] = user.user_id
+                session["user_role"] = user.role
+                session["auth_state"] = "logged_in"
+                session.permanent = remember
+                if user.role == "restaurant":
+                    return redirect(url_for("auth.restaurant_dashboard"))
+                return redirect(url_for("home.index"))
+
+        return render_template(
+            "auth/login.html",
+            form_errors=form_errors,
+            form_values=form_values,
+            show_search=False,
+            show_auth=False,
+        )
+
     return render_template("auth/login.html", show_search=False, show_auth=False)
 
 
@@ -35,6 +112,107 @@ def register():
         return redirect(url_for("auth.complete_restaurant"))
 
     return render_template("auth/register.html")
+
+
+@bp.route("/forgot-password/lookup", methods=["POST"])
+def forgot_password_lookup():
+    data = request.get_json(silent=True) or request.form
+    identifier = _clean(data.get("identifier"))
+
+    if not identifier:
+        return jsonify({"ok": False, "message": "Vui lòng nhập email hoặc số điện thoại."}), 400
+    if not _is_email_or_phone(identifier):
+        return jsonify({"ok": False, "message": "Email hoặc số điện thoại không hợp lệ."}), 400
+
+    user = _find_user_by_identifier(identifier)
+    if not user:
+        return jsonify({"ok": False, "message": "Không tìm thấy tài khoản phù hợp."}), 404
+
+    session["forgot_password_user_id"] = user.user_id
+
+    return jsonify(
+        {
+            "ok": True,
+            "username": user.username,
+            "role": user.role,
+            "masked_identifier": _mask_identifier(user),
+        }
+    )
+
+
+@bp.route("/forgot-password/accept", methods=["POST"])
+def forgot_password_accept():
+    data = request.get_json(silent=True) or request.form
+    identifier = _clean(data.get("identifier"))
+    user_id = session.get("forgot_password_user_id")
+
+    if not identifier or not user_id:
+        return jsonify({"ok": False, "message": "Phiên xác minh đã hết hạn. Vui lòng kiểm tra lại tài khoản."}), 400
+
+    user = _find_user_by_identifier(identifier)
+    if not user or user.user_id != int(user_id):
+        return jsonify({"ok": False, "message": "Tài khoản không hợp lệ."}), 400
+
+    session["user_id"] = user.user_id
+    session["user_role"] = user.role
+    session["auth_state"] = "logged_in"
+    session.permanent = False
+    session.pop("forgot_password_user_id", None)
+
+    redirect_url = url_for("auth.restaurant_dashboard") if user.role == "restaurant" else url_for("home.index")
+    return jsonify(
+        {
+            "ok": True,
+            "redirect_url": redirect_url,
+        }
+    )
+
+
+@bp.route("/restaurant/dashboard")
+def restaurant_dashboard():
+    return render_template(
+        "partials/restaurant.html",
+        show_search=False,
+        show_auth=False,
+    )
+
+
+@bp.route("/account")
+def account():
+    if session.get("user_role") != "customer":
+        return redirect(url_for("home.index"))
+
+    return render_template(
+        "auth/simple_page.html",
+        page_title="Thông tin tài khoản",
+        page_subtitle="Trang thông tin tài khoản đang được phát triển.",
+        action_label="Về trang chủ",
+        action_url=url_for("home.index"),
+        show_search=False,
+        show_auth=False,
+    )
+
+
+@bp.route("/orders")
+def orders():
+    if session.get("user_role") != "customer":
+        return redirect(url_for("home.index"))
+
+    return render_template(
+        "auth/simple_page.html",
+        page_title="Đơn hàng",
+        page_subtitle="Trang đơn hàng đang được phát triển.",
+        action_label="Về trang chủ",
+        action_url=url_for("home.index"),
+        show_search=False,
+        show_auth=False,
+    )
+
+
+@bp.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("home.index"))
 
 
 @bp.route("/complete-customer", methods=["GET", "POST"])

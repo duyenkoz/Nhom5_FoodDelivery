@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-page auth-page--login">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4 text-center">
+                <h3 class="mb-2">{{ page_title }}</h3>
+                <p class="auth-login__subtitle">{{ page_subtitle }}</p>
+                <div class="mt-3 auth-login__register">
+                    <a href="{{ action_url }}">{{ action_label }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
