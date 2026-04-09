@@ -126,16 +126,117 @@ a {
     border-radius: 14px;
     background: linear-gradient(180deg, #ffa812 0%, var(--accent-deep) 100%);
     color: #fff;
-    text-decoration: none;
     font-size: 1rem;
     font-weight: 700;
     box-shadow: 0 10px 24px rgba(255, 152, 0, 0.18);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    gap: 6px;
 }
 
 .site-header__auth:hover {
     transform: translateY(-1px);
     box-shadow: 0 14px 28px rgba(255, 152, 0, 0.22);
+}
+
+.site-header__auth-link {
+    color: #fff;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+.site-header__auth-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.site-header__auth-sep,
+.site-header__auth-text {
+    color: rgba(255, 255, 255, 0.95);
+    pointer-events: none;
+}
+
+.site-header__user {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffa812 0%, var(--accent-deep) 100%);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(255, 152, 0, 0.18);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.site-header__user:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(255, 152, 0, 0.22);
+}
+
+.site-header__user svg {
+    width: 26px;
+    height: 26px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.site-header__user-menu {
+    position: relative;
+    display: inline-flex;
+}
+
+.site-header__user-menu > summary {
+    list-style: none;
+}
+
+.site-header__user-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.site-header__menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 220px;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+    z-index: 40;
+}
+
+.site-header__menu-item {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
+    color: #1f2937;
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.site-header__menu-item:hover {
+    background: #f8fafc;
+    color: #ea580c;
+    text-decoration: none;
+}
+
+.site-header__menu-item--danger {
+    color: #b91c1c;
+}
+
+.site-header__menu-item--danger:hover {
+    color: #991b1b;
+    background: #fef2f2;
 }
 
 .page-shell {

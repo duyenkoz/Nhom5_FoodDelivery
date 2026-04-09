@@ -1,14 +1,502 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}Đăng nhập | fiveFood{% endblock %}
+{% block title %}Đăng nhập | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
 
 {% block content %}
-<section class="auth-page">
-    <div class="auth-card">
-        <p class="auth-card__eyebrow">Tài khoản</p>
-        <h1>Đăng nhập / Đăng ký</h1>
-        <p>Trang này là placeholder để giữ route cho CTA trong header. Sau này có thể mở rộng thành form đăng nhập thật.</p>
-        <a class="auth-card__link" href="{{ url_for('home.index') }}">Quay về trang chủ</a>
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+{% set server_error_message = form_errors.get('password') or form_errors.get('identifier') or '' %}
+<div class="auth-page auth-page--login">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4">
+                <div class="auth-login__header">
+                    <h3 class="text-center mb-2">Đăng nhập</h3>
+                    <p class="auth-login__subtitle text-center">Chào mừng quay trở lại</p>
+                </div>
+
+                <form id="loginForm" method="POST" novalidate>
+                    {% if server_error_message %}
+                    <div class="auth-login__alert" role="alert">{{ server_error_message }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="identifier">Email hoặc Số điện thoại</label>
+                        <div class="input-group">
+                            <span class="input-group-text input-group-text--left" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+                            </span>
+                            <input
+                                type="text"
+                                name="identifier"
+                                id="identifier"
+                                class="form-control{% if form_errors.identifier %} is-invalid{% endif %}"
+                                autocomplete="username"
+                                required
+                                maxlength="100"
+                                value="{{ form_values.get('identifier', '') }}"
+                                placeholder="Nhập email hoặc số điện thoại"
+                            >
+                        </div>
+                        <div class="invalid-feedback text-danger" id="identifierError">{{ form_errors.identifier }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Mật khẩu</label>
+                        <div class="input-group">
+                            <span class="input-group-text input-group-text--left" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+                            </span>
+                            <input
+                                type="password"
+                                name="password"
+                                id="password"
+                                class="form-control{% if form_errors.password %} is-invalid{% endif %}"
+                                autocomplete="current-password"
+                                required
+                                minlength="6"
+                                maxlength="72"
+                                placeholder="Nhập mật khẩu"
+                            >
+                            <button
+                                type="button"
+                                class="input-group-text input-group-text--right auth-login__toggle"
+                                id="passwordToggle"
+                                aria-label="Hiện hoặc ẩn mật khẩu"
+                                aria-pressed="false"
+                            >
+                                <svg id="passwordEye" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="invalid-feedback text-danger" id="passwordError">{{ form_errors.password }}</div>
+                    </div>
+
+                    <div class="login-form__options">
+                        <label class="form-check login-form__remember">
+                            <input type="checkbox" id="rememberMe" name="remember" class="form-check-input" {% if form_values.get('remember') %}checked{% endif %}>
+                            <span class="form-check-label">Ghi nhớ đăng nhập</span>
+                        </label>
+                        <button type="button" class="login-form__link" id="forgotPasswordBtn">Quên mật khẩu?</button>
+                    </div>
+
+                    <button class="btn btn-primary w-100" type="submit" id="loginSubmitBtn">ĐĂNG NHẬP</button>
+
+                    <div class="login-divider" aria-hidden="true">
+                        <span>Hoặc đăng nhập bằng</span>
+                    </div>
+
+                    <div class="social-login">
+                        <button type="button" class="social-login__button social-login__button--google" id="googleLoginBtn">
+                            <span class="social-login__icon">G</span>
+                            <span>Google</span>
+                        </button>
+                        <button type="button" class="social-login__button social-login__button--facebook" id="facebookLoginBtn">
+                            <span class="social-login__icon">f</span>
+                            <span>Facebook</span>
+                        </button>
+                    </div>
+
+                    <div class="text-center mt-3 auth-login__register">
+                        Chưa có tài khoản?
+                        <button type="button" class="login-form__link login-form__link--bold" id="registerNowBtn">Đăng ký ngay</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-</section>
+    <div class="auth-modal" id="forgotPasswordModal" aria-hidden="true">
+        <div class="auth-modal__panel auth-modal__panel--forgot" role="dialog" aria-modal="true" aria-labelledby="forgotPasswordTitle">
+            <div class="auth-modal__header">
+                <h4 class="auth-modal__title" id="forgotPasswordTitle">Quên mật khẩu</h4>
+                <button type="button" class="auth-modal__close" id="forgotPasswordClose" aria-label="Đóng">&times;</button>
+            </div>
+            <div class="auth-modal__body forgot-modal__body">
+                <div class="forgot-modal__step is-active" id="forgotStepLookup">
+                    <p class="forgot-modal__note">Nhập email hoặc số điện thoại, mình sẽ kiểm tra tài khoản giúp bạn.</p>
+                    <div class="forgot-modal__field">
+                        <label class="form-label" for="forgotIdentifier">Email hoặc Số điện thoại</label>
+                        <input
+                            type="text"
+                            id="forgotIdentifier"
+                            class="form-control"
+                            placeholder="Nhập email hoặc số điện thoại"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="forgot-modal__message" id="forgotLookupMessage"></div>
+                    <div class="forgot-modal__actions">
+                        <button type="button" class="btn btn-primary" id="forgotLookupBtn">Kiểm tra tài khoản</button>
+                        <button type="button" class="btn btn-secondary" id="forgotLookupCloseBtn">Đóng</button>
+                    </div>
+                </div>
+
+                <div class="forgot-modal__step" id="forgotStepConfirm">
+                    <p class="forgot-modal__note">Mình đã tìm thấy tài khoản này, bạn kiểm tra lại giúp mình nhé.</p>
+                    <div class="forgot-modal__account">
+                        <strong id="forgotUsername"></strong>
+                        <div class="forgot-modal__account-detail" id="forgotAccountDetail"></div>
+                    </div>
+                    <div class="forgot-modal__message" id="forgotConfirmMessage"></div>
+                    <div class="forgot-modal__actions">
+                        <button type="button" class="btn btn-primary" id="forgotAcceptBtn">Đúng rồi, tiếp tục</button>
+                        <button type="button" class="btn btn-secondary" id="forgotBackBtn">Không phải, nhập lại</button>
+                        <button type="button" class="btn btn-secondary" id="forgotConfirmCloseBtn">Đóng</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const loginForm = document.getElementById("loginForm");
+const identifierInput = document.getElementById("identifier");
+const passwordInput = document.getElementById("password");
+const rememberMeInput = document.getElementById("rememberMe");
+const passwordToggle = document.getElementById("passwordToggle");
+const passwordEye = document.getElementById("passwordEye");
+const loginSubmitBtn = document.getElementById("loginSubmitBtn");
+const registerNowBtn = document.getElementById("registerNowBtn");
+const googleLoginBtn = document.getElementById("googleLoginBtn");
+const facebookLoginBtn = document.getElementById("facebookLoginBtn");
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+const forgotPasswordModal = document.getElementById("forgotPasswordModal");
+const forgotPasswordClose = document.getElementById("forgotPasswordClose");
+const forgotLookupCloseBtn = document.getElementById("forgotLookupCloseBtn");
+const forgotLookupBtn = document.getElementById("forgotLookupBtn");
+const forgotAcceptBtn = document.getElementById("forgotAcceptBtn");
+const forgotBackBtn = document.getElementById("forgotBackBtn");
+const forgotConfirmCloseBtn = document.getElementById("forgotConfirmCloseBtn");
+const forgotIdentifierInput = document.getElementById("forgotIdentifier");
+const forgotUsername = document.getElementById("forgotUsername");
+const forgotAccountDetail = document.getElementById("forgotAccountDetail");
+const forgotLookupMessage = document.getElementById("forgotLookupMessage");
+const forgotConfirmMessage = document.getElementById("forgotConfirmMessage");
+const forgotStepLookup = document.getElementById("forgotStepLookup");
+const forgotStepConfirm = document.getElementById("forgotStepConfirm");
+
+const loginStorageKey = "fivefood_login_identifier";
+const loginRememberKey = "fivefood_login_remember";
+const registerUrl = "{{ url_for('auth.register') }}";
+const hasServerErrors = {{ 'true' if form_errors else 'false' }};
+const forgotLookupUrl = "{{ url_for('auth.forgot_password_lookup') }}";
+const forgotAcceptUrl = "{{ url_for('auth.forgot_password_accept') }}";
+
+let forgotAccount = {
+    identifier: "",
+    username: "",
+    role: "",
+    maskedIdentifier: "",
+};
+
+function setFieldError(input, errorId, message) {
+    const error = document.getElementById(errorId);
+    if (input) {
+        input.classList.add("is-invalid");
+    }
+    if (error) {
+        error.innerHTML = message || "";
+    }
+}
+
+function clearFieldError(input, errorId) {
+    const error = document.getElementById(errorId);
+    if (input) {
+        input.classList.remove("is-invalid");
+    }
+    if (error) {
+        error.innerHTML = "";
+    }
+}
+
+function checkEmptyField(input, errorId, message) {
+    if (!input.value.trim()) {
+        setFieldError(input, errorId, message);
+        return false;
+    }
+    clearFieldError(input, errorId);
+    return true;
+}
+
+function validateIdentifier(value) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
+    return emailRegex.test(value) || phoneRegex.test(value);
+}
+
+function validateInput() {
+    let isValid = true;
+    const identifierValue = identifierInput.value.trim();
+    const passwordValue = passwordInput.value;
+
+    if (!checkEmptyField(identifierInput, "identifierError", "Vui lòng nhập email hoặc số điện thoại")) {
+        isValid = false;
+    } else if (!validateIdentifier(identifierValue)) {
+        setFieldError(identifierInput, "identifierError", "Email hoặc số điện thoại không hợp lệ");
+        isValid = false;
+    }
+
+    if (!checkEmptyField(passwordInput, "passwordError", "Vui lòng nhập mật khẩu")) {
+        isValid = false;
+    } else if (passwordValue.length < 6) {
+        setFieldError(passwordInput, "passwordError", "Mật khẩu tối thiểu 6 ký tự");
+        isValid = false;
+    }
+
+    return isValid;
+}
+
+function syncRememberState() {
+    const identifierValue = identifierInput.value.trim();
+    const rememberEnabled = rememberMeInput.checked;
+
+    if (rememberEnabled && identifierValue) {
+        localStorage.setItem(loginStorageKey, identifierValue);
+        localStorage.setItem(loginRememberKey, "1");
+    } else {
+        localStorage.removeItem(loginStorageKey);
+        localStorage.removeItem(loginRememberKey);
+    }
+}
+
+function dangNhapLoad() {
+    if (!hasServerErrors) {
+        const remembered = localStorage.getItem(loginRememberKey) === "1";
+        const rememberedIdentifier = localStorage.getItem(loginStorageKey) || "";
+        const hasServerValue = identifierInput.value.trim().length > 0;
+
+        if (!hasServerValue && rememberedIdentifier) {
+            identifierInput.value = rememberedIdentifier;
+        }
+
+        rememberMeInput.checked = remembered && !!identifierInput.value.trim();
+        clearFieldError(identifierInput, "identifierError");
+        clearFieldError(passwordInput, "passwordError");
+    }
+
+    passwordInput.value = "";
+    const firstInvalidInput = document.querySelector(".is-invalid");
+    if (firstInvalidInput) {
+        firstInvalidInput.focus();
+        return;
+    }
+
+    identifierInput.focus();
+}
+
+function togglePassword() {
+    const isPassword = passwordInput.type === "password";
+    passwordInput.type = isPassword ? "text" : "password";
+    passwordToggle.setAttribute("aria-pressed", String(isPassword));
+    passwordEye.innerHTML = isPassword
+        ? '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><path d="M4.5 4.5 19.5 19.5"/>'
+        : '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function btnDangNhapClick(event) {
+    event.preventDefault();
+    const isValid = validateInput();
+
+    if (!isValid) {
+        return;
+    }
+
+    syncRememberState();
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = "Đang đăng nhập...";
+    loginForm.submit();
+}
+
+function btnDangKyNgayClick() {
+    window.location.href = registerUrl;
+}
+
+function rememberMeChanged() {
+    syncRememberState();
+}
+
+function setForgotMessage(element, message, isSuccess) {
+    if (!element) {
+        return;
+    }
+    element.textContent = message || "";
+    element.classList.toggle("forgot-modal__success", Boolean(isSuccess));
+}
+
+function showForgotStep(step) {
+    [forgotStepLookup, forgotStepConfirm].forEach((item) => {
+        if (item) {
+            item.classList.remove("is-active");
+        }
+    });
+
+    if (step === "lookup") {
+        forgotStepLookup.classList.add("is-active");
+    } else if (step === "confirm") {
+        forgotStepConfirm.classList.add("is-active");
+    }
+}
+
+function resetForgotModal() {
+    forgotAccount = {
+        identifier: "",
+        username: "",
+        role: "",
+        maskedIdentifier: "",
+    };
+    forgotIdentifierInput.value = "";
+    forgotUsername.textContent = "";
+    forgotAccountDetail.textContent = "";
+    setForgotMessage(forgotLookupMessage, "", false);
+    setForgotMessage(forgotConfirmMessage, "", false);
+    showForgotStep("lookup");
+}
+
+function returnToForgotLookup() {
+    resetForgotModal();
+    forgotIdentifierInput.focus();
+}
+
+function openForgotModal() {
+    resetForgotModal();
+    forgotPasswordModal.classList.add("is-open");
+    forgotPasswordModal.setAttribute("aria-hidden", "false");
+    forgotIdentifierInput.focus();
+}
+
+function closeForgotModal() {
+    forgotPasswordModal.classList.remove("is-open");
+    forgotPasswordModal.setAttribute("aria-hidden", "true");
+}
+
+async function postJson(url, payload) {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    let data = {};
+    try {
+        data = await response.json();
+    } catch (error) {
+        data = {};
+    }
+
+    if (!response.ok) {
+        throw new Error(data.message || "Đã xảy ra lỗi.");
+    }
+
+    return data;
+}
+
+async function handleForgotLookup() {
+    const identifier = forgotIdentifierInput.value.trim();
+
+    if (!identifier) {
+        setForgotMessage(forgotLookupMessage, "Vui lòng nhập email hoặc số điện thoại.");
+        return;
+    }
+
+    if (!validateIdentifier(identifier)) {
+        setForgotMessage(forgotLookupMessage, "Email hoặc số điện thoại không hợp lệ.");
+        return;
+    }
+
+    try {
+        const data = await postJson(forgotLookupUrl, { identifier });
+        forgotAccount = {
+            identifier,
+            username: data.username || "",
+            role: data.role || "",
+            maskedIdentifier: data.masked_identifier || "",
+        };
+        forgotUsername.textContent = data.username || "Tài khoản của bạn";
+        forgotAccountDetail.textContent = data.masked_identifier
+            ? `Tài khoản liên kết với ${data.masked_identifier}`
+            : `Vai trò: ${data.role || "chưa xác định"}`;
+        setForgotMessage(forgotConfirmMessage, "", false);
+        showForgotStep("confirm");
+    } catch (error) {
+        setForgotMessage(forgotLookupMessage, error.message || "Mình chưa tìm thấy tài khoản phù hợp.");
+    }
+}
+
+async function handleForgotAccept() {
+    if (!forgotAccount.identifier) {
+        setForgotMessage(forgotConfirmMessage, "Phiên xác minh đã hết hạn. Vui lòng kiểm tra lại.");
+        showForgotStep("lookup");
+        return;
+    }
+
+    try {
+        const data = await postJson(forgotAcceptUrl, { identifier: forgotAccount.identifier });
+        window.location.href = data.redirect_url || registerUrl;
+    } catch (error) {
+        setForgotMessage(forgotConfirmMessage, error.message || "Mình chưa thể xác nhận tài khoản này.");
+    }
+}
+
+identifierInput.addEventListener("input", function () {
+    const value = this.value.trim();
+    if (!value) {
+        setFieldError(this, "identifierError", "Vui lòng nhập email hoặc số điện thoại");
+        return;
+    }
+    if (!validateIdentifier(value)) {
+        setFieldError(this, "identifierError", "Email hoặc số điện thoại không hợp lệ");
+        return;
+    }
+    clearFieldError(this, "identifierError");
+});
+
+passwordInput.addEventListener("input", function () {
+    if (!this.value) {
+        setFieldError(this, "passwordError", "Vui lòng nhập mật khẩu");
+        return;
+    }
+    if (this.value.length < 6) {
+        setFieldError(this, "passwordError", "Mật khẩu tối thiểu 6 ký tự");
+        return;
+    }
+    clearFieldError(this, "passwordError");
+});
+
+passwordToggle.addEventListener("click", togglePassword);
+rememberMeInput.addEventListener("change", rememberMeChanged);
+loginForm.addEventListener("submit", btnDangNhapClick);
+forgotPasswordBtn.addEventListener("click", openForgotModal);
+forgotPasswordClose.addEventListener("click", closeForgotModal);
+forgotLookupCloseBtn.addEventListener("click", closeForgotModal);
+forgotLookupBtn.addEventListener("click", handleForgotLookup);
+forgotAcceptBtn.addEventListener("click", handleForgotAccept);
+forgotBackBtn.addEventListener("click", returnToForgotLookup);
+forgotConfirmCloseBtn.addEventListener("click", closeForgotModal);
+registerNowBtn.addEventListener("click", btnDangKyNgayClick);
+googleLoginBtn.addEventListener("click", () => alert("Đăng nhập Google đang được phát triển."));
+facebookLoginBtn.addEventListener("click", () => alert("Đăng nhập Facebook đang được phát triển."));
+
+forgotPasswordModal.addEventListener("click", (event) => {
+    if (event.target === forgotPasswordModal) {
+        closeForgotModal();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && forgotPasswordModal.classList.contains("is-open")) {
+        closeForgotModal();
+    }
+});
+
+dangNhapLoad();
+</script>
 {% endblock %}
