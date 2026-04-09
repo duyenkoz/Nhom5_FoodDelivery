@@ -131,6 +131,8 @@ a {
     box-shadow: 0 10px 24px rgba(255, 152, 0, 0.18);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     gap: 6px;
+    text-decoration: none;
+    cursor: pointer;
 }
 
 .site-header__auth:hover {
@@ -138,18 +140,11 @@ a {
     box-shadow: 0 14px 28px rgba(255, 152, 0, 0.22);
 }
 
-.site-header__auth-link {
-    color: #fff;
-    text-decoration: none;
+.site-header__auth-link,
+.site-header__auth-text {
     display: inline-flex;
     align-items: center;
-    padding: 0;
-    cursor: pointer;
-}
-
-.site-header__auth-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration: none;
 }
 
 .site-header__auth-sep,
