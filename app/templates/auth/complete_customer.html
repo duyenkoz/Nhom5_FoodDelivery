@@ -1,0 +1,60 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hoàn thiện hồ sơ khách hàng | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+<div class="auth-page auth-page--customer">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4">
+                <h3 class="text-center mb-4">Hoàn thiện hồ sơ khách hàng</h3>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label" for="tenHienThi">Tên hiển thị *</label>
+                        <input
+                            type="text"
+                            id="tenHienThi"
+                            name="tenHienThi"
+                            class="form-control{% if form_errors.tenHienThi %} is-invalid{% endif %}"
+                            required
+                            maxlength="100"
+                            value="{{ form_values.get('tenHienThi', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.tenHienThi }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <input
+                            type="text"
+                            id="diaChi"
+                            name="diaChi"
+                            class="form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                            required
+                            maxlength="200"
+                            value="{{ form_values.get('diaChi', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="khuVuc">Khu vực *</label>
+                        <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
+                            <option value="">-- Chọn khu vực --</option>
+                            <option value="Hồ Chí Minh" {% if form_values.get('khuVuc') == 'Hồ Chí Minh' %}selected{% endif %}>Hồ Chí Minh</option>
+                            <option value="Hà Nội" {% if form_values.get('khuVuc') == 'Hà Nội' %}selected{% endif %}>Hà Nội</option>
+                            <option value="Đà Nẵng" {% if form_values.get('khuVuc') == 'Đà Nẵng' %}selected{% endif %}>Đà Nẵng</option>
+                        </select>
+                        <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Hoàn tất</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
