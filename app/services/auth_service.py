@@ -2,7 +2,9 @@ import os
 import re
 
 from flask import current_app
+import bcrypt
 from werkzeug.utils import secure_filename
+from sqlalchemy import func
 
 from app.extensions import db
 from app.models.customer import Customer
@@ -14,6 +16,8 @@ USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{3,30}$")
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PHONE_PATTERN = re.compile(r"^(03|05|07|08|09)[0-9]{8}$")
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+PASSWORD_MIN_LENGTH = 6
+PASSWORD_MAX_LENGTH = 72
 
 
 def normalize_role(role_raw):
@@ -22,6 +26,32 @@ def normalize_role(role_raw):
 
 def _clean(value):
     return value.strip() if isinstance(value, str) else ""
+
+
+def hash_password(raw_password):
+    password = raw_password or ""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(stored_password, raw_password):
+    if not stored_password:
+        return False
+
+    candidate = raw_password or ""
+    stored_value = stored_password.strip()
+
+    if stored_value.startswith("$2a$") or stored_value.startswith("$2b$") or stored_value.startswith("$2y$"):
+        try:
+            return bcrypt.checkpw(candidate.encode("utf-8"), stored_value.encode("utf-8"))
+        except ValueError:
+            return False
+
+    return stored_value == candidate
+
+
+def set_user_password(user, raw_password):
+    user.password = hash_password(raw_password)
+    return user
 
 
 def _validate_customer_profile(form):
@@ -117,7 +147,7 @@ def _validate_registration(form):
         errors["email"] = "Vui lòng nhập email."
     elif not EMAIL_PATTERN.fullmatch(email):
         errors["email"] = "Email không hợp lệ."
-    elif User.query.filter_by(email=email).first() is not None:
+    elif User.query.filter(func.lower(User.email) == email.lower()).first() is not None:
         errors["email"] = "Email đã được sử dụng."
 
     if not phone:
@@ -127,9 +157,9 @@ def _validate_registration(form):
 
     if not password:
         errors["password"] = "Vui lòng nhập mật khẩu."
-    elif len(password) < 6:
-        errors["password"] = "Mật khẩu phải có ít nhất 6 ký tự."
-    elif len(password) > 72:
+    elif len(password) < PASSWORD_MIN_LENGTH:
+        errors["password"] = f"Mật khẩu phải có ít nhất {PASSWORD_MIN_LENGTH} ký tự."
+    elif len(password) > PASSWORD_MAX_LENGTH:
         errors["password"] = "Mật khẩu quá dài."
 
     if password_confirm != password:
@@ -156,7 +186,7 @@ def create_registration_user(form):
         username=data["username"],
         email=data["email"],
         phone=data["phone"],
-        password=data["password"],
+        password=hash_password(data["password"]),
         role=normalize_role(data["role"]),
         status=True,
     )
