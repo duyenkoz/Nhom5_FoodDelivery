@@ -47,6 +47,18 @@
     stroke-linejoin: round;
 }
 
+.auth-page--login .forgot-modal__field .input-group {
+    width: 100%;
+}
+
+.auth-page--login .forgot-modal__field .input-group .form-control {
+    border-radius: 0;
+}
+
+.auth-page--login .forgot-modal__field .input-group-text--left {
+    background: #f8f9fa;
+}
+
 .auth-page--login .login-form__options {
     display: flex;
     align-items: center;

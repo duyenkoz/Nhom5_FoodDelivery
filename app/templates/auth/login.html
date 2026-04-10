@@ -119,35 +119,111 @@
             </div>
             <div class="auth-modal__body forgot-modal__body">
                 <div class="forgot-modal__step is-active" id="forgotStepLookup">
-                    <p class="forgot-modal__note">Nhập email, số điện thoại hoặc tên đăng nhập, mình sẽ kiểm tra tài khoản giúp bạn.</p>
+                    <p class="forgot-modal__note">Nhập email để mình gửi mã OTP xác minh tài khoản của bạn.</p>
                     <div class="forgot-modal__field">
-                        <label class="form-label" for="forgotIdentifier">Email, Số điện thoại hoặc Tên đăng nhập</label>
+                        <label class="form-label" for="forgotEmail">Email</label>
                         <input
-                            type="text"
-                            id="forgotIdentifier"
+                            type="email"
+                            id="forgotEmail"
                             class="form-control"
-                            placeholder="Nhập email, số điện thoại hoặc tên đăng nhập"
-                            autocomplete="off"
+                            placeholder="Nhập email của bạn"
+                            autocomplete="email"
                         >
                     </div>
                     <div class="forgot-modal__message" id="forgotLookupMessage"></div>
                     <div class="forgot-modal__actions">
-                        <button type="button" class="btn btn-primary" id="forgotLookupBtn">Kiểm tra tài khoản</button>
+                        <button type="button" class="btn btn-primary" id="forgotLookupBtn">Gửi mã OTP</button>
                         <button type="button" class="btn btn-secondary" id="forgotLookupCloseBtn">Đóng</button>
                     </div>
                 </div>
 
-                <div class="forgot-modal__step" id="forgotStepConfirm">
-                    <p class="forgot-modal__note">Mình đã tìm thấy tài khoản này, bạn kiểm tra lại giúp mình nhé.</p>
-                    <div class="forgot-modal__account">
-                        <strong id="forgotUsername"></strong>
-                        <div class="forgot-modal__account-detail" id="forgotAccountDetail"></div>
+                <div class="forgot-modal__step" id="forgotStepVerify">
+                    <p class="forgot-modal__note">Nhập mã OTP gồm 4 chữ số đã gửi đến email của bạn.</p>
+                    <div class="forgot-modal__field">
+                        <label class="form-label" for="forgotOtp">Mã OTP</label>
+                        <input
+                            type="text"
+                            id="forgotOtp"
+                            class="form-control"
+                            placeholder="Nhập mã OTP"
+                            inputmode="numeric"
+                            maxlength="4"
+                            autocomplete="one-time-code"
+                        >
                     </div>
-                    <div class="forgot-modal__message" id="forgotConfirmMessage"></div>
+                    <div class="forgot-modal__message" id="forgotVerifyMessage"></div>
                     <div class="forgot-modal__actions">
-                        <button type="button" class="btn btn-primary" id="forgotAcceptBtn">Đúng rồi, tiếp tục</button>
-                        <button type="button" class="btn btn-secondary" id="forgotBackBtn">Không phải, nhập lại</button>
-                        <button type="button" class="btn btn-secondary" id="forgotConfirmCloseBtn">Đóng</button>
+                        <button type="button" class="btn btn-primary" id="forgotVerifyBtn">Xác minh OTP</button>
+                        <button type="button" class="btn btn-secondary" id="forgotResendBtn">Gửi lại OTP</button>
+                        <button type="button" class="btn btn-secondary" id="forgotBackBtn">Nhập lại email</button>
+                        <button type="button" class="btn btn-secondary" id="forgotVerifyCloseBtn">Đóng</button>
+                    </div>
+                </div>
+
+                <div class="forgot-modal__step" id="forgotStepReset">
+                    <p class="forgot-modal__note">Tạo mật khẩu mới cho tài khoản của bạn.</p>
+                    <div class="forgot-modal__field">
+                        <label class="form-label" for="forgotNewPassword">Mật khẩu mới</label>
+                        <div class="input-group">
+                            <span class="input-group-text input-group-text--left" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+                            </span>
+                            <input
+                                type="password"
+                                id="forgotNewPassword"
+                                class="form-control"
+                                placeholder="Nhập mật khẩu mới"
+                                autocomplete="new-password"
+                                minlength="6"
+                                maxlength="72"
+                            >
+                            <button
+                                type="button"
+                                class="input-group-text input-group-text--right auth-login__toggle"
+                                id="forgotNewPasswordToggle"
+                                aria-label="Hiện hoặc ẩn mật khẩu mới"
+                                aria-pressed="false"
+                            >
+                                <svg id="forgotNewPasswordEye" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="forgot-modal__field">
+                        <label class="form-label" for="forgotConfirmPassword">Nhập lại mật khẩu mới</label>
+                        <div class="input-group">
+                            <span class="input-group-text input-group-text--left" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+                            </span>
+                            <input
+                                type="password"
+                                id="forgotConfirmPassword"
+                                class="form-control"
+                                placeholder="Nhập lại mật khẩu mới"
+                                autocomplete="new-password"
+                                minlength="6"
+                                maxlength="72"
+                            >
+                            <button
+                                type="button"
+                                class="input-group-text input-group-text--right auth-login__toggle"
+                                id="forgotConfirmPasswordToggle"
+                                aria-label="Hiện hoặc ẩn mật khẩu nhập lại"
+                                aria-pressed="false"
+                            >
+                                <svg id="forgotConfirmPasswordEye" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="forgot-modal__message" id="forgotResetMessage"></div>
+                    <div class="forgot-modal__actions">
+                        <button type="button" class="btn btn-primary" id="forgotResetBtn">Cập nhật mật khẩu</button>
+                        <button type="button" class="btn btn-secondary" id="forgotResetCloseBtn">Đóng</button>
                     </div>
                 </div>
             </div>
@@ -170,30 +246,46 @@ const forgotPasswordModal = document.getElementById("forgotPasswordModal");
 const forgotPasswordClose = document.getElementById("forgotPasswordClose");
 const forgotLookupCloseBtn = document.getElementById("forgotLookupCloseBtn");
 const forgotLookupBtn = document.getElementById("forgotLookupBtn");
-const forgotAcceptBtn = document.getElementById("forgotAcceptBtn");
 const forgotBackBtn = document.getElementById("forgotBackBtn");
-const forgotConfirmCloseBtn = document.getElementById("forgotConfirmCloseBtn");
-const forgotIdentifierInput = document.getElementById("forgotIdentifier");
-const forgotUsername = document.getElementById("forgotUsername");
-const forgotAccountDetail = document.getElementById("forgotAccountDetail");
+const forgotVerifyBtn = document.getElementById("forgotVerifyBtn");
+const forgotResendBtn = document.getElementById("forgotResendBtn");
+const forgotVerifyCloseBtn = document.getElementById("forgotVerifyCloseBtn");
+const forgotResetBtn = document.getElementById("forgotResetBtn");
+const forgotResetCloseBtn = document.getElementById("forgotResetCloseBtn");
+const forgotEmailInput = document.getElementById("forgotEmail");
+const forgotOtpInput = document.getElementById("forgotOtp");
+const forgotNewPasswordInput = document.getElementById("forgotNewPassword");
+const forgotNewPasswordToggle = document.getElementById("forgotNewPasswordToggle");
+const forgotNewPasswordEye = document.getElementById("forgotNewPasswordEye");
+const forgotConfirmPasswordInput = document.getElementById("forgotConfirmPassword");
+const forgotConfirmPasswordToggle = document.getElementById("forgotConfirmPasswordToggle");
+const forgotConfirmPasswordEye = document.getElementById("forgotConfirmPasswordEye");
 const forgotLookupMessage = document.getElementById("forgotLookupMessage");
-const forgotConfirmMessage = document.getElementById("forgotConfirmMessage");
+const forgotVerifyMessage = document.getElementById("forgotVerifyMessage");
+const forgotResetMessage = document.getElementById("forgotResetMessage");
 const forgotStepLookup = document.getElementById("forgotStepLookup");
-const forgotStepConfirm = document.getElementById("forgotStepConfirm");
+const forgotStepVerify = document.getElementById("forgotStepVerify");
+const forgotStepReset = document.getElementById("forgotStepReset");
 
 const loginStorageKey = "fivefood_login_identifier";
 const loginRememberKey = "fivefood_login_remember";
 const registerUrl = "{{ url_for('auth.register') }}";
-const hasServerErrors = {{ 'true' if form_errors else 'false' }};
-const forgotLookupUrl = "{{ url_for('auth.forgot_password_lookup') }}";
-const forgotAcceptUrl = "{{ url_for('auth.forgot_password_accept') }}";
+const hasServerErrors = "{{ 'true' if form_errors else 'false' }}";
+const forgotLookupUrl = "{{ url_for('password_reset.forgot_password') }}";
+const forgotVerifyUrl = "{{ url_for('password_reset.verify_otp') }}";
+const forgotResendUrl = "{{ url_for('password_reset.resend_otp') }}";
+const forgotResetUrl = "{{ url_for('password_reset.reset_password') }}";
 
-let forgotAccount = {
-    identifier: "",
-    username: "",
-    role: "",
-    maskedIdentifier: "",
+let forgotState = {
+    email: "",
+    resendCooldown: 0,
+    resendTimerId: null,
+    resendAvailableAt: null,
 };
+
+function getForgotCooldownStorageKey(email) {
+    return `forgot_password_cooldown_until:${String(email || "").trim().toLowerCase()}`;
+}
 
 function setFieldError(input, errorId, message) {
     const error = document.getElementById(errorId);
@@ -227,7 +319,7 @@ function checkEmptyField(input, errorId, message) {
 function validateIdentifier(value) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    const usernameRegex = /^[A-Za-z0-9_]{3,30}$/;
+    const usernameRegex = /^[A-Za-z0-9_-]{3,30}$/;
     return emailRegex.test(value) || phoneRegex.test(value) || usernameRegex.test(value);
 }
 
@@ -300,6 +392,23 @@ function togglePassword() {
         : '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
 }
 
+function togglePasswordField(input, toggleButton, eyeIcon) {
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    toggleButton.setAttribute("aria-pressed", String(isPassword));
+    eyeIcon.innerHTML = isPassword
+        ? '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><path d="M4.5 4.5 19.5 19.5"/>'
+        : '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function toggleForgotNewPassword() {
+    togglePasswordField(forgotNewPasswordInput, forgotNewPasswordToggle, forgotNewPasswordEye);
+}
+
+function toggleForgotConfirmPassword() {
+    togglePasswordField(forgotConfirmPasswordInput, forgotConfirmPasswordToggle, forgotConfirmPasswordEye);
+}
+
 function btnDangNhapClick(event) {
     event.preventDefault();
     const isValid = validateInput();
@@ -331,7 +440,7 @@ function setForgotMessage(element, message, isSuccess) {
 }
 
 function showForgotStep(step) {
-    [forgotStepLookup, forgotStepConfirm].forEach((item) => {
+    [forgotStepLookup, forgotStepVerify, forgotStepReset].forEach((item) => {
         if (item) {
             item.classList.remove("is-active");
         }
@@ -339,39 +448,110 @@ function showForgotStep(step) {
 
     if (step === "lookup") {
         forgotStepLookup.classList.add("is-active");
-    } else if (step === "confirm") {
-        forgotStepConfirm.classList.add("is-active");
+    } else if (step === "verify") {
+        forgotStepVerify.classList.add("is-active");
+    } else if (step === "reset") {
+        forgotStepReset.classList.add("is-active");
     }
 }
 
-function resetForgotModal() {
-    forgotAccount = {
-        identifier: "",
-        username: "",
-        role: "",
-        maskedIdentifier: "",
+function clearResendTimer() {
+    if (forgotState.resendTimerId) {
+        window.clearInterval(forgotState.resendTimerId);
+        forgotState.resendTimerId = null;
+    }
+    forgotState.resendCooldown = 0;
+    forgotResendBtn.disabled = false;
+    forgotResendBtn.textContent = "Gửi lại OTP";
+}
+
+function setResendAvailableAt(timestamp) {
+    const numericTimestamp = Number(timestamp);
+    forgotState.resendAvailableAt = Number.isFinite(numericTimestamp) ? numericTimestamp : null;
+}
+
+function persistResendAvailableAt(email, timestamp) {
+    const key = getForgotCooldownStorageKey(email);
+    if (timestamp) {
+        sessionStorage.setItem(key, String(timestamp));
+    }
+}
+
+function loadPersistedResendAvailableAt(email) {
+    const key = getForgotCooldownStorageKey(email);
+    const value = Number(sessionStorage.getItem(key));
+    return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function clearPersistedResendAvailableAt(email) {
+    const key = getForgotCooldownStorageKey(email);
+    sessionStorage.removeItem(key);
+}
+
+function getRemainingResendSeconds() {
+    if (!forgotState.resendAvailableAt && forgotState.email) {
+        const persisted = loadPersistedResendAvailableAt(forgotState.email);
+        if (persisted) {
+            setResendAvailableAt(persisted);
+        }
+    }
+
+    if (!forgotState.resendAvailableAt) {
+        return 0;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return Math.max(0, Math.ceil(forgotState.resendAvailableAt - nowSeconds));
+}
+
+function startResendCooldown(seconds) {
+    clearResendTimer();
+    forgotState.resendCooldown = Math.max(0, Number(seconds) || 0);
+    forgotResendBtn.disabled = true;
+
+    const tick = () => {
+        if (forgotState.resendCooldown <= 0) {
+            clearResendTimer();
+            return;
+        }
+
+        forgotResendBtn.textContent = `Gửi lại OTP (${forgotState.resendCooldown}s)`;
+        forgotState.resendCooldown -= 1;
     };
-    forgotIdentifierInput.value = "";
-    forgotUsername.textContent = "";
-    forgotAccountDetail.textContent = "";
+
+    tick();
+    forgotState.resendTimerId = window.setInterval(tick, 1000);
+}
+
+function resetForgotModal() {
+    forgotState.email = "";
+    forgotState.resendAvailableAt = null;
+    forgotEmailInput.value = "";
+    forgotOtpInput.value = "";
+    forgotNewPasswordInput.value = "";
+    forgotConfirmPasswordInput.value = "";
     setForgotMessage(forgotLookupMessage, "", false);
-    setForgotMessage(forgotConfirmMessage, "", false);
+    setForgotMessage(forgotVerifyMessage, "", false);
+    setForgotMessage(forgotResetMessage, "", false);
+    clearResendTimer();
     showForgotStep("lookup");
 }
 
 function returnToForgotLookup() {
+    clearResendTimer();
     resetForgotModal();
-    forgotIdentifierInput.focus();
+    forgotEmailInput.focus();
 }
 
 function openForgotModal() {
     resetForgotModal();
     forgotPasswordModal.classList.add("is-open");
     forgotPasswordModal.setAttribute("aria-hidden", "false");
-    forgotIdentifierInput.focus();
+    forgotEmailInput.focus();
 }
 
 function closeForgotModal() {
+    clearResendTimer();
     forgotPasswordModal.classList.remove("is-open");
     forgotPasswordModal.setAttribute("aria-hidden", "true");
 }
@@ -394,56 +574,140 @@ async function postJson(url, payload) {
     }
 
     if (!response.ok) {
-        throw new Error(data.message || "Đã xảy ra lỗi.");
+        const error = new Error(data.message || "Đã xảy ra lỗi.");
+        error.retryAfter = typeof data.retry_after === "number" ? data.retry_after : null;
+        throw error;
     }
 
     return data;
 }
 
 async function handleForgotLookup() {
-    const identifier = forgotIdentifierInput.value.trim();
+    const email = forgotEmailInput.value.trim();
 
-    if (!identifier) {
-        setForgotMessage(forgotLookupMessage, "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập.");
+    if (!email) {
+        setForgotMessage(forgotLookupMessage, "Vui lòng nhập email.");
         return;
     }
 
-    if (!validateIdentifier(identifier)) {
-        setForgotMessage(forgotLookupMessage, "Email, số điện thoại hoặc tên đăng nhập không hợp lệ.");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        setForgotMessage(forgotLookupMessage, "Email không hợp lệ.");
         return;
     }
 
     try {
-        const data = await postJson(forgotLookupUrl, { identifier });
-        forgotAccount = {
-            identifier,
-            username: data.username || "",
-            role: data.role || "",
-            maskedIdentifier: data.masked_identifier || "",
-        };
-        forgotUsername.textContent = data.username || "Tài khoản của bạn";
-        forgotAccountDetail.textContent = data.masked_identifier
-            ? `Tài khoản liên kết với ${data.masked_identifier}`
-            : `Vai trò: ${data.role || "chưa xác định"}`;
-        setForgotMessage(forgotConfirmMessage, "", false);
-        showForgotStep("confirm");
+        const data = await postJson(forgotLookupUrl, { email });
+        forgotState.email = email;
+        if (typeof data.cooldown_until === "number") {
+            setResendAvailableAt(data.cooldown_until);
+            persistResendAvailableAt(email, data.cooldown_until);
+        }
+        setForgotMessage(forgotLookupMessage, data.message || "Nếu email hợp lệ, mã OTP đã được gửi.", true);
+        showForgotStep("verify");
+        forgotOtpInput.focus();
     } catch (error) {
-        setForgotMessage(forgotLookupMessage, error.message || "Mình chưa tìm thấy tài khoản phù hợp.");
+        setForgotMessage(forgotLookupMessage, error.message || "Không thể gửi mã OTP lúc này.");
     }
 }
 
-async function handleForgotAccept() {
-    if (!forgotAccount.identifier) {
-        setForgotMessage(forgotConfirmMessage, "Phiên xác minh đã hết hạn. Vui lòng kiểm tra lại.");
+async function handleForgotVerify() {
+    const otp = forgotOtpInput.value.trim();
+
+    if (!forgotState.email) {
+        setForgotMessage(forgotVerifyMessage, "Phiên xác minh đã hết hạn. Vui lòng nhập lại email.");
         showForgotStep("lookup");
         return;
     }
 
+    if (!otp) {
+        setForgotMessage(forgotVerifyMessage, "Vui lòng nhập mã OTP.");
+        return;
+    }
+
     try {
-        const data = await postJson(forgotAcceptUrl, { identifier: forgotAccount.identifier });
-        window.location.href = data.redirect_url || registerUrl;
+        const data = await postJson(forgotVerifyUrl, { email: forgotState.email, otp });
+        setForgotMessage(forgotVerifyMessage, data.message || "Xác minh OTP thành công.", true);
+        showForgotStep("reset");
+        forgotNewPasswordInput.focus();
     } catch (error) {
-        setForgotMessage(forgotConfirmMessage, error.message || "Mình chưa thể xác nhận tài khoản này.");
+        setForgotMessage(forgotVerifyMessage, error.message || "Mã OTP không đúng hoặc đã hết hạn.");
+    }
+}
+
+async function handleForgotResend() {
+    if (!forgotState.email) {
+        setForgotMessage(forgotVerifyMessage, "Phiên xác minh đã hết hạn. Vui lòng nhập lại email.");
+        showForgotStep("lookup");
+        return;
+    }
+
+    const remainingSeconds = getRemainingResendSeconds();
+    if (remainingSeconds > 0) {
+        setForgotMessage(forgotVerifyMessage, `Vui lòng chờ ${remainingSeconds} giây trước khi yêu cầu mã mới.`);
+        startResendCooldown(remainingSeconds);
+        return;
+    }
+
+    try {
+        const data = await postJson(forgotResendUrl, { email: forgotState.email });
+        if (typeof data.cooldown_until === "number") {
+            setResendAvailableAt(data.cooldown_until);
+            persistResendAvailableAt(forgotState.email, data.cooldown_until);
+        }
+        setForgotMessage(forgotVerifyMessage, data.message || "Mã OTP đã được gửi lại.", true);
+        if (typeof data.retry_after === "number") {
+            startResendCooldown(data.retry_after);
+        } else if (typeof data.cooldown_until === "number") {
+            startResendCooldown(getRemainingResendSeconds());
+        }
+    } catch (error) {
+        if (typeof error.retryAfter === "number") {
+            startResendCooldown(error.retryAfter);
+        }
+        setForgotMessage(forgotVerifyMessage, error.message || "Không thể gửi lại mã OTP lúc này.");
+    }
+}
+
+async function handleForgotReset() {
+    const newPassword = forgotNewPasswordInput.value;
+    const confirmPassword = forgotConfirmPasswordInput.value;
+
+    if (!forgotState.email) {
+        setForgotMessage(forgotResetMessage, "Phiên đặt lại đã hết hạn. Vui lòng thực hiện lại từ đầu.");
+        showForgotStep("lookup");
+        return;
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+        setForgotMessage(forgotResetMessage, "Mật khẩu mới tối thiểu 6 ký tự.");
+        return;
+    }
+
+    if (!confirmPassword || confirmPassword.length < 6) {
+        setForgotMessage(forgotResetMessage, "Mật khẩu xác nhận tối thiểu 6 ký tự.");
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        setForgotMessage(forgotResetMessage, "Mật khẩu nhập lại không khớp.");
+        return;
+    }
+
+    try {
+        const data = await postJson(forgotResetUrl, {
+            email: forgotState.email,
+            new_password: newPassword,
+            confirm_password: confirmPassword,
+        });
+        setForgotMessage(forgotResetMessage, data.message || "Mật khẩu đã được cập nhật.", true);
+        clearPersistedResendAvailableAt(forgotState.email);
+        window.setTimeout(() => {
+            closeForgotModal();
+            resetForgotModal();
+        }, 1200);
+    } catch (error) {
+        setForgotMessage(forgotResetMessage, error.message || "Không thể cập nhật mật khẩu.");
     }
 }
 
@@ -473,15 +737,20 @@ passwordInput.addEventListener("input", function () {
 });
 
 passwordToggle.addEventListener("click", togglePassword);
+forgotNewPasswordToggle.addEventListener("click", toggleForgotNewPassword);
+forgotConfirmPasswordToggle.addEventListener("click", toggleForgotConfirmPassword);
 rememberMeInput.addEventListener("change", rememberMeChanged);
 loginForm.addEventListener("submit", btnDangNhapClick);
 forgotPasswordBtn.addEventListener("click", openForgotModal);
 forgotPasswordClose.addEventListener("click", closeForgotModal);
 forgotLookupCloseBtn.addEventListener("click", closeForgotModal);
 forgotLookupBtn.addEventListener("click", handleForgotLookup);
-forgotAcceptBtn.addEventListener("click", handleForgotAccept);
 forgotBackBtn.addEventListener("click", returnToForgotLookup);
-forgotConfirmCloseBtn.addEventListener("click", closeForgotModal);
+forgotVerifyBtn.addEventListener("click", handleForgotVerify);
+forgotResendBtn.addEventListener("click", handleForgotResend);
+forgotVerifyCloseBtn.addEventListener("click", closeForgotModal);
+forgotResetBtn.addEventListener("click", handleForgotReset);
+forgotResetCloseBtn.addEventListener("click", closeForgotModal);
 registerNowBtn.addEventListener("click", btnDangKyNgayClick);
 googleLoginBtn.addEventListener("click", () => alert("Đăng nhập Google đang được phát triển."));
 facebookLoginBtn.addEventListener("click", () => alert("Đăng nhập Facebook đang được phát triển."));
