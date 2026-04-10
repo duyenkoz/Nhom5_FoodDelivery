@@ -5,9 +5,7 @@
     justify-content: center;
     margin-top: -16px;
     padding: 8px 0 14px;
-    background:
-        radial-gradient(circle at top left, rgba(255, 152, 0, 0.08), transparent 32%),
-        radial-gradient(circle at bottom right, rgba(33, 45, 61, 0.04), transparent 30%);
+    background: transparent;
 }
 
 .auth-page,
