@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+﻿from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import or_
 
 from app.models.user import User
@@ -6,6 +6,7 @@ from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
     create_registration_user,
+    USERNAME_PATTERN,
     username_exists,
 )
 
@@ -25,7 +26,13 @@ def _is_email_or_phone(value):
 
 
 def _find_user_by_identifier(identifier):
-    return User.query.filter(or_(User.email == identifier, User.phone == identifier)).one_or_none()
+    return User.query.filter(
+        or_(User.email == identifier, User.phone == identifier, User.username == identifier)
+    ).one_or_none()
+
+
+def _is_login_identifier(value):
+    return _is_email_or_phone(value) or bool(USERNAME_PATTERN.fullmatch(value))
 
 
 def _mask_identifier(user):
@@ -56,9 +63,9 @@ def login():
         form_errors = {}
 
         if not identifier:
-            form_errors["identifier"] = "Vui lòng nhập email hoặc số điện thoại."
-        elif not _is_email_or_phone(identifier):
-            form_errors["identifier"] = "Email hoặc số điện thoại không hợp lệ."
+            form_errors["identifier"] = "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập."
+        elif not _is_login_identifier(identifier):
+            form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không hợp lệ."
 
         if not password:
             form_errors["password"] = "Vui lòng nhập mật khẩu."
@@ -69,7 +76,7 @@ def login():
             user = _find_user_by_identifier(identifier)
 
             if not user:
-                form_errors["identifier"] = "Email hoặc số điện thoại không đúng. Vui lòng nhập lại."
+                form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không đúng. Vui lòng nhập lại."
             elif user.password != password:
                 form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
             else:
@@ -95,6 +102,15 @@ def login():
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+        phone = _clean(request.form.get("phone"))
+        if phone and User.query.filter_by(phone=phone).first() is not None:
+            return render_template(
+                "auth/register.html",
+                form_errors={"phone": "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i \u0111\u00e3 \u0111\u01b0\u1ee3c s\u1eed d\u1ee5ng."},
+                form_values=request.form,
+                show_search=False,
+                show_auth=False,
+            )
         try:
             new_user = create_registration_user(request.form)
         except ValueError as exc:
@@ -103,6 +119,8 @@ def register():
                 "auth/register.html",
                 form_errors=form_errors,
                 form_values=request.form,
+                show_search=False,
+                show_auth=False,
             )
         session["user_id"] = new_user.user_id
         session["user_role"] = new_user.role
@@ -111,7 +129,7 @@ def register():
             return redirect(url_for("auth.complete_customer"))
         return redirect(url_for("auth.complete_restaurant"))
 
-    return render_template("auth/register.html")
+    return render_template("auth/register.html", show_search=False, show_auth=False)
 
 
 @bp.route("/forgot-password/lookup", methods=["POST"])
@@ -120,9 +138,9 @@ def forgot_password_lookup():
     identifier = _clean(data.get("identifier"))
 
     if not identifier:
-        return jsonify({"ok": False, "message": "Vui lòng nhập email hoặc số điện thoại."}), 400
-    if not _is_email_or_phone(identifier):
-        return jsonify({"ok": False, "message": "Email hoặc số điện thoại không hợp lệ."}), 400
+        return jsonify({"ok": False, "message": "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập."}), 400
+    if not _is_login_identifier(identifier):
+        return jsonify({"ok": False, "message": "Email, số điện thoại hoặc tên đăng nhập không hợp lệ."}), 400
 
     user = _find_user_by_identifier(identifier)
     if not user:
@@ -226,12 +244,14 @@ def complete_customer():
                 "auth/complete_customer.html",
                 form_errors=form_errors,
                 form_values=request.form,
+                show_search=False,
+                show_auth=False,
             )
         if not user:
             return redirect(url_for("auth.register"))
         return redirect(url_for("home.index"))
 
-    return render_template("auth/complete_customer.html")
+    return render_template("auth/complete_customer.html", show_search=False, show_auth=False)
 
 
 @bp.route("/complete-restaurant", methods=["GET", "POST"])
@@ -249,12 +269,14 @@ def complete_restaurant():
                 "auth/complete_restaurant.html",
                 form_errors=form_errors,
                 form_values=request.form,
+                show_search=False,
+                show_auth=False,
             )
         if not user:
             return redirect(url_for("auth.register"))
         return redirect(url_for("home.index"))
 
-    return render_template("auth/complete_restaurant.html")
+    return render_template("auth/complete_restaurant.html", show_search=False, show_auth=False)
 
 
 @bp.route("/check-username")
