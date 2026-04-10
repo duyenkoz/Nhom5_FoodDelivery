@@ -319,7 +319,7 @@ function checkEmptyField(input, errorId, message) {
 function validateIdentifier(value) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^(03|05|07|08|09)[0-9]{8}$/;
-    const usernameRegex = /^[A-Za-z0-9_]{3,30}$/;
+    const usernameRegex = /^[A-Za-z0-9_-]{3,30}$/;
     return emailRegex.test(value) || phoneRegex.test(value) || usernameRegex.test(value);
 }
 

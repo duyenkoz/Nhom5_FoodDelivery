@@ -30,7 +30,7 @@
                                 required
                                 minlength="3"
                                 maxlength="30"
-                                pattern="[A-Za-z0-9_]{3,30}"
+                                pattern="[A-Za-z0-9_-]{3,30}"
                                 value="{{ form_values.get('username', '') }}"
                             >
                         </div>
@@ -269,9 +269,9 @@ usernameInput.addEventListener("input", function () {
         return;
     }
 
-    if (!/^[A-Za-z0-9_]{3,30}$/.test(value)) {
+    if (!/^[A-Za-z0-9_-]{3,30}$/.test(value)) {
         this.classList.add("is-invalid");
-        error.innerHTML = "⚠ Tên đăng nhập chỉ gồm chữ, số, dấu gạch dưới và dài 3-30 ký tự";
+        error.innerHTML = "⚠ Tên đăng nhập chỉ gồm chữ, số, dấu gạch dưới, dấu gạch ngang và dài 3-30 ký tự";
         return;
     }
 
@@ -368,8 +368,8 @@ registerForm.addEventListener("submit", function (e) {
         return;
     }
 
-    if (!usernameInput.value.trim() || !/^[A-Za-z0-9_]{3,30}$/.test(usernameInput.value.trim())) {
-        setError(usernameInput, "usernameError", "⚠ Tên đăng nhập chỉ gồm chữ, số, dấu gạch dưới và dài 3-30 ký tự");
+    if (!usernameInput.value.trim() || !/^[A-Za-z0-9_-]{3,30}$/.test(usernameInput.value.trim())) {
+        setError(usernameInput, "usernameError", "⚠ Tên đăng nhập chỉ gồm chữ, số, dấu gạch dưới, dấu gạch ngang và dài 3-30 ký tự");
         hasError = true;
     }
 
