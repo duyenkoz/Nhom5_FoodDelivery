@@ -8,7 +8,9 @@ from app.services.auth_service import (
     create_registration_user,
     USERNAME_PATTERN,
     username_exists,
+    verify_password,
 )
+from app.services.password_reset_service_fixed import RESEND_COOLDOWN_SECONDS
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -77,7 +79,7 @@ def login():
 
             if not user:
                 form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không đúng. Vui lòng nhập lại."
-            elif user.password != password:
+            elif not verify_password(user.password, password):
                 form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
             else:
                 session["user_id"] = user.user_id
@@ -92,11 +94,17 @@ def login():
             "auth/login.html",
             form_errors=form_errors,
             form_values=form_values,
+            forgot_resend_cooldown=RESEND_COOLDOWN_SECONDS,
             show_search=False,
             show_auth=False,
         )
 
-    return render_template("auth/login.html", show_search=False, show_auth=False)
+    return render_template(
+        "auth/login.html",
+        forgot_resend_cooldown=RESEND_COOLDOWN_SECONDS,
+        show_search=False,
+        show_auth=False,
+    )
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -119,60 +127,6 @@ def register():
         return redirect(url_for("auth.complete_restaurant"))
 
     return render_template("auth/register.html")
-
-
-@bp.route("/forgot-password/lookup", methods=["POST"])
-def forgot_password_lookup():
-    data = request.get_json(silent=True) or request.form
-    identifier = _clean(data.get("identifier"))
-
-    if not identifier:
-        return jsonify({"ok": False, "message": "Vui lòng nhập email, số điện thoại hoặc tên đăng nhập."}), 400
-    if not _is_login_identifier(identifier):
-        return jsonify({"ok": False, "message": "Email, số điện thoại hoặc tên đăng nhập không hợp lệ."}), 400
-
-    user = _find_user_by_identifier(identifier)
-    if not user:
-        return jsonify({"ok": False, "message": "Không tìm thấy tài khoản phù hợp."}), 404
-
-    session["forgot_password_user_id"] = user.user_id
-
-    return jsonify(
-        {
-            "ok": True,
-            "username": user.username,
-            "role": user.role,
-            "masked_identifier": _mask_identifier(user),
-        }
-    )
-
-
-@bp.route("/forgot-password/accept", methods=["POST"])
-def forgot_password_accept():
-    data = request.get_json(silent=True) or request.form
-    identifier = _clean(data.get("identifier"))
-    user_id = session.get("forgot_password_user_id")
-
-    if not identifier or not user_id:
-        return jsonify({"ok": False, "message": "Phiên xác minh đã hết hạn. Vui lòng kiểm tra lại tài khoản."}), 400
-
-    user = _find_user_by_identifier(identifier)
-    if not user or user.user_id != int(user_id):
-        return jsonify({"ok": False, "message": "Tài khoản không hợp lệ."}), 400
-
-    session["user_id"] = user.user_id
-    session["user_role"] = user.role
-    session["auth_state"] = "logged_in"
-    session.permanent = False
-    session.pop("forgot_password_user_id", None)
-
-    redirect_url = url_for("auth.restaurant_dashboard") if user.role == "restaurant" else url_for("home.index")
-    return jsonify(
-        {
-            "ok": True,
-            "redirect_url": redirect_url,
-        }
-    )
 
 
 @bp.route("/restaurant/dashboard")
