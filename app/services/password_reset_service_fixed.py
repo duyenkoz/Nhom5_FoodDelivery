@@ -90,7 +90,7 @@ def send_otp_email(email, otp):
     message = Message(
         subject="Mã OTP đặt lại mật khẩu",
         recipients=[email],
-        body=f"Mã OTP của bạn là {otp}. Mã này hết hạn sau 5 phút. Vui lòng không chia sẻ mã này.",
+        body=f"Mã OTP của bạn là {otp}. Mã này hết hạn sau 1 phút. Vui lòng không chia sẻ mã này.",
     )
     mail.send(message)
 
