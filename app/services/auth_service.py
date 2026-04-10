@@ -12,7 +12,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 
 
-USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{3,30}$")
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,30}$")
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PHONE_PATTERN = re.compile(r"^(03|05|07|08|09)[0-9]{8}$")
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
