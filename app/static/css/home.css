@@ -49,7 +49,7 @@
 }
 
 .home-section {
-    padding-top: 12px;
+    padding: 12px 0 0;
     margin-bottom: 12px;
 }
 
@@ -379,6 +379,9 @@
 @media (max-width: 720px) {
     .home-hero {
         padding-top: 4px;
+    }
+
+    .home-section {
     }
 
     .delivery-address {
