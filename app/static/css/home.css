@@ -16,7 +16,7 @@
 
 .delivery-address {
     width: min(1080px, 100%);
-    min-height: 88px;
+    min-height: 96px;
     display: flex;
     align-items: center;
     gap: 20px;
@@ -25,6 +25,7 @@
     border-radius: 18px;
     background: var(--surface);
     box-shadow: var(--shadow-soft);
+    position: relative;
 }
 
 .delivery-address__icon {
@@ -41,15 +42,47 @@
     height: 34px;
 }
 
-.delivery-address__placeholder {
-    margin: 0;
-    color: #2c3441;
-    font-size: 1.15rem;
-    font-weight: 600;
+.delivery-address__content {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    gap: 0;
+}
+
+.delivery-address__input {
+    height: 54px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 1.05rem;
+    box-shadow: none;
+}
+
+.delivery-address__input::placeholder {
+    color: #7a8495;
+    opacity: 1;
+}
+
+.delivery-address__input:focus {
+    border: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+.delivery-address .location-autocomplete__menu {
+    top: calc(100% + 10px);
+    left: 0;
+    right: 0;
+    margin-top: 0;
+}
+
+.delivery-address .location-autocomplete__item {
+    padding: 13px 14px;
 }
 
 .home-section {
-    padding-top: 12px;
+    padding: 12px 0 0;
     margin-bottom: 12px;
 }
 
@@ -381,13 +414,17 @@
         padding-top: 4px;
     }
 
-    .delivery-address {
-        padding: 16px;
-        gap: 14px;
+    .home-section {
     }
 
-    .delivery-address__placeholder {
-        font-size: 1rem;
+    .delivery-address {
+        padding: 14px 18px;
+        gap: 14px;
+        min-height: 88px;
+    }
+
+    .delivery-address__input {
+        height: 48px;
     }
 
     .restaurant-grid {

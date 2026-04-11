@@ -26,6 +26,13 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = _build_database_uri()
+    TRACK_ASIA_MAPS_API_KEY = os.getenv("TRACK_ASIA_MAPS_API_KEY", "")
+    TRACK_ASIA_BASE_URL = os.getenv("TRACK_ASIA_BASE_URL", "https://maps.track-asia.com/api/v2/place")
+    TRACK_ASIA_TIMEOUT_SECONDS = float(os.getenv("TRACK_ASIA_TIMEOUT_SECONDS", "6"))
+    TRACK_ASIA_USE_NEW_ADMIN = os.getenv("TRACK_ASIA_USE_NEW_ADMIN", "true").lower() in {"1", "true", "yes", "on"}
+    NOMINATIM_BASE_URL = os.getenv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org")
+    NOMINATIM_USER_AGENT = os.getenv("NOMINATIM_USER_AGENT", "fiveFood/1.0")
+    NOMINATIM_TIMEOUT_SECONDS = float(os.getenv("NOMINATIM_TIMEOUT_SECONDS", "6"))
     MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
     MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").lower() in {"1", "true", "yes", "on"}

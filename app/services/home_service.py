@@ -5,6 +5,11 @@ from sqlalchemy.orm import joinedload
 
 from app.data.home import get_home_page_data
 from app.models import Restaurant
+from app.services.location_service import (
+    format_distance_km,
+    haversine_distance_km,
+    location_sort_key,
+)
 
 
 PAGE_SIZE = 8
@@ -13,7 +18,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.8",
         "reviews": "500+",
-        "distance": "1.2 km",
         "corner_badge": "PROMO",
         "corner_badge_kind": "promo",
         "featured_label": "Hot",
@@ -22,7 +26,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.5",
         "reviews": "1.2k",
-        "distance": "0.8 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Hot",
@@ -31,7 +34,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.9",
         "reviews": "2k",
-        "distance": "2.5 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Best Seller",
@@ -40,7 +42,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.7",
         "reviews": "3k",
-        "distance": "0.5 km",
         "corner_badge": "PROMO",
         "corner_badge_kind": "promo",
         "featured_label": "Hot",
@@ -49,7 +50,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.9",
         "reviews": "5k",
-        "distance": "3.1 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Best Seller",
@@ -58,7 +58,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.3",
         "reviews": "800",
-        "distance": "1.8 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Hot",
@@ -67,7 +66,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.6",
         "reviews": "1.5k",
-        "distance": "2.2 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Best Seller",
@@ -76,7 +74,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.7",
         "reviews": "2.2k",
-        "distance": "1.0 km",
         "corner_badge": "PROMO",
         "corner_badge_kind": "promo",
         "featured_label": "Hot",
@@ -85,7 +82,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "4.4",
         "reviews": "120",
-        "distance": "0.3 km",
         "corner_badge": "",
         "corner_badge_kind": "",
         "featured_label": "Best Seller",
@@ -94,7 +90,6 @@ PRESENTATION_PRESETS = [
     {
         "rating": "5.0",
         "reviews": "10k+",
-        "distance": "2.8 km",
         "corner_badge": "PROMO",
         "corner_badge_kind": "promo",
         "featured_label": "Hot",
@@ -114,6 +109,21 @@ def _format_address(restaurant):
     return ", ".join(part for part in parts if part)
 
 
+def _normalize_image_path(image_value):
+    image_value = (image_value or "").strip()
+    if not image_value:
+        return "images/restaurant-default.svg"
+    if image_value.startswith("/static/"):
+        return image_value[len("/static/") :]
+    if image_value.startswith("/"):
+        return image_value.lstrip("/")
+    if image_value.startswith(("http://", "https://", "/")):
+        return image_value.lstrip("/")
+    if "/" in image_value:
+        return image_value
+    return f"uploads/{image_value}"
+
+
 def _searchable_text(restaurant):
     values = [
         restaurant.user.display_name if restaurant.user else "",
@@ -125,19 +135,20 @@ def _searchable_text(restaurant):
     return " ".join(values).casefold()
 
 
-def _build_card(restaurant, index):
+def _build_card(restaurant, index, distance_km=None):
     preset = PRESENTATION_PRESETS[index % len(PRESENTATION_PRESETS)]
     dishes = sorted(restaurant.dishes, key=lambda dish: dish.dish_id)
     featured_dish = dishes[0] if dishes else None
+    distance_text = format_distance_km(distance_km)
 
     return {
         "name": restaurant.user.display_name
         if restaurant.user and restaurant.user.display_name
         else (restaurant.user.username if restaurant.user else f"Nhà hàng {restaurant.restaurant_id}"),
-        "image_path": restaurant.image or "images/restaurant-default.svg",
+        "image_path": _normalize_image_path(restaurant.image),
         "rating": preset["rating"],
         "reviews": preset["reviews"],
-        "distance": preset["distance"],
+        "distance": distance_text,
         "address": _format_address(restaurant),
         "corner_badge": preset["corner_badge"],
         "corner_badge_kind": preset["corner_badge_kind"],
@@ -148,19 +159,39 @@ def _build_card(restaurant, index):
     }
 
 
-def _load_restaurant_cards(query):
+def _restaurant_distance(user_location, restaurant):
+    if not user_location:
+        return None
+
+    return haversine_distance_km(
+        user_location.get("latitude"),
+        user_location.get("longitude"),
+        restaurant.latitude,
+        restaurant.longitude,
+    )
+
+
+def _load_restaurant_cards(query, user_location=None):
     restaurants = (
         Restaurant.query.options(joinedload(Restaurant.user), joinedload(Restaurant.dishes))
         .order_by(Restaurant.restaurant_id.asc())
         .all()
     )
-    pairs = [(_build_card(restaurant, index), restaurant) for index, restaurant in enumerate(restaurants)]
+    pairs = []
+    for index, restaurant in enumerate(restaurants):
+        distance_km = _restaurant_distance(user_location, restaurant)
+        pairs.append((_build_card(restaurant, index, distance_km=distance_km), restaurant, distance_km))
 
     if query:
         normalized_query = query.casefold()
-        pairs = [(card, restaurant) for card, restaurant in pairs if normalized_query in _searchable_text(restaurant)]
+        pairs = [
+            (card, restaurant, distance_km)
+            for card, restaurant, distance_km in pairs
+            if normalized_query in _searchable_text(restaurant)
+        ]
 
-    return [card for card, _ in pairs]
+    pairs.sort(key=lambda item: location_sort_key(item[2], item[1].restaurant_id))
+    return [card for card, _, _ in pairs]
 
 
 def _paginate_cards(cards, page_number):
@@ -174,9 +205,9 @@ def _paginate_cards(cards, page_number):
     return page_cards, current_page, total_count, has_more
 
 
-def get_home_page_context(query="", page_number=1):
+def get_home_page_context(query="", page_number=1, user_location=None, hero_address=""):
     page = get_home_page_data()
-    cards = _load_restaurant_cards(query)
+    cards = _load_restaurant_cards(query, user_location=user_location)
     page_cards, current_page, total_count, has_more = _paginate_cards(cards, page_number)
 
     sections = []
@@ -184,6 +215,15 @@ def get_home_page_context(query="", page_number=1):
         params = {"page": current_page + 1}
         if query:
             params["q"] = query
+        if user_location:
+            if user_location.get("address"):
+                params["address"] = user_location["address"]
+            if user_location.get("latitude") is not None:
+                params["lat"] = user_location["latitude"]
+            if user_location.get("longitude") is not None:
+                params["lon"] = user_location["longitude"]
+            if user_location.get("area"):
+                params["area"] = user_location["area"]
         sections.append(
             {
                 **section,
@@ -196,5 +236,6 @@ def get_home_page_context(query="", page_number=1):
     page["search_query"] = query
     page["current_page"] = current_page
     page["results_count"] = total_count
+    page["hero_value"] = hero_address or ""
     page["sections"] = sections
     return page

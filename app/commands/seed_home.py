@@ -2,14 +2,15 @@ import click
 
 from app.extensions import db
 from app.models import Dish, Restaurant, User
+from app.services.location_service import resolve_address_for_area
 
 
 RESTAURANTS = [
     {
         "username": "comtam-phucloctho",
         "display_name": "Cơm Tấm Phúc Lộc Thọ",
-        "address": "123 Nguyễn Văn Linh, Quận 7",
-        "area": "Quận 7",
+        "address": "123 Đường Nguyễn Văn Linh, Phường Tân Thuận Tây, Quận 7",
+        "area": "Hồ Chí Minh",
         "image": "images/com-tam.jpg",
         "dishes": [
             {"name": "Cơm sườn bì chả", "price": 66000},
@@ -19,8 +20,8 @@ RESTAURANTS = [
     {
         "username": "bundaumamtom-achanh",
         "display_name": "Bún Đậu Mắm Tôm A Chảnh",
-        "address": "45 Lê Văn Sỹ, Quận 3",
-        "area": "Quận 3",
+        "address": "45 Hẻm 453 Lê Văn Sỹ, Phường 12, Quận 3",
+        "area": "Hồ Chí Minh",
         "image": "images/nha_hang_bun_dau.jpg",
         "dishes": [
             {"name": "Bún đậu đầy đủ", "price": 80000},
@@ -30,8 +31,8 @@ RESTAURANTS = [
     {
         "username": "phohung-nguyentrai",
         "display_name": "Phở Hùng - Nguyễn Trãi",
-        "address": "241 Nguyễn Trãi, Quận 1",
-        "area": "Quận 1",
+        "address": "241 Đường Nguyễn Trãi, Phường Nguyễn Cư Trinh, Quận 1",
+        "area": "Hồ Chí Minh",
         "image": "images/nha_hang_pho.jpg",
         "dishes": [
             {"name": "Phở tái đặc biệt", "price": 65000},
@@ -41,8 +42,8 @@ RESTAURANTS = [
     {
         "username": "thecoffeehouse-caothang",
         "display_name": "The Coffee House",
-        "address": "88 Cao Thắng, Quận 3",
-        "area": "Quận 3",
+        "address": "88 Đường Cao Thắng, Phường 4, Quận 3",
+        "area": "Hồ Chí Minh",
         "image": "images/the_coffee_house.jpg",
         "dishes": [
             {"name": "Bạc xỉu (S)", "price": 39000},
@@ -52,8 +53,8 @@ RESTAURANTS = [
     {
         "username": "banhmi-huynhhoa",
         "display_name": "Bánh Mì Huỳnh Hoa",
-        "address": "26 Lê Thị Riêng, Quận 1",
-        "area": "Quận 1",
+        "address": "26 Đường Lê Thị Riêng, Phường Bến Thành, Quận 1",
+        "area": "Hồ Chí Minh",
         "image": "images/banh_mi_huynh_hoa.jpg",
         "dishes": [
             {"name": "Bánh mì pate chả lụa", "price": 70000},
@@ -63,8 +64,8 @@ RESTAURANTS = [
     {
         "username": "garan-popeyes",
         "display_name": "Gà Rán Popeyes",
-        "address": "Lotte Mart, Quận 7",
-        "area": "Quận 7",
+        "address": "469 Đường Nguyễn Hữu Thọ, Phường Tân Hưng, Quận 7",
+        "area": "Hồ Chí Minh",
         "image": "images/ga_ran_popeyes.png",
         "dishes": [
             {"name": "Combo gà rán nước ngọt", "price": 90000},
@@ -74,8 +75,8 @@ RESTAURANTS = [
     {
         "username": "pizzacompany",
         "display_name": "Pizza Company",
-        "address": "Phan Xích Long, Phú Nhuận",
-        "area": "Phú Nhuận",
+        "address": "68 Phan Xích Long, Phường 1, Quận Phú Nhuận",
+        "area": "Hồ Chí Minh",
         "image": "images/pizza_company.jpg",
         "dishes": [
             {"name": "Pizza hải sản", "price": 150000},
@@ -85,8 +86,8 @@ RESTAURANTS = [
     {
         "username": "gongcha-trasua",
         "display_name": "Trà Sữa Gong Cha",
-        "address": "Hồ Tùng Mậu, Quận 1",
-        "area": "Quận 1",
+        "address": "96 Đường Hồ Tùng Mậu, Phường Bến Nghé, Quận 1",
+        "area": "Hồ Chí Minh",
         "image": "images/gong_cha.jpg",
         "dishes": [
             {"name": "Trà sữa uyên ương", "price": 66000},
@@ -96,8 +97,8 @@ RESTAURANTS = [
     {
         "username": "bunbo-uthung",
         "display_name": "Bún Bò Huế Út Hưng",
-        "address": "12 Hẻm 456, Quận 7",
-        "area": "Quận 7",
+        "address": "456 Đường Huỳnh Tấn Phát, Phường Bình Thuận, Quận 7",
+        "area": "Hồ Chí Minh",
         "image": "images/banh_cuon_cha.jpg",
         "dishes": [
             {"name": "Bún bò tái nạm", "price": 60000},
@@ -107,8 +108,8 @@ RESTAURANTS = [
     {
         "username": "sushitei",
         "display_name": "Sushi Tei",
-        "address": "Lý Tự Trọng, Quận 1",
-        "area": "Quận 1",
+        "address": "5 Lý Tự Trọng, Phường Bến Nghé, Quận 1",
+        "area": "Hồ Chí Minh",
         "image": "images/tra_sua_Oolong.png",
         "dishes": [
             {"name": "Phần cá ngừ", "price": 266000},
@@ -116,6 +117,19 @@ RESTAURANTS = [
         ],
     },
 ]
+
+SEED_LOCATION_FALLBACKS = {
+    ("123 Đường Nguyễn Văn Linh, Phường Tân Thuận Tây, Quận 7", "Hồ Chí Minh"): (10.752172, 106.725394),
+    ("45 Hẻm 453 Lê Văn Sỹ, Phường 12, Quận 3", "Hồ Chí Minh"): (10.78909, 106.67361),
+    ("241 Đường Nguyễn Trãi, Phường Nguyễn Cư Trinh, Quận 1", "Hồ Chí Minh"): (10.76484, 106.68762),
+    ("88 Đường Cao Thắng, Phường 4, Quận 3", "Hồ Chí Minh"): (10.77105, 106.681039),
+    ("26 Đường Lê Thị Riêng, Phường Bến Thành, Quận 1", "Hồ Chí Minh"): (10.77141, 106.692417),
+    ("469 Đường Nguyễn Hữu Thọ, Phường Tân Hưng, Quận 7", "Hồ Chí Minh"): (10.741028, 106.701958),
+    ("68 Phan Xích Long, Phường 1, Quận Phú Nhuận", "Hồ Chí Minh"): (10.801063, 106.683374),
+    ("96 Đường Hồ Tùng Mậu, Phường Bến Nghé, Quận 1", "Hồ Chí Minh"): (10.77279, 106.70349),
+    ("456 Đường Huỳnh Tấn Phát, Phường Bình Thuận, Quận 7", "Hồ Chí Minh"): (10.74491, 106.72923),
+    ("5 Lý Tự Trọng, Phường Bến Nghé, Quận 1", "Hồ Chí Minh"): (10.782375, 106.705336),
+}
 
 
 def _upsert_user(spec):
@@ -149,9 +163,17 @@ def _upsert_restaurant(user, spec):
         restaurant = Restaurant(restaurant_id=user.user_id)
         db.session.add(restaurant)
 
+    location = resolve_address_for_area(spec["address"], spec["area"], allow_seed_fallback=True)
+    if not location:
+        coords = SEED_LOCATION_FALLBACKS.get((spec["address"], spec["area"]))
+        if coords:
+            location = {"lat": coords[0], "lon": coords[1]}
+
     restaurant.image = spec["image"]
     restaurant.address = spec["address"]
     restaurant.area = spec["area"]
+    restaurant.latitude = location["lat"] if location else None
+    restaurant.longitude = location["lon"] if location else None
     restaurant.description = f"Nhà hàng phục vụ món {spec['display_name']}"
     restaurant.platform_fee = restaurant.platform_fee or 0
     return restaurant, restaurant in db.session.new

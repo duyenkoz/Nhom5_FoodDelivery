@@ -10,6 +10,7 @@ from app.extensions import db
 from app.models.customer import Customer
 from app.models.restaurant import Restaurant
 from app.models.user import User
+from app.services.location_service import resolve_address_for_area
 
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,30}$")
@@ -18,6 +19,8 @@ PHONE_PATTERN = re.compile(r"^(03|05|07|08|09)[0-9]{8}$")
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
 PASSWORD_MIN_LENGTH = 6
 PASSWORD_MAX_LENGTH = 72
+CUSTOMER_AREAS = {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng"}
+RESTAURANT_AREAS = {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Cần Thơ"}
 
 
 def normalize_role(role_raw):
@@ -26,6 +29,17 @@ def normalize_role(role_raw):
 
 def _clean(value):
     return value.strip() if isinstance(value, str) else ""
+
+
+def _resolve_profile_location(address, area, allowed_areas):
+    if area not in allowed_areas:
+        return None, {"khuVuc": "Vui lòng chọn khu vực hợp lệ."}
+
+    location = resolve_address_for_area(address, area)
+    if not location:
+        return None, {"diaChi": "Địa chỉ phải khớp với khu vực đã chọn."}
+
+    return location, {}
 
 
 def hash_password(raw_password):
@@ -70,8 +84,13 @@ def _validate_customer_profile(form):
     elif len(address) > 200:
         errors["diaChi"] = "Địa chỉ không được vượt quá 200 ký tự."
 
-    if area not in {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng"}:
+    if area not in CUSTOMER_AREAS:
         errors["khuVuc"] = "Vui lòng chọn khu vực hợp lệ."
+
+    location = None
+    if address and area:
+        location, location_errors = _resolve_profile_location(address, area, CUSTOMER_AREAS)
+        errors.update(location_errors)
 
     if errors:
         raise ValueError(errors)
@@ -80,6 +99,8 @@ def _validate_customer_profile(form):
         "tenHienThi": display_name,
         "diaChi": address,
         "khuVuc": area,
+        "latitude": location["lat"] if location else None,
+        "longitude": location["lon"] if location else None,
     }
 
 
@@ -100,8 +121,13 @@ def _validate_restaurant_profile(form, file_storage=None):
     elif len(address) > 200:
         errors["diaChi"] = "Địa chỉ không được vượt quá 200 ký tự."
 
-    if area not in {"Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Cần Thơ"}:
+    if area not in RESTAURANT_AREAS:
         errors["khuVuc"] = "Vui lòng chọn khu vực hợp lệ."
+
+    location = None
+    if address and area:
+        location, location_errors = _resolve_profile_location(address, area, RESTAURANT_AREAS)
+        errors.update(location_errors)
 
     if description and len(description) > 500:
         errors["moTa"] = "Mô tả không được vượt quá 500 ký tự."
@@ -123,6 +149,8 @@ def _validate_restaurant_profile(form, file_storage=None):
         "diaChi": address,
         "khuVuc": area,
         "moTa": description,
+        "latitude": location["lat"] if location else None,
+        "longitude": location["lon"] if location else None,
     }
 
 
@@ -204,6 +232,30 @@ def get_user_by_id(user_id):
         return None
 
 
+def is_customer_profile_complete(user_id):
+    user = get_user_by_id(user_id)
+    if not user or user.role != "customer":
+        return False
+
+    customer = db.session.get(Customer, user.user_id)
+    if not customer:
+        return False
+
+    return bool(customer.address and customer.area)
+
+
+def is_restaurant_profile_complete(user_id):
+    user = get_user_by_id(user_id)
+    if not user or user.role != "restaurant":
+        return False
+
+    restaurant = db.session.get(Restaurant, user.user_id)
+    if not restaurant:
+        return False
+
+    return bool(restaurant.address and restaurant.area)
+
+
 def complete_customer_profile(user_id, form):
     user = get_user_by_id(user_id)
     if not user:
@@ -211,12 +263,15 @@ def complete_customer_profile(user_id, form):
 
     data = _validate_customer_profile(form)
     user.display_name = data["tenHienThi"]
-    customer = Customer(
-        customer_id=user.user_id,
-        address=data["diaChi"],
-        area=data["khuVuc"],
-    )
-    db.session.add(customer)
+    customer = db.session.get(Customer, user.user_id)
+    if not customer:
+        customer = Customer(customer_id=user.user_id)
+        db.session.add(customer)
+
+    customer.address = data["diaChi"]
+    customer.area = data["khuVuc"]
+    customer.latitude = data["latitude"]
+    customer.longitude = data["longitude"]
     db.session.commit()
     return user
 
@@ -236,15 +291,18 @@ def complete_restaurant_profile(user_id, form, file_storage=None):
         os.makedirs(upload_dir, exist_ok=True)
         file_storage.save(os.path.join(upload_dir, filename))
 
-    restaurant = Restaurant(
-        restaurant_id=user.user_id,
-        image=filename,
-        address=data["diaChi"],
-        area=data["khuVuc"],
-        description=data["moTa"],
-        platform_fee=0,
-    )
-    db.session.add(restaurant)
+    restaurant = db.session.get(Restaurant, user.user_id)
+    if not restaurant:
+        restaurant = Restaurant(restaurant_id=user.user_id, platform_fee=0)
+        db.session.add(restaurant)
+
+    restaurant.image = filename or restaurant.image
+    restaurant.address = data["diaChi"]
+    restaurant.area = data["khuVuc"]
+    restaurant.latitude = data["latitude"]
+    restaurant.longitude = data["longitude"]
+    restaurant.description = data["moTa"]
+    restaurant.platform_fee = restaurant.platform_fee or 0
     db.session.commit()
     return user
 
