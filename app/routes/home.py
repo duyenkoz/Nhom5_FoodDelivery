@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, make_response, render_template, request, session
 from flask import redirect, url_for
 
 from app.extensions import db
@@ -25,20 +25,21 @@ def _parse_float(value):
 
 def _get_user_location():
     user_id = session.get("user_id")
-    if user_id and session.get("user_role") == "customer":
-        address = _clean(request.args.get("address"))
-        area = _clean(request.args.get("area"))
-        latitude = _parse_float(request.args.get("lat"))
-        longitude = _parse_float(request.args.get("lon"))
+    address = _clean(request.args.get("address"))
+    area = _clean(request.args.get("area"))
+    latitude = _parse_float(request.args.get("lat"))
+    longitude = _parse_float(request.args.get("lon"))
 
-        if address and latitude is not None and longitude is not None:
-            return {
-                "address": address,
-                "latitude": latitude,
-                "longitude": longitude,
-                "area": area,
-                "source": "query",
-            }
+    if address and latitude is not None and longitude is not None:
+        return {
+            "address": address,
+            "latitude": latitude,
+            "longitude": longitude,
+            "area": area,
+            "source": "query",
+        }
+
+    if user_id and session.get("user_role") == "customer":
 
         try:
             customer_id = int(user_id)
@@ -87,5 +88,11 @@ def index():
     hero_address = user_location["address"] if user_location else ""
     page = get_home_page_context(query, page_number, user_location=user_location, hero_address=hero_address)
     page["location_storage_key"] = _get_location_storage_key()
-    page["location_persist"] = session.get("auth_state") == "logged_in" and session.get("user_role") == "customer"
-    return render_template("home.html", page=page)
+    page["location_persist"] = True
+    clear_location_cookie = request.cookies.get("fivefood_clear_location") == "1"
+    if clear_location_cookie:
+        page["location_clear_storage_key"] = "fivefood:location:anonymous"
+    response = make_response(render_template("home.html", page=page))
+    if clear_location_cookie:
+        response.delete_cookie("fivefood_clear_location")
+    return response

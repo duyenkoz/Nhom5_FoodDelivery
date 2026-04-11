@@ -10,7 +10,7 @@ from app.extensions import db
 from app.models.customer import Customer
 from app.models.restaurant import Restaurant
 from app.models.user import User
-from app.services.location_service import resolve_address_for_area
+from app.services.location_service import normalize_text, resolve_address_for_area
 
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,30}$")
@@ -40,6 +40,101 @@ def _resolve_profile_location(address, area, allowed_areas):
         return None, {"diaChi": "Địa chỉ phải khớp với khu vực đã chọn."}
 
     return location, {}
+
+
+def _selected_area_aliases(area):
+    normalized = normalize_text(area)
+    aliases = {
+        "hồ chí minh": ("hồ chí minh", "thành phố hồ chí minh", "tp hcm", "tphcm", "hcm"),
+        "hà nội": ("hà nội", "thành phố hà nội", "tp hà nội", "hanoi", "tphn"),
+        "đà nẵng": ("đà nẵng", "thành phố đà nẵng", "tp đà nẵng", "danang", "tpdn"),
+        "cần thơ": ("cần thơ", "thành phố cần thơ", "tp cần thơ", "cantho", "tpct"),
+    }.get(normalized, (normalized,))
+    return [normalize_text(alias) for alias in aliases if alias]
+
+
+def _strip_city_tail(parts, area):
+    cleaned = [part.strip() for part in parts if isinstance(part, str) and part.strip()]
+    aliases = _selected_area_aliases(area)
+
+    while cleaned:
+        tail = normalize_text(cleaned[-1])
+        if any(alias and alias in tail for alias in aliases) or "thanh pho" in tail:
+            cleaned.pop()
+            continue
+        break
+
+    return cleaned
+
+
+def _compact_address_from_components(address_components):
+    if isinstance(address_components, dict):
+        ordered_keys = [
+            "house_number",
+            "road",
+            "pedestrian",
+            "neighbourhood",
+            "neighborhood",
+            "suburb",
+            "quarter",
+            "city_district",
+            "county",
+            "district",
+            "borough",
+            "municipality",
+        ]
+        parts = []
+        for key in ordered_keys:
+            value = address_components.get(key)
+            if value and value not in parts:
+                parts.append(value)
+        return parts
+
+    if isinstance(address_components, list):
+        type_to_bucket = [
+            ("street_number",),
+            ("route",),
+            ("premise",),
+            ("subpremise",),
+            ("neighborhood", "neighbourhood"),
+            ("sublocality_level_1",),
+            ("sublocality_level_2",),
+            ("locality",),
+            ("administrative_area_level_2",),
+            ("city_district",),
+            ("county",),
+        ]
+        parts = []
+        used_values = set()
+        for bucket in type_to_bucket:
+            for component in address_components:
+                if not isinstance(component, dict):
+                    continue
+                types = component.get("types") or []
+                if not any(type_name in types for type_name in bucket):
+                    continue
+                value = component.get("long_name") or component.get("short_name") or ""
+                value = value.strip()
+                if value and value not in used_values:
+                    parts.append(value)
+                    used_values.add(value)
+                    break
+        return parts
+
+    return []
+
+
+def _shorten_restaurant_address(location, area):
+    raw_parts = _compact_address_from_components(location.get("address_components"))
+    if not raw_parts:
+        raw_text = location.get("formatted_address") or location.get("display_name") or location.get("address") or ""
+        raw_parts = [part.strip() for part in raw_text.split(",") if part.strip()]
+
+    compacted = _strip_city_tail(raw_parts, area)
+    if compacted:
+        return ", ".join(compacted)
+
+    return _clean(location.get("display_name") or location.get("address") or "")
 
 
 def hash_password(raw_password):
@@ -146,7 +241,7 @@ def _validate_restaurant_profile(form, file_storage=None):
 
     return {
         "tenNhaHang": display_name,
-        "diaChi": address,
+        "diaChi": _shorten_restaurant_address(location, area) if location else address,
         "khuVuc": area,
         "moTa": description,
         "latitude": location["lat"] if location else None,
