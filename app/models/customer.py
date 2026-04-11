@@ -12,6 +12,8 @@ class Customer(db.Model):
     )
     address = db.Column(db.String(200), nullable=True)
     area = db.Column(db.String(100), nullable=True)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
 
     user = db.relationship("User", back_populates="customer_profile")
     carts = db.relationship("Cart", back_populates="customer")

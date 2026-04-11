@@ -10,14 +10,34 @@
 <section class="home-hero">
     <h1 class="home-hero__title">{{ page.hero_title }}</h1>
 
-    <div class="delivery-address">
+    <div
+        class="delivery-address location-autocomplete-shell"
+        data-location-autocomplete="true"
+        data-location-mode="home"
+        data-location-search-url="{{ url_for('location.search') }}"
+        data-location-resolve-url="{{ url_for('location.resolve') }}"
+        data-location-storage-key="{{ page.location_storage_key }}"
+        data-location-persist="{{ 'true' if page.location_persist else 'false' }}"
+    >
         <div class="delivery-address__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"></path>
                 <circle cx="12" cy="10" r="2.4"></circle>
             </svg>
         </div>
-        <p class="delivery-address__placeholder">{{ page.hero_placeholder }}</p>
+        <div class="delivery-address__content">
+            <input
+                id="homeAddressInput"
+                class="delivery-address__input location-autocomplete__input"
+                type="search"
+                data-location-input="true"
+                placeholder="Nhập địa chỉ của bạn"
+                value="{{ page.hero_value if page.location_persist else '' }}"
+                autocomplete="off"
+                aria-label="Nhập địa chỉ của bạn"
+            >
+            <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+        </div>
     </div>
 </section>
 

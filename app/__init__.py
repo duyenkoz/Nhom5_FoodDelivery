@@ -26,10 +26,12 @@ def create_app(config_class=Config):
 
     from app.routes.auth import bp as auth_bp
     from app.routes.home import bp as home_bp
+    from app.routes.location import bp as location_bp
     from app.routes.password_reset import bp as password_reset_bp
 
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(location_bp)
     app.register_blueprint(password_reset_bp)
     register_commands(app)
 

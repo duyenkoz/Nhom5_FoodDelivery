@@ -29,19 +29,6 @@
                         <div class="invalid-feedback text-danger">{{ form_errors.tenHienThi }}</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="diaChi">Địa chỉ *</label>
-                        <input
-                            type="text"
-                            id="diaChi"
-                            name="diaChi"
-                            class="form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
-                            required
-                            maxlength="200"
-                            value="{{ form_values.get('diaChi', '') }}"
-                        >
-                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
-                    </div>
-                    <div class="mb-3">
                         <label class="form-label" for="khuVuc">Khu vực *</label>
                         <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
                             <option value="">-- Chọn khu vực --</option>
@@ -50,6 +37,36 @@
                             <option value="Đà Nẵng" {% if form_values.get('khuVuc') == 'Đà Nẵng' %}selected{% endif %}>Đà Nẵng</option>
                         </select>
                         <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <div
+                            class="location-autocomplete-shell"
+                            data-location-autocomplete="true"
+                            data-location-mode="form"
+                            data-location-search-url="{{ url_for('location.search') }}"
+                            data-location-resolve-url="{{ url_for('location.resolve') }}"
+                            data-location-area-selector="#khuVuc"
+                            data-location-require-area="true"
+                            data-location-disable-until-area="true"
+                        >
+                            <div class="location-autocomplete">
+                                <input
+                                    type="text"
+                                    id="diaChi"
+                                    name="diaChi"
+                                    class="location-autocomplete__input form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                                    required
+                                    maxlength="200"
+                                    value="{{ form_values.get('diaChi', '') }}"
+                                    autocomplete="off"
+                                    data-location-input="true"
+                                    aria-label="Địa chỉ"
+                                >
+                                <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
                     </div>
                     <button class="btn btn-primary w-100" type="submit">Hoàn tất</button>
                 </form>

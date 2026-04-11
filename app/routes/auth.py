@@ -1,11 +1,15 @@
 ﻿from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import or_
 
+from app.extensions import db
+from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
     create_registration_user,
+    is_customer_profile_complete,
+    is_restaurant_profile_complete,
     USERNAME_PATTERN,
     username_exists,
     verify_password,
@@ -87,7 +91,11 @@ def login():
                 session["auth_state"] = "logged_in"
                 session.permanent = remember
                 if user.role == "restaurant":
+                    if not is_restaurant_profile_complete(user.user_id):
+                        return redirect(url_for("auth.complete_restaurant"))
                     return redirect(url_for("auth.restaurant_dashboard"))
+                if not is_customer_profile_complete(user.user_id):
+                    return redirect(url_for("auth.complete_customer"))
                 return redirect(url_for("home.index"))
 
         return render_template(
@@ -142,6 +150,11 @@ def register():
 
 @bp.route("/restaurant/dashboard")
 def restaurant_dashboard():
+    if session.get("user_role") != "restaurant":
+        return redirect(url_for("home.index"))
+    if not is_restaurant_profile_complete(session.get("user_id")):
+        return redirect(url_for("auth.complete_restaurant"))
+
     return render_template(
         "partials/restaurant.html",
         show_search=False,
@@ -189,6 +202,9 @@ def logout():
 
 @bp.route("/complete-customer", methods=["GET", "POST"])
 def complete_customer():
+    if session.get("auth_state") == "logged_in" and session.get("user_role") == "customer" and is_customer_profile_complete(session.get("user_id")):
+        return redirect(url_for("home.index"))
+
     if request.method == "POST":
         try:
             user = complete_customer_profile(session.get("user_id"), request.form)
@@ -210,6 +226,25 @@ def complete_customer():
 
 @bp.route("/complete-restaurant", methods=["GET", "POST"])
 def complete_restaurant():
+    if session.get("auth_state") == "logged_in" and session.get("user_role") == "restaurant" and is_restaurant_profile_complete(session.get("user_id")):
+        return redirect(url_for("auth.restaurant_dashboard"))
+
+    user_id = session.get("user_id")
+    try:
+        restaurant_id = int(user_id) if user_id else None
+    except (TypeError, ValueError):
+        restaurant_id = None
+    restaurant = db.session.get(Restaurant, restaurant_id) if restaurant_id is not None else None
+    restaurant_image_url = ""
+    if restaurant and restaurant.image:
+        image_path = restaurant.image.strip()
+        if image_path.startswith(("http://", "https://", "/")):
+            restaurant_image_url = image_path
+        elif "/" in image_path:
+            restaurant_image_url = url_for("static", filename=image_path)
+        else:
+            restaurant_image_url = url_for("static", filename=f"uploads/{image_path}")
+
     if request.method == "POST":
         try:
             user = complete_restaurant_profile(
@@ -223,14 +258,20 @@ def complete_restaurant():
                 "auth/complete_restaurant.html",
                 form_errors=form_errors,
                 form_values=request.form,
+                restaurant_image_url=restaurant_image_url,
                 show_search=False,
                 show_auth=False,
             )
         if not user:
             return redirect(url_for("auth.register"))
-        return redirect(url_for("home.index"))
+        return redirect(url_for("auth.restaurant_dashboard"))
 
-    return render_template("auth/complete_restaurant.html", show_search=False, show_auth=False)
+    return render_template(
+        "auth/complete_restaurant.html",
+        restaurant_image_url=restaurant_image_url,
+        show_search=False,
+        show_auth=False,
+    )
 
 
 @bp.route("/check-username")

@@ -13,6 +13,8 @@ class Restaurant(db.Model):
     image = db.Column(db.String(255), nullable=True)
     address = db.Column(db.String(200), nullable=True)
     area = db.Column(db.String(100), nullable=True)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
     description = db.Column(db.String(500), nullable=True)
     platform_fee = db.Column(db.Integer, nullable=True)
 

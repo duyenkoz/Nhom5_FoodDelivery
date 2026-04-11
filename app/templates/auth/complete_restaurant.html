@@ -29,19 +29,6 @@
                         <div class="invalid-feedback text-danger">{{ form_errors.tenNhaHang }}</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="diaChi">Địa chỉ *</label>
-                        <input
-                            type="text"
-                            id="diaChi"
-                            name="diaChi"
-                            class="form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
-                            required
-                            maxlength="200"
-                            value="{{ form_values.get('diaChi', '') }}"
-                        >
-                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
-                    </div>
-                    <div class="mb-3">
                         <label class="form-label" for="khuVuc">Khu vực *</label>
                         <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
                             <option value="">-- Chọn khu vực --</option>
@@ -53,12 +40,43 @@
                         <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <div
+                            class="location-autocomplete-shell"
+                            data-location-autocomplete="true"
+                            data-location-mode="form"
+                            data-location-search-url="{{ url_for('location.search') }}"
+                            data-location-resolve-url="{{ url_for('location.resolve') }}"
+                            data-location-area-selector="#khuVuc"
+                            data-location-require-area="true"
+                            data-location-disable-until-area="true"
+                        >
+                            <div class="location-autocomplete">
+                                <input
+                                    type="text"
+                                    id="diaChi"
+                                    name="diaChi"
+                                    class="location-autocomplete__input form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                                    required
+                                    maxlength="200"
+                                    value="{{ form_values.get('diaChi', '') }}"
+                                    autocomplete="off"
+                                    data-location-input="true"
+                                    aria-label="Địa chỉ"
+                                >
+                                <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="anhNhaHang">Ảnh nhà hàng</label>
                         <div class="image-preview" aria-live="polite">
                             <img
                                 id="restaurantImagePreview"
                                 class="image-preview__img"
                                 alt="Xem trước ảnh nhà hàng"
+                                {% if restaurant_image_url %}src="{{ restaurant_image_url }}"{% endif %}
                             >
                             <div class="image-preview__empty" id="restaurantImageEmpty">
                                 <strong>Chưa có ảnh</strong>
@@ -103,6 +121,7 @@ const restaurantImageEmpty = document.getElementById("restaurantImageEmpty");
 const restaurantForm = document.getElementById("restaurantForm");
 
 let restaurantImageObjectUrl = "";
+const initialRestaurantImageUrl = restaurantImagePreview.getAttribute("src") || "";
 
 function revokeRestaurantObjectUrl() {
     if (restaurantImageObjectUrl) {
@@ -118,9 +137,15 @@ function syncRestaurantPreview() {
 
     if (!selectedFile) {
         revokeRestaurantObjectUrl();
-        restaurantImagePreview.style.display = "none";
-        restaurantImagePreview.removeAttribute("src");
-        restaurantImageEmpty.style.display = "flex";
+        if (initialRestaurantImageUrl) {
+            restaurantImagePreview.src = initialRestaurantImageUrl;
+            restaurantImagePreview.style.display = "block";
+            restaurantImageEmpty.style.display = "none";
+        } else {
+            restaurantImagePreview.style.display = "none";
+            restaurantImagePreview.removeAttribute("src");
+            restaurantImageEmpty.style.display = "flex";
+        }
         restaurantImagePreview.style.transform = "scale(1)";
         return;
     }
