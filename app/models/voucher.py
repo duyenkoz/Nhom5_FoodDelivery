@@ -9,6 +9,7 @@ class Voucher(db.Model):
     discount_type = db.Column(
         db.Enum("amount", "percent", name="voucher_discount_type"),
         nullable=True,
+        default="amount",
     )
     discount_value = db.Column(db.Integer, nullable=True)
     start_date = db.Column(db.Date, nullable=True)

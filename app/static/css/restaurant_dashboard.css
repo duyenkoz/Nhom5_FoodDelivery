@@ -419,7 +419,7 @@
 .restaurant-table__head,
 .restaurant-table__row {
     display: grid;
-    grid-template-columns: 64px minmax(0, 1.45fr) 92px 88px 72px 72px 92px 70px 72px;
+    grid-template-columns: 64px minmax(0, 1.35fr) 92px 88px 72px 72px minmax(0, 1.05fr) 70px 72px;
     align-items: center;
     gap: 6px;
 }
@@ -471,7 +471,7 @@
     font-weight: 700;
 }
 .restaurant-table__metric,
-.restaurant-table__rating,
+.restaurant-table__description,
 .restaurant-status-form,
 .restaurant-table__actions {
     justify-content: center;
@@ -479,7 +479,7 @@
 }
 .restaurant-table__category,
 .restaurant-table__metric,
-.restaurant-table__rating,
+.restaurant-table__description,
 .restaurant-table__price {
     color: #6b7280;
     font-weight: 600;
@@ -495,23 +495,105 @@
     font-weight: 800;
 }
 
-.restaurant-table__rating {
-    display: inline-flex;
-    align-items: center;
+.restaurant-table__description {
+    display: grid;
     gap: 4px;
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.restaurant-table__description-text {
+    display: block;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.restaurant-table__rating strong {
+.restaurant-table__description-link {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: #f59e0b;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    text-align: left;
+    width: fit-content;
+}
+
+.restaurant-table__description-link:hover {
+    color: #ea580c;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.restaurant-description-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 80;
+}
+
+.restaurant-description-modal.is-open {
+    display: flex;
+}
+
+.restaurant-description-modal__panel {
+    width: min(100%, 640px);
+    border: 1px solid var(--rd-line);
+    border-radius: 18px;
+    background: var(--rd-surface);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.25);
+    padding: 20px 20px 18px;
+}
+
+.restaurant-description-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.restaurant-description-modal__header h3 {
+    margin: 0;
+    color: #f59e0b;
+    font-size: 1.18rem;
+}
+
+.restaurant-description-modal__close {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: #f3f4f6;
     color: #374151;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
 }
 
-.restaurant-table__rating span {
-    color: #facc15;
+.restaurant-description-modal__body {
+    color: #334155;
+    line-height: 1.7;
 }
 
-.restaurant-table__rating small {
-    color: #b0b7c4;
+.restaurant-description-modal__body h4 {
+    margin: 0 0 10px;
+    color: #1f2937;
+    font-size: 1rem;
+}
+
+.restaurant-description-modal__body p {
+    margin: 0;
+    white-space: pre-wrap;
 }
 
 .restaurant-status-form {
@@ -734,6 +816,33 @@
     align-items: start;
 }
 
+.menu-form__field--meta {
+    display: grid;
+    gap: 4px;
+}
+
+.menu-form__meta-line {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    width: fit-content;
+    padding: 0 12px;
+    border: 1px solid #dbe2ea;
+    border-radius: 10px;
+    background: #fff8ee;
+    color: #b45309;
+    font-weight: 700;
+}
+
+.menu-form__field--switch {
+    align-content: start;
+    min-height: 100%;
+}
+
+.menu-form__field--switch .restaurant-status-form--toggle {
+    margin-top: 0;
+}
+
 .menu-form__field {
     display: grid;
     gap: 6px;
@@ -847,7 +956,22 @@
 }
 
 .menu-form__grid--secondary > .menu-form__field:last-child .restaurant-status-form--toggle {
-    margin-top: 12px;
+    margin-top: 0;
+}
+
+@media (max-width: 720px) {
+    .menu-form__grid--secondary {
+        grid-template-columns: 1fr;
+    }
+
+    .menu-form__meta-line {
+        min-height: 34px;
+        width: 100%;
+    }
+
+    .menu-form__field--switch {
+        min-height: auto;
+    }
 }
 
 .menu-form__actions {

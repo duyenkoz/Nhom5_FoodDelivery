@@ -122,13 +122,9 @@ def _build_accounts(role_filter="all", query="", page=1, per_page=10):
 
 def _build_voucher_item(voucher):
     creator = voucher.creator
-    creator_role = ROLE_LABELS.get(creator.role, "Tài khoản") if creator else "Tài khoản"
-    discount_text = (
-        f"{voucher.discount_value or 0}%"
-        if voucher.discount_type == "percent"
-        else f"{'{:,}'.format(voucher.discount_value or 0)}đ"
-    )
-    status_text = "Đang bật" if voucher.status else "Đang tắt"
+    creator_role = ROLE_LABELS.get(creator.role, "T?i kho?n") if creator else "T?i kho?n"
+    discount_text = "{:,}?".format(voucher.discount_value or 0)
+    status_text = "?ang b?t" if voucher.status else "?ang t?t"
     usage_count = len(voucher.orders or [])
     return {
         "voucher": voucher,
@@ -136,11 +132,11 @@ def _build_voucher_item(voucher):
         "creator_name": _safe_name(creator),
         "creator_role": creator_role,
         "discount_text": discount_text,
-        "scope_text": "Hệ thống" if voucher.voucher_scope == "system" else "Nhà hàng",
+        "scope_text": "H? th?ng" if voucher.voucher_scope == "system" else "Nh? h?ng",
         "status_text": status_text,
         "usage_count": usage_count,
-        "start_date": voucher.start_date.strftime("%d/%m/%Y") if voucher.start_date else "Áp dụng ngay",
-        "end_date": voucher.end_date.strftime("%d/%m/%Y") if voucher.end_date else "Không giới hạn",
+        "start_date": voucher.start_date.strftime("%d/%m/%Y") if voucher.start_date else "?p d?ng ngay",
+        "end_date": voucher.end_date.strftime("%d/%m/%Y") if voucher.end_date else "Kh?ng gi?i h?n",
     }
 
 
