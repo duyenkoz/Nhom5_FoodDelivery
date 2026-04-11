@@ -1,0 +1,292 @@
+﻿from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+
+from app.services.restaurant_service import (
+    build_dashboard_context,
+    build_section_context,
+    delete_dish_for_restaurant,
+    delete_voucher_for_restaurant,
+    report_review_for_restaurant,
+    save_dish_for_restaurant,
+    save_voucher_for_restaurant,
+    toggle_dish_status_for_restaurant,
+    toggle_voucher_status_for_restaurant,
+)
+
+bp = Blueprint("restaurant", __name__, url_prefix="/restaurant")
+
+
+def _require_restaurant():
+    if session.get("auth_state") != "logged_in" or session.get("user_role") != "restaurant":
+        return False
+    return True
+
+
+def _render_section(section_name):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    context = build_section_context(session.get("user_id"), section_name)
+    if context["restaurant"] is None:
+        flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi vào khu quản trị.", "warning")
+        return redirect(url_for("auth.complete_restaurant"))
+
+    template_map = {
+        "orders": "restaurant/restaurant_orders.html",
+        "analytics": "restaurant/restaurant_analytics.html",
+        "vouchers": "restaurant/restaurant_voucher_manage.html",
+    }
+
+    return render_template(
+        template_map.get(section_name, "restaurant/section_v2.html"),
+        show_search=False,
+        show_auth=False,
+        **context,
+    )
+
+
+@bp.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    user_id = session.get("user_id")
+    edit_dish_id = request.args.get("edit", type=int)
+    search_query = request.args.get("q", "").strip()
+    active_category = request.args.get("category", "all").strip() or "all"
+    page = request.args.get("page", default=1, type=int)
+
+    if request.method == "POST":
+        search_query = (request.form.get("q") or search_query).strip()
+        active_category = (request.form.get("filter_category") or active_category).strip() or "all"
+        page = request.form.get("page", type=int) or page
+        try:
+            dish, action = save_dish_for_restaurant(user_id, request.form, request.files.get("dish_image"))
+        except ValueError as exc:
+            form_errors = exc.args[0] if exc.args else {}
+            form_values = dict(request.form)
+            if not form_values.get("status"):
+                form_values["status"] = ""
+            if "status" not in form_values:
+                form_values["status"] = ""
+            if form_values.get("dish_id"):
+                edit_dish_id = int(form_values["dish_id"])
+            search_query = form_values.get("q", search_query)
+            active_category = form_values.get("filter_category", active_category)
+            page = int(form_values.get("page") or page or 1)
+            context = build_dashboard_context(
+                user_id,
+                edit_dish_id=edit_dish_id,
+                form_values=form_values,
+                form_errors=form_errors,
+                query=search_query,
+                category=active_category,
+                page=page,
+            )
+            return render_template(
+                "restaurant/restaurant_menu_manage.html",
+                show_search=False,
+                show_auth=False,
+                **context,
+            )
+
+        flash(f"Đã {action} món \"{dish.dish_name}\".", "success")
+        return redirect(url_for("restaurant.dashboard", q=search_query, category=active_category, page=page))
+
+    context = build_dashboard_context(
+        user_id,
+        edit_dish_id=edit_dish_id,
+        query=search_query,
+        category=active_category,
+        page=page,
+    )
+    if context["restaurant"] is None:
+        flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi quản lý thực đơn.", "warning")
+        return redirect(url_for("auth.complete_restaurant"))
+
+    return render_template(
+        "restaurant/restaurant_menu_manage.html",
+        show_search=False,
+        show_auth=False,
+        **context,
+    )
+
+
+@bp.route("/orders")
+def orders():
+    return _render_section("orders")
+
+
+@bp.route("/analytics")
+def analytics():
+    return _render_section("analytics")
+
+
+@bp.route("/vouchers", methods=["GET", "POST"])
+def vouchers():
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    user_id = session.get("user_id")
+    edit_voucher_id = request.args.get("edit", type=int)
+    search_query = request.args.get("q", "").strip()
+
+    if request.method == "POST":
+        search_query = (request.form.get("q") or search_query).strip()
+        try:
+            voucher, action = save_voucher_for_restaurant(user_id, request.form)
+        except ValueError as exc:
+            form_errors = exc.args[0] if exc.args else {}
+            form_values = dict(request.form)
+            if not form_values.get("status"):
+                form_values["status"] = ""
+            if form_values.get("voucher_id"):
+                edit_voucher_id = int(form_values["voucher_id"])
+            context = build_section_context(
+                user_id,
+                "vouchers",
+                edit_voucher_id=edit_voucher_id,
+                form_values=form_values,
+                form_errors=form_errors,
+                query=search_query,
+            )
+            return render_template(
+                "restaurant/restaurant_voucher_manage.html",
+                show_search=False,
+                show_auth=False,
+                **context,
+            )
+
+        flash(f"Đã {action} voucher \"{voucher.voucher_code}\".", "success")
+        return redirect(url_for("restaurant.vouchers", q=search_query))
+
+    context = build_section_context(
+        user_id,
+        "vouchers",
+        edit_voucher_id=edit_voucher_id,
+        query=search_query,
+    )
+    if context["restaurant"] is None:
+        flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi quản lý voucher.", "warning")
+        return redirect(url_for("auth.complete_restaurant"))
+
+    return render_template(
+        "restaurant/restaurant_voucher_manage.html",
+        show_search=False,
+        show_auth=False,
+        **context,
+    )
+
+
+@bp.route("/reviews")
+def reviews():
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    context = build_section_context(session.get("user_id"), "reviews")
+    if context["restaurant"] is None:
+        flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi xem đánh giá.", "warning")
+        return redirect(url_for("auth.complete_restaurant"))
+
+    return render_template(
+        "restaurant/restaurant_review_list.html",
+        show_search=False,
+        show_auth=False,
+        **context,
+    )
+
+
+@bp.route("/reviews/<int:review_id>/report", methods=["POST"])
+def report_review(review_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    reason = (request.form.get("reason") or "").strip()
+    review, status = report_review_for_restaurant(session.get("user_id"), review_id, reason=reason)
+
+    if status == "restaurant_not_found":
+        flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi báo cáo đánh giá.", "warning")
+        return redirect(url_for("auth.complete_restaurant"))
+    if status == "review_not_found":
+        flash("Không tìm thấy đánh giá để báo cáo hoặc đánh giá không thuộc nhà hàng của bạn.", "error")
+    elif status == "already_reported":
+        flash("Đánh giá này đã được báo cáo và đang chờ admin xử lý.", "warning")
+    elif status == "reported" and review:
+        flash("Đã gửi báo cáo đánh giá cho admin xem xét.", "success")
+    else:
+        flash("Không thể báo cáo đánh giá lúc này.", "error")
+
+    return redirect(url_for("restaurant.reviews"))
+
+
+@bp.route("/dishes/<int:dish_id>/toggle", methods=["POST"])
+def toggle_dish(dish_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    dish = toggle_dish_status_for_restaurant(session.get("user_id"), dish_id)
+    redirect_args = {
+        "q": request.args.get("q", ""),
+        "category": request.args.get("category", "all"),
+        "page": request.args.get("page", 1, type=int),
+    }
+    if not dish:
+        flash("Không tìm thấy món ăn để thay đổi trạng thái.", "error")
+    else:
+        flash(
+            f"Đã chuyển trạng thái món \"{dish.dish_name}\" sang {'còn' if dish.status else 'hết' }.",
+            "success",
+        )
+    return redirect(url_for("restaurant.dashboard", **redirect_args))
+
+
+@bp.route("/vouchers/<int:voucher_id>/toggle", methods=["POST"])
+def toggle_voucher(voucher_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    voucher = toggle_voucher_status_for_restaurant(session.get("user_id"), voucher_id)
+    redirect_args = {
+        "q": request.args.get("q", ""),
+    }
+    if not voucher:
+        flash("Không tìm thấy voucher để thay đổi trạng thái.", "error")
+    else:
+        flash(
+            f"Đã chuyển trạng thái voucher \"{voucher.voucher_code}\" sang {'bật' if voucher.status else 'tắt' }.",
+            "success",
+        )
+    return redirect(url_for("restaurant.vouchers", **redirect_args))
+
+
+@bp.route("/dishes/<int:dish_id>/delete", methods=["POST"])
+def delete_dish(dish_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    deleted = delete_dish_for_restaurant(session.get("user_id"), dish_id)
+    redirect_args = {
+        "q": request.args.get("q", ""),
+        "category": request.args.get("category", "all"),
+        "page": request.args.get("page", 1, type=int),
+    }
+    if not deleted:
+        flash("Không thể xoá món vì món không tồn tại hoặc không thuộc nhà hàng của bạn.", "error")
+    else:
+        flash("Đã xoá món ăn khỏi thực đơn.", "success")
+    return redirect(url_for("restaurant.dashboard", **redirect_args))
+
+
+@bp.route("/vouchers/<int:voucher_id>/delete", methods=["POST"])
+def delete_voucher(voucher_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    deleted = delete_voucher_for_restaurant(session.get("user_id"), voucher_id)
+    redirect_args = {
+        "q": request.args.get("q", ""),
+    }
+    if not deleted:
+        flash("Không thể xoá voucher vì voucher không tồn tại hoặc đã được dùng trong đơn hàng.", "error")
+    else:
+        flash("Đã xoá voucher khỏi hệ thống.", "success")
+    return redirect(url_for("restaurant.vouchers", **redirect_args))
