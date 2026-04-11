@@ -119,7 +119,7 @@
                         <span>Giá</span>
                         <span>Hôm nay</span>
                         <span>TB Ngày</span>
-                        <span>Đánh giá</span>
+                        <span>Mô tả</span>
                         <span>Hết món</span>
                         <span>Thao tác</span>
                     </div>
@@ -138,10 +138,9 @@
                         <div class="restaurant-table__price">{{ "{:,}".format(dish.price or 0) }}đ</div>
                         <div class="restaurant-table__metric restaurant-table__metric--strong">{{ item.today_orders }}</div>
                         <div class="restaurant-table__metric">{{ item.avg_day_orders }}</div>
-                        <div class="restaurant-table__rating">
-                            <strong>{{ item.rating_value }}</strong>
-                            <span>★</span>
-                            <small>({{ item.rating_count }})</small>
+                        <div class="restaurant-table__description" title="{{ dish.description or 'Chưa có mô tả' }}" data-dish-name="{{ dish.dish_name }}" data-dish-description="{{ dish.description or 'Chưa có mô tả' }}">
+                            <span class="restaurant-table__description-text">{{ (dish.description or 'Chưa có mô tả')|truncate(44, True, '...') }}</span>
+                            <button type="button" class="restaurant-table__description-link" data-open-description>Xem</button>
                         </div>
                         <div>
                             <form method="post" action="{{ url_for('restaurant.toggle_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" class="restaurant-status-form">
@@ -185,6 +184,21 @@
             </div>
         </section>
     </main>
+</div>
+
+<div class="restaurant-description-modal" id="dishDescriptionModal" aria-hidden="true">
+    <div class="restaurant-description-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dishDescriptionModalTitle">
+        <div class="restaurant-description-modal__header">
+            <div>
+                <h3 id="dishDescriptionModalTitle">Chi tiết mô tả</h3>
+            </div>
+            <button type="button" class="restaurant-description-modal__close" id="closeDishDescriptionModal" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="restaurant-description-modal__body">
+            <h4 id="dishDescriptionName"></h4>
+            <p id="dishDescriptionText"></p>
+        </div>
+    </div>
 </div>
 
 <div class="menu-modal {% if open_modal %}is-open{% endif %}" id="menuModal" aria-hidden="{% if open_modal %}false{% else %}true{% endif %}">
@@ -262,9 +276,48 @@
 </div>
 
 <script>
+const dishDescriptionModal = document.getElementById("dishDescriptionModal");
+const dishDescriptionName = document.getElementById("dishDescriptionName");
+const dishDescriptionText = document.getElementById("dishDescriptionText");
+const closeDishDescriptionModal = document.getElementById("closeDishDescriptionModal");
+const openDescriptionButtons = document.querySelectorAll("[data-open-description]");
 const menuModal = document.getElementById("menuModal");
 const openButtons = document.querySelectorAll("[data-open-form]");
 const closeButtons = document.querySelectorAll("[data-close-form]");
+
+function openDishDescriptionModal(name, description) {
+    if (!dishDescriptionModal) return;
+    dishDescriptionName.textContent = name || "Món ăn";
+    dishDescriptionText.textContent = description || "Chưa có mô tả";
+    dishDescriptionModal.classList.add("is-open");
+    dishDescriptionModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDishDescriptionModalFn() {
+    if (!dishDescriptionModal) return;
+    dishDescriptionModal.classList.remove("is-open");
+    dishDescriptionModal.setAttribute("aria-hidden", "true");
+}
+
+openDescriptionButtons.forEach((button) => button.addEventListener("click", () => {
+    const cell = button.closest(".restaurant-table__description");
+    openDishDescriptionModal(
+        cell ? cell.dataset.dishName : "",
+        cell ? cell.dataset.dishDescription : ""
+    );
+}));
+
+if (closeDishDescriptionModal) {
+    closeDishDescriptionModal.addEventListener("click", closeDishDescriptionModalFn);
+}
+
+if (dishDescriptionModal) {
+    dishDescriptionModal.addEventListener("click", (event) => {
+        if (event.target === dishDescriptionModal) {
+            closeDishDescriptionModalFn();
+        }
+    });
+}
 
 function openMenuModal() {
     if (!menuModal) return;
@@ -291,6 +344,7 @@ if (menuModal) {
 
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+        closeDishDescriptionModalFn();
         closeMenuModal();
     }
 });

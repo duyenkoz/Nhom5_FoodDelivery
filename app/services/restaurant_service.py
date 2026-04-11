@@ -38,9 +38,9 @@ VOUCHER_SCOPE_LABELS = {
 }
 
 VOUCHER_DISCOUNT_LABELS = {
-    "amount": "Giảm tiền",
-    "percent": "Giảm %",
+    "amount": "Giảm",
 }
+
 
 
 def _clean(value):
@@ -211,12 +211,11 @@ def _format_end_date_label(value):
 
 
 def _voucher_discount_text(voucher):
-    discount_label = VOUCHER_DISCOUNT_LABELS.get(voucher.discount_type or "", "Giảm")
-    if voucher.discount_type == "percent":
-        value = f"{voucher.discount_value or 0}%"
-    else:
-        value = f"{'{:,}'.format(voucher.discount_value or 0)}đ"
+    discount_label = VOUCHER_DISCOUNT_LABELS["amount"]
+    value = "{:,}đ".format(voucher.discount_value or 0)
     return f"{discount_label}: {value}"
+
+
 
 
 def _voucher_state_info(voucher):
@@ -282,57 +281,47 @@ def _filter_voucher_views(voucher_views, query=""):
 
 def _validate_voucher_form(form):
     voucher_code = _normalize_voucher_code(form.get("voucher_code"))
-    discount_type = _clean(form.get("discount_type"))
     discount_value_raw = _clean(form.get("discount_value"))
     start_date_raw = _clean(form.get("start_date"))
     end_date_raw = _clean(form.get("end_date"))
     errors = {}
 
     if not voucher_code:
-        errors["voucher_code"] = "Vui lòng nhập mã voucher."
+        errors["voucher_code"] = "Vui l?ng nh?p m? voucher."
     elif len(voucher_code) > 50:
-        errors["voucher_code"] = "Mã voucher không được vượt quá 50 ký tự."
-
-    if discount_type not in {"amount", "percent"}:
-        errors["discount_type"] = "Vui lòng chọn kiểu giảm giá."
+        errors["voucher_code"] = "M? voucher kh?ng ???c v??t qu? 50 k? t?."
 
     if not discount_value_raw:
-        errors["discount_value"] = "Vui lòng nhập giá trị giảm giá."
+        errors["discount_value"] = "Vui l?ng nh?p gi? tr? gi?m gi?."
     else:
         try:
             discount_value = int(discount_value_raw)
             if discount_value <= 0:
                 raise ValueError
-            if discount_type == "percent" and discount_value > 100:
-                raise ValueError
         except ValueError:
-            errors["discount_value"] = (
-                "Giảm theo % phải từ 1 đến 100."
-                if discount_type == "percent"
-                else "Giá trị giảm phải là số nguyên lớn hơn 0."
-            )
+            errors["discount_value"] = "Gi? tr? gi?m ph?i l? s? nguy?n l?n h?n 0."
 
     start_date = None
     end_date = None
     try:
         start_date = _parse_date_input(start_date_raw) if start_date_raw else date.today()
     except ValueError:
-        errors["start_date"] = "Ngày bắt đầu không hợp lệ."
+        errors["start_date"] = "Ng?y b?t ??u kh?ng h?p l?."
 
     try:
         end_date = _parse_date_input(end_date_raw)
     except ValueError:
-        errors["end_date"] = "Ngày kết thúc không hợp lệ."
+        errors["end_date"] = "Ng?y k?t th?c kh?ng h?p l?."
 
     if start_date and end_date and end_date < start_date:
-        errors["end_date"] = "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu."
+        errors["end_date"] = "Ng?y k?t th?c ph?i sau ho?c b?ng ng?y b?t ??u."
 
     if errors:
         raise ValueError(errors)
 
     return {
         "voucher_code": voucher_code,
-        "discount_type": discount_type,
+        "discount_type": "amount",
         "discount_value": int(discount_value_raw),
         "start_date": start_date,
         "end_date": end_date,
@@ -357,6 +346,8 @@ def _filter_dish_views(dish_views, query="", category="all"):
         ]
 
     return filtered
+
+
 
 
 def build_dashboard_context(
@@ -485,7 +476,7 @@ def build_voucher_section_context(
             form_values = {
                 "voucher_id": edit_voucher.voucher_id,
                 "voucher_code": edit_voucher.voucher_code or "",
-                "discount_type": edit_voucher.discount_type or "amount",
+                "discount_type": "amount",
                 "discount_value": edit_voucher.discount_value or "",
                 "start_date": _format_date_value(edit_voucher.start_date),
                 "end_date": _format_date_value(edit_voucher.end_date),
@@ -503,6 +494,7 @@ def build_voucher_section_context(
                 "status": "on",
                 "voucher_scope": "restaurant",
             }
+
 
     if not _clean((form_values or {}).get("start_date")):
         form_values = dict(form_values or {})
@@ -721,7 +713,7 @@ def save_voucher_for_restaurant(user_id, form):
         raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
 
     voucher.voucher_code = data["voucher_code"]
-    voucher.discount_type = data["discount_type"]
+    voucher.discount_type = "amount"
     voucher.discount_value = data["discount_value"]
     voucher.start_date = data["start_date"]
     voucher.end_date = data["end_date"]
@@ -729,8 +721,9 @@ def save_voucher_for_restaurant(user_id, form):
     voucher.voucher_scope = "restaurant"
     voucher.created_by = restaurant.restaurant_id
 
-    db.session.commit()
-
+    voucher.voucher_code = data["voucher_code"]
+    voucher.discount_type = "amount"
+    voucher.discount_value = data["discount_value"]
     return voucher, action
 
 

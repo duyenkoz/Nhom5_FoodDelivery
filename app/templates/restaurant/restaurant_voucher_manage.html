@@ -195,28 +195,32 @@
                         {% endif %}
                     </div>
 
-                    <div class="menu-form__grid menu-form__grid--secondary">
-                        <div class="menu-form__field">
-                            <label for="discount_type">Kiểu giảm giá</label>
-                            <select id="discount_type" name="discount_type" class="{% if voucher_form_errors.get('discount_type') %}is-invalid{% endif %}">
-                                <option value="amount" {% if voucher_form_values.get('discount_type', 'amount') == 'amount' %}selected{% endif %}>Giảm tiền</option>
-                                <option value="percent" {% if voucher_form_values.get('discount_type') == 'percent' %}selected{% endif %}>Giảm %</option>
-                            </select>
-                            {% if voucher_form_errors.get('discount_type') %}
-                            <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('discount_type') }}</small>
-                            {% else %}
-                            <small class="menu-form__field-note">Chọn giảm tiền hoặc giảm theo %.</small>
-                            {% endif %}
-                        </div>
+                    <input type="hidden" id="discount_type" name="discount_type" value="amount">
+                    <div class="menu-form__field menu-form__field--meta">
+                        <label>Loại voucher</label>
+                        <div class="menu-form__meta-line">Giảm số tiền</div>
+                    </div>
 
+                    <div class="menu-form__grid menu-form__grid--secondary">
                         <div class="menu-form__field">
                             <label for="discount_value">Giá trị giảm</label>
                             <input type="number" id="discount_value" name="discount_value" min="1" step="1" value="{{ voucher_form_values.get('discount_value', '') }}" class="{% if voucher_form_errors.get('discount_value') %}is-invalid{% endif %}" placeholder="10000">
                             {% if voucher_form_errors.get('discount_value') %}
                             <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('discount_value') }}</small>
                             {% else %}
-                            <small class="menu-form__field-note">Giảm tiền nhập số tiền, giảm % nhập từ 1 đến 100.</small>
+                            <small class="menu-form__field-note">Nhập số tiền giảm cố định, ví dụ 10000.</small>
                             {% endif %}
+                        </div>
+
+                        <div class="menu-form__field menu-form__field--switch">
+                            <label>Trạng thái</label>
+                            <label class="restaurant-status-form restaurant-status-form--field restaurant-status-form--toggle">
+                                <input type="checkbox" id="voucher_status" name="status" class="restaurant-status-form__input" {% if voucher_form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
+                                <span class="restaurant-switch" aria-hidden="true">
+                                    <span class="restaurant-switch__thumb"></span>
+                                </span>
+                            </label>
+                            <small class="menu-form__field-note">Bật để voucher sẵn sàng sử dụng.</small>
                         </div>
 
                         <div class="menu-form__field">
@@ -237,17 +241,6 @@
                             {% else %}
                             <small class="menu-form__field-note">Để trống nếu không giới hạn thời gian.</small>
                             {% endif %}
-                        </div>
-
-                        <div class="menu-form__field">
-                            <label>Trạng thái</label>
-                            <label class="restaurant-status-form restaurant-status-form--field restaurant-status-form--toggle">
-                                <input type="checkbox" id="voucher_status" name="status" class="restaurant-status-form__input" {% if voucher_form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
-                                <span class="restaurant-switch" aria-hidden="true">
-                                    <span class="restaurant-switch__thumb"></span>
-                                </span>
-                            </label>
-                            <small class="menu-form__field-note">Bật để voucher sẵn sàng sử dụng.</small>
                         </div>
                     </div>
 
