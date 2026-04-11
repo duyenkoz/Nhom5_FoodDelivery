@@ -21,6 +21,9 @@
                 </div>
 
                 <form id="loginForm" method="POST" novalidate>
+                    {% if request.args.get('next') %}
+                    <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+                    {% endif %}
                     {% if server_error_message %}
                     <div class="auth-login__alert" role="alert">{{ server_error_message }}</div>
                     {% endif %}
@@ -64,7 +67,7 @@
                             >
                             <button
                                 type="button"
-                                class="input-group-text input-group-text--right auth-login__toggle"
+                                class="input-group-text input-group-text--right auth-login__toggle auth-password-toggle"
                                 id="passwordToggle"
                                 aria-label="Hiện hoặc ẩn mật khẩu"
                                 aria-pressed="false"
@@ -179,7 +182,7 @@
                             >
                             <button
                                 type="button"
-                                class="input-group-text input-group-text--right auth-login__toggle"
+                                class="input-group-text input-group-text--right auth-login__toggle auth-password-toggle"
                                 id="forgotNewPasswordToggle"
                                 aria-label="Hiện hoặc ẩn mật khẩu mới"
                                 aria-pressed="false"
@@ -208,7 +211,7 @@
                             >
                             <button
                                 type="button"
-                                class="input-group-text input-group-text--right auth-login__toggle"
+                                class="input-group-text input-group-text--right auth-login__toggle auth-password-toggle"
                                 id="forgotConfirmPasswordToggle"
                                 aria-label="Hiện hoặc ẩn mật khẩu nhập lại"
                                 aria-pressed="false"

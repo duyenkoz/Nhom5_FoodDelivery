@@ -1,0 +1,394 @@
+.restaurant-section {
+    display: grid;
+    gap: 16px;
+}
+
+.restaurant-section__stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.restaurant-section__stats--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.restaurant-section__card {
+    border: 1px solid var(--rd-line);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--rd-shadow);
+    padding: 18px;
+}
+
+.restaurant-section__card--stats {
+    padding: 14px;
+}
+
+.restaurant-section__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.restaurant-section__header h2 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 1.1rem;
+}
+
+.restaurant-stat--compact {
+    min-height: 88px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #fafafa;
+    border: 1px solid #edf0f4;
+    box-shadow: none;
+}
+
+.restaurant-stat--compact span {
+    font-size: 0.9rem;
+}
+
+.restaurant-stat--compact strong {
+    font-size: 1.55rem;
+}
+
+.restaurant-review-list {
+    display: grid;
+    gap: 12px;
+}
+
+.restaurant-review-item {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid #edf0f4;
+    border-radius: 14px;
+    background: #fafafa;
+}
+
+.restaurant-review-item__avatar {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff3a4;
+    color: #d97706;
+    font-weight: 900;
+    font-size: 1.1rem;
+}
+
+.restaurant-review-item__body {
+    display: grid;
+    gap: 10px;
+}
+
+.restaurant-review-item__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.restaurant-review-item__top strong {
+    display: block;
+    color: #1f2937;
+}
+
+.restaurant-review-item__top span {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.restaurant-review-item__rating {
+    min-width: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #fff8cf;
+    color: #d97706;
+    font-weight: 800;
+}
+
+.restaurant-review-item p {
+    margin: 0;
+    color: #334155;
+    line-height: 1.65;
+}
+
+.restaurant-review-item__meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.restaurant-review-item__report {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #f1d5d5;
+    background: #fff8f8;
+}
+
+.restaurant-review-item__report label {
+    font-weight: 700;
+    color: #9f1239;
+    font-size: 0.9rem;
+}
+
+.restaurant-review-item__report textarea {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    border: 1px solid #f3c5c5;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+    color: #1f2937;
+}
+
+.restaurant-review-item__report button {
+    justify-self: start;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.restaurant-review-item__report-badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-weight: 700;
+}
+
+.restaurant-review-item__report-note {
+    padding: 12px;
+    border-radius: 12px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+}
+
+.restaurant-review-item__report-note strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.restaurant-review-item__report-note p {
+    margin: 0;
+    color: inherit;
+}
+
+.restaurant-simple-list {
+    display: grid;
+    gap: 10px;
+}
+
+.restaurant-simple-list__row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #edf0f4;
+    border-radius: 12px;
+    background: #fafafa;
+    align-items: center;
+}
+
+.restaurant-simple-list__row strong {
+    color: #1f2937;
+}
+
+.restaurant-voucher-header {
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.restaurant-voucher-header h2 {
+    margin-bottom: 6px;
+}
+
+.restaurant-voucher-header__sub {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.restaurant-voucher-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.restaurant-voucher-search {
+    min-width: 280px;
+    max-width: 360px;
+    margin: 0;
+}
+
+.restaurant-voucher-table {
+    display: grid;
+    gap: 10px;
+}
+
+.restaurant-voucher-table__head,
+.restaurant-voucher-table__row {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1.35fr 0.9fr 100px 60px 100px; 
+    gap: 12px;
+    align-items: center;
+}
+
+.restaurant-voucher-table__head {
+    padding: 0 6px 10px;
+    color: #94a3b8;
+    font-weight: 800;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.restaurant-voucher-table__row {
+    padding: 14px 6px;
+    border: 1px solid #edf0f4;
+    border-radius: 14px;
+    background: #fafafa;
+}
+
+.restaurant-voucher-table__code {
+    display: grid;
+    gap: 4px;
+}
+
+.restaurant-voucher-table__code strong {
+    color: #1f2937;
+    font-size: 1rem;
+}
+
+.restaurant-voucher-table__code small {
+    color: #94a3b8;
+}
+
+.restaurant-voucher-table__discount,
+.restaurant-voucher-table__validity,
+.restaurant-voucher-table__scope,
+.restaurant-voucher-table__usage {
+    color: #334155;
+}
+
+.restaurant-voucher-table__usage {
+    font-weight: 800;
+    color: #1f2937;
+    text-align: center;
+}
+
+.restaurant-voucher-table__actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.restaurant-voucher-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.86rem;
+}
+
+.restaurant-voucher-badge.is-active {
+    background: #ecfdf3;
+    color: #15803d;
+}
+
+.restaurant-voucher-badge.is-off {
+    background: #fff1f2;
+    color: #be123c;
+}
+
+.restaurant-voucher-badge.is-pending {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.restaurant-voucher-badge.is-muted {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.restaurant-voucher-empty {
+    min-height: 160px;
+    align-items: center;
+}
+
+@media (max-width: 900px) {
+    .restaurant-section__stats {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .restaurant-section__stats--two {
+        grid-template-columns: 1fr;
+    }
+
+    .restaurant-review-item {
+        grid-template-columns: 1fr;
+    }
+
+    .restaurant-review-item__avatar {
+        width: 46px;
+        height: 46px;
+    }
+
+    .restaurant-simple-list__row {
+        grid-template-columns: 1fr;
+    }
+
+    .restaurant-voucher-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .restaurant-voucher-search {
+        min-width: 0;
+        width: 100%;
+        max-width: none;
+    }
+
+    .restaurant-voucher-table__head {
+        display: none;
+    }
+
+    .restaurant-voucher-table__row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .restaurant-voucher-table__row > div:nth-child(5) {
+        display: flex;
+        justify-content: center;
+    }
+    .restaurant-voucher-table__actions {
+        justify-content: flex-start;
+    }
+    .restaurant-voucher-table__status {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+}

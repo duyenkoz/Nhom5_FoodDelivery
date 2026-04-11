@@ -94,8 +94,17 @@
                                 minlength="6"
                                 maxlength="72"
                             >
-                            <button type="button" class="input-group-text input-group-text--right" onclick="togglePassword('password','eye1')" aria-label="Hiện hoặc ẩn mật khẩu">
-                                <svg id="eye1" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <button
+                                type="button"
+                                class="input-group-text input-group-text--right auth-password-toggle"
+                                id="passwordToggle"
+                                aria-label="Hiện hoặc ẩn mật khẩu"
+                                aria-pressed="false"
+                            >
+                                <svg id="passwordEye" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
                             </button>
                         </div>
                         <div class="invalid-feedback text-danger" id="passError">{{ form_errors.password }}</div>
@@ -117,8 +126,17 @@
                                 minlength="6"
                                 maxlength="72"
                             >
-                            <button type="button" class="input-group-text input-group-text--right" onclick="togglePassword('confirm','eye2')" aria-label="Hiện hoặc ẩn mật khẩu">
-                                <svg id="eye2" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <button
+                                type="button"
+                                class="input-group-text input-group-text--right auth-password-toggle"
+                                id="confirmToggle"
+                                aria-label="Hiện hoặc ẩn mật khẩu"
+                                aria-pressed="false"
+                            >
+                                <svg id="confirmEye" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
                             </button>
                         </div>
                         <div class="invalid-feedback text-danger" id="confirmError">{{ form_errors.password_confirm }}</div>
@@ -184,6 +202,10 @@ const legalModal = document.getElementById("legalModal");
 const legalModalTitle = document.getElementById("legalModalTitle");
 const legalModalBody = document.getElementById("legalModalBody");
 const legalModalClose = document.getElementById("legalModalClose");
+const passwordToggle = document.getElementById("passwordToggle");
+const passwordEye = document.getElementById("passwordEye");
+const confirmToggle = document.getElementById("confirmToggle");
+const confirmEye = document.getElementById("confirmEye");
 
 const legalContents = {
     terms: {
@@ -398,19 +420,16 @@ registerForm.addEventListener("submit", function (e) {
     }
 });
 
-function togglePassword(inputId, eyeId) {
-    let input = document.getElementById(inputId);
-    let eye = document.getElementById(eyeId);
-
-    if (input.type === "password") {
-        input.type = "text";
-        eye.classList.remove("fa-eye");
-        eye.classList.add("fa-eye-slash");
-    } else {
-        input.type = "password";
-        eye.classList.remove("fa-eye-slash");
-        eye.classList.add("fa-eye");
-    }
+function togglePasswordField(input, toggleButton, eyeIcon) {
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    toggleButton.setAttribute("aria-pressed", String(isPassword));
+    eyeIcon.innerHTML = isPassword
+        ? '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><path d="M4.5 4.5 19.5 19.5"/>'
+        : '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
 }
+
+passwordToggle.addEventListener("click", () => togglePasswordField(passwordInput, passwordToggle, passwordEye));
+confirmToggle.addEventListener("click", () => togglePasswordField(confirmInput, confirmToggle, confirmEye));
 </script>
 {% endblock %}

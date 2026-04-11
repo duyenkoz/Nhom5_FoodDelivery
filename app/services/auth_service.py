@@ -255,6 +255,14 @@ def is_restaurant_profile_complete(user_id):
 
     return bool(restaurant.address and restaurant.area)
 
+def get_restaurant_by_user_id(user_id):
+    user = get_user_by_id(user_id)
+    if not user:
+        return None, None
+
+    restaurant = Restaurant.query.filter_by(restaurant_id=user.user_id).one_or_none()
+    return user, restaurant
+
 
 def complete_customer_profile(user_id, form):
     user = get_user_by_id(user_id)
@@ -277,7 +285,7 @@ def complete_customer_profile(user_id, form):
 
 
 def complete_restaurant_profile(user_id, form, file_storage=None):
-    user = get_user_by_id(user_id)
+    user, restaurant = get_restaurant_by_user_id(user_id)
     if not user:
         return None
 
@@ -290,19 +298,21 @@ def complete_restaurant_profile(user_id, form, file_storage=None):
         upload_dir = os.path.join(current_app.static_folder, "uploads")
         os.makedirs(upload_dir, exist_ok=True)
         file_storage.save(os.path.join(upload_dir, filename))
+        filename = f"uploads/{filename}"
 
     restaurant = db.session.get(Restaurant, user.user_id)
     if not restaurant:
         restaurant = Restaurant(restaurant_id=user.user_id, platform_fee=0)
         db.session.add(restaurant)
 
-    restaurant.image = filename or restaurant.image
+    if filename:
+        restaurant.image = filename
+    restaurant.platform_fee = restaurant.platform_fee or 0
     restaurant.address = data["diaChi"]
     restaurant.area = data["khuVuc"]
     restaurant.latitude = data["latitude"]
     restaurant.longitude = data["longitude"]
     restaurant.description = data["moTa"]
-    restaurant.platform_fee = restaurant.platform_fee or 0
     db.session.commit()
     return user
 
