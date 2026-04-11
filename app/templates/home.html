@@ -18,6 +18,7 @@
         data-location-resolve-url="{{ url_for('location.resolve') }}"
         data-location-storage-key="{{ page.location_storage_key }}"
         data-location-persist="{{ 'true' if page.location_persist else 'false' }}"
+        data-location-clear-storage-key="{{ page.location_clear_storage_key|default('') }}"
     >
         <div class="delivery-address__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

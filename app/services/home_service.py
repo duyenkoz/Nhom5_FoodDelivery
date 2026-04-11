@@ -8,6 +8,7 @@ from app.models import Restaurant
 from app.services.location_service import (
     format_distance_km,
     haversine_distance_km,
+    normalize_text,
     location_sort_key,
 )
 
@@ -105,7 +106,26 @@ def _format_price(value):
 
 
 def _format_address(restaurant):
-    parts = [restaurant.address, restaurant.area]
+    address = (restaurant.address or "").strip()
+    area = (restaurant.area or "").strip()
+
+    if address and area:
+        parts = [part.strip() for part in address.split(",") if part.strip()]
+        area_aliases = {
+            "hồ chí minh": ("hồ chí minh", "thành phố hồ chí minh", "tp hcm", "tphcm", "hcm"),
+            "hà nội": ("hà nội", "thành phố hà nội", "tp hà nội", "hanoi", "tphn"),
+            "đà nẵng": ("đà nẵng", "thành phố đà nẵng", "tp đà nẵng", "danang", "tpdn"),
+            "cần thơ": ("cần thơ", "thành phố cần thơ", "tp cần thơ", "cantho", "tpct"),
+        }.get(normalize_text(area), (normalize_text(area),))
+        while parts:
+            tail = normalize_text(parts[-1])
+            if any(alias and alias in tail for alias in area_aliases) or "thanh pho" in tail:
+                parts.pop()
+                continue
+            break
+        address = ", ".join(parts) if parts else address
+
+    parts = [address, area]
     return ", ".join(part for part in parts if part)
 
 

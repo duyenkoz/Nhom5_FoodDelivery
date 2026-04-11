@@ -320,7 +320,9 @@ def change_password():
 @bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("home.index"))
+    response = redirect(url_for("home.index"))
+    response.set_cookie("fivefood_clear_location", "1", max_age=30, httponly=True, samesite="Lax")
+    return response
 
 
 @bp.route("/complete-customer", methods=["GET", "POST"])

@@ -114,6 +114,7 @@
         const shouldPersist = container.dataset.locationPersist === "true";
         const requireArea = container.dataset.locationRequireArea === "true";
         const disableUntilArea = container.dataset.locationDisableUntilArea === "true";
+        const clearStorageKey = container.dataset.locationClearStorageKey || "";
         let activeIndex = -1;
         let currentResults = [];
         let debounceHandle = null;
@@ -370,6 +371,14 @@
         }
 
         function refreshStoredLocation() {
+            if (clearStorageKey) {
+                try {
+                    localStorage.removeItem(clearStorageKey);
+                } catch (error) {
+                    // Ignore storage restrictions.
+                }
+            }
+
             if (!shouldPersist) {
                 return;
             }

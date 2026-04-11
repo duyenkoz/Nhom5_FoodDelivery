@@ -177,6 +177,7 @@ def _normalize_trackasia_result(prediction, detail_result, query, selected_area=
         "display_name": formatted_address,
         "address": formatted_address,
         "formatted_address": formatted_address,
+        "address_components": address_components,
         "lat": float(lat),
         "lon": float(lon),
         "area": _extract_trackasia_area_from_components(address_components) or selected_area or "",
@@ -330,6 +331,7 @@ def _normalize_result(result, query, selected_area=None, source="nominatim"):
     return {
         "query": query,
         "display_name": result.get("display_name", query),
+        "address_components": result.get("address") or {},
         "lat": float(lat),
         "lon": float(lon),
         "area": area,
