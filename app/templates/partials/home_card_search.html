@@ -1,0 +1,47 @@
+<article class="dish-card">
+    <div class="dish-card__media">
+        <img
+            class="dish-card__image"
+            src="{% if item.image_path.startswith('http://') or item.image_path.startswith('https://') %}{{ item.image_path }}{% else %}{{ url_for('static', filename=item.image_path) }}{% endif %}"
+            alt="{{ item.name }}"
+        >
+        {% if item.corner_badge %}
+        <span class="dish-card__corner-badge dish-card__corner-badge--{{ item.corner_badge_kind }}">
+            {{ item.corner_badge }}
+        </span>
+        {% endif %}
+        <button class="dish-card__favorite" type="button" aria-label="Thêm vào yêu thích">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 21.35 10.55 20C5 15.1 2 12.28 2 8.85 2 6.07 4.24 3.8 7 3.8c1.56 0 3.04.73 4 1.88a5.11 5.11 0 0 1 4-1.88c2.76 0 5 2.27 5 5.05 0 3.43-3 6.25-8.55 11.15Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div class="dish-card__body">
+        <h3 class="dish-card__title">{{ item.name }}</h3>
+
+        <div class="dish-card__meta">
+            <span class="dish-card__rating">
+                <span class="dish-card__star" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="m12 17.3 6.18 3.74-1.64-7.03L22 8.28l-7.19-.61L12 1 9.19 7.67 2 8.28l5.46 5.73-1.64 7.03L12 17.3Z"></path>
+                    </svg>
+                </span>
+                <strong>{{ item.rating }}</strong>
+                <span>{{ item.reviews }}</span>
+            </span>
+            <span class="dish-card__dot" aria-hidden="true">•</span>
+            <span class="dish-card__distance">{{ item.distance }}</span>
+        </div>
+
+        <p class="dish-card__address">{{ item.address }}</p>
+
+        {% if item.footer_visible|default(true) %}
+        <div class="dish-card__footer">
+            <span class="dish-card__tag dish-card__tag--{{ item.featured_kind }}">{{ item.featured_label }}</span>
+            <span class="dish-card__featured">{{ item.featured_name }}</span>
+            <strong class="dish-card__price">{{ item.price }}</strong>
+        </div>
+        {% endif %}
+    </div>
+</article>

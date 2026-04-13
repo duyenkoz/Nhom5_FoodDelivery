@@ -8,7 +8,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    {% include "partials/header_v2.html" %}
+    {% include "partials/header_search.html" %}
     <main class="page-shell {% block page_shell_class %}{% endblock %}">
         <div class="container {% block content_container_class %}{% endblock %}">
             {% block content %}{% endblock %}
@@ -16,5 +16,6 @@
     </main>
     {% include "partials/footer.html" %}
     <script src="{{ url_for('static', filename='js/location.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/home_search.js') }}" defer></script>
 </body>
 </html>
