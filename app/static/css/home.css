@@ -371,6 +371,59 @@
     background: #d6dbe4;
 }
 
+.home-search-section {
+    padding-top: 8px;
+}
+
+.home-search-section__header {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.home-search-tabs {
+    display: inline-flex;
+    gap: 42px;
+}
+
+.home-search-tabs__item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 2px 12px;
+    position: relative;
+    color: #667085;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.home-search-tabs__item:hover {
+    color: #1f2937;
+}
+
+.home-search-tabs__item.is-active {
+    color: #ff8a00;
+    font-weight: 700;
+}
+
+.home-search-tabs__item.is-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: #ff8a00;
+}
+
+.home-search-empty {
+    margin-top: 8px;
+}
+
 .empty-state {
     padding: 32px;
     border: 1px dashed #d9dee7;
@@ -414,7 +467,16 @@
         padding-top: 4px;
     }
 
-    .home-section {
+    .home-search-tabs {
+        width: 100%;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .home-search-tabs__item {
+        flex: 1 1 0;
+        justify-content: center;
+        padding-bottom: 10px;
     }
 
     .delivery-address {

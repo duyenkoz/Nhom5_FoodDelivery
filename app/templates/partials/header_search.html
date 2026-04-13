@@ -1,0 +1,104 @@
+<header class="site-header">
+    <div class="container site-header__inner">
+        <a class="brand" href="{{ url_for('home.index') }}" aria-label="fiveFood">
+            <span class="brand__mark">five</span>Food
+        </a>
+
+        {% if show_search|default(true) %}
+        <form
+            class="site-search location-autocomplete-shell"
+            action="{{ url_for('home.index') }}"
+            method="get"
+            role="search"
+            data-search-autocomplete="true"
+            data-search-popover-url="{{ url_for('home.search_popover') }}"
+            data-search-suggestions-url="{{ url_for('home.search_suggestions') }}"
+            data-search-clear-url="{{ url_for('home.clear_search_history') }}"
+            data-search-user-key="{% if session.get('auth_state') == 'logged_in' and session.get('user_id') %}user:{{ session.get('user_id') }}{% else %}guest{% endif %}"
+        >
+            <script type="application/json" data-search-recent-json>{{ session.get("fivefood_recent_searches", []) | tojson }}</script>
+            <span class="site-search__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                </svg>
+            </span>
+            <input
+                data-search-input="true"
+                type="search"
+                name="q"
+                value="{{ request.args.get('q', '') }}"
+                placeholder="Tìm món ăn hoặc nhà hàng"
+                aria-label="Tìm món ăn hoặc nhà hàng"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+            >
+            <input type="hidden" name="tab" value="{{ request.args.get('tab', 'all') }}">
+            {% if request.args.get('address') %}
+            <input type="hidden" name="address" value="{{ request.args.get('address') }}">
+            {% endif %}
+            {% if request.args.get('lat') %}
+            <input type="hidden" name="lat" value="{{ request.args.get('lat') }}">
+            {% endif %}
+            {% if request.args.get('lon') %}
+            <input type="hidden" name="lon" value="{{ request.args.get('lon') }}">
+            {% endif %}
+            {% if request.args.get('area') %}
+            <input type="hidden" name="area" value="{{ request.args.get('area') }}">
+            {% endif %}
+            <div class="location-autocomplete__menu site-search__menu" data-search-dropdown="true" hidden></div>
+        </form>
+        <button class="site-search__backdrop" type="button" data-search-backdrop hidden aria-label="Đóng tìm kiếm"></button>
+        {% else %}
+        <div class="site-header__spacer"></div>
+        {% endif %}
+
+        {% if session.get('auth_state') == 'logged_in' and session.get('user_role') in ['customer', 'restaurant', 'admin'] %}
+        {% set user_name = header_user_name|default(session.get('user_display_name') or session.get('username') or 'Tài khoản') %}
+        {% set user_role = header_user_role|default(session.get('user_role')) %}
+        {% set restaurant_name = header_restaurant_display_name|default(session.get('user_display_name') or session.get('username') or 'Nhà hàng') %}
+        <details class="site-header__user-menu">
+            <summary class="site-header__user" aria-label="{{ user_name }}" title="{{ user_name }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 21a8 8 0 0 0-16 0"></path>
+                    <circle cx="12" cy="8" r="4"></circle>
+                </svg>
+            </summary>
+            <div class="site-header__menu" role="menu" aria-label="Tài khoản">
+                <div class="site-header__menu-title">
+                    <strong>Tài khoản</strong>
+                    <span>
+                        {% if user_role == 'restaurant' %}
+                        {{ restaurant_name }}
+                        {% elif user_role == 'admin' %}
+                        {{ user_name }}
+                        {% else %}
+                        {{ user_name }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% if user_role == 'restaurant' %}
+                <a class="site-header__menu-item" href="{{ url_for('restaurant.dashboard') }}" role="menuitem">Quản lý thực đơn</a>
+                <a class="site-header__menu-item" href="{{ url_for('auth.complete_restaurant', edit=1) }}" role="menuitem">Thông tin nhà hàng</a>
+                <a class="site-header__menu-item" href="{{ url_for('auth.change_password') }}" role="menuitem">Đổi mật khẩu</a>
+                {% elif user_role == 'admin' %}
+                <a class="site-header__menu-item" href="{{ url_for('admin.dashboard') }}" role="menuitem">Quản lý hệ thống</a>
+                {% else %}
+                <a class="site-header__menu-item" href="{{ url_for('auth.account') }}" role="menuitem">Thông tin tài khoản</a>
+                <a class="site-header__menu-item" href="{{ url_for('auth.orders') }}" role="menuitem">Đơn hàng</a>
+                <a class="site-header__menu-item" href="{{ url_for('auth.change_password') }}" role="menuitem">Đổi mật khẩu</a>
+                {% endif %}
+                <a class="site-header__menu-item site-header__menu-item--danger" href="{{ url_for('auth.logout') }}" role="menuitem">Đăng xuất</a>
+            </div>
+        </details>
+        {% elif show_auth|default(true) %}
+        <a class="site-header__auth" href="{{ url_for('auth.login') }}" aria-label="Đăng nhập hoặc đăng ký">
+            <span class="site-header__auth-link">Đăng nhập</span>
+            <span class="site-header__auth-sep" aria-hidden="true">/</span>
+            <span class="site-header__auth-text">Đăng ký</span>
+        </a>
+        {% endif %}
+    </div>
+</header>
