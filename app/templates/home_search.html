@@ -6,6 +6,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
 {% endblock %}
 
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/home_slider.js') }}" defer></script>
+{% endblock %}
+
 {% block content %}
 <section class="home-hero">
     <h1 class="home-hero__title">{{ page.hero_title }}</h1>

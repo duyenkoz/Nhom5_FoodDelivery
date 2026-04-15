@@ -24,9 +24,6 @@
                     {% if request.args.get('next') %}
                     <input type="hidden" name="next" value="{{ request.args.get('next') }}">
                     {% endif %}
-                    {% if server_error_message %}
-                    <div class="auth-login__alert" role="alert">{{ server_error_message }}</div>
-                    {% endif %}
                     <div class="mb-3">
                         <label class="form-label" for="identifier">Email, Số điện thoại hoặc Tên đăng nhập</label>
                         <div class="input-group">
@@ -435,11 +432,27 @@ function rememberMeChanged() {
 }
 
 function setForgotMessage(element, message, isSuccess) {
+    if (element) {
+        element.textContent = message || "";
+        element.classList.toggle("forgot-modal__success", Boolean(isSuccess && message));
+    }
+
+    if (!message) {
+        return;
+    }
+
+    if (isSuccess) {
+        AppToast.success(message);
+    }
+}
+
+function showForgotError(element, message) {
     if (!element) {
         return;
     }
+
     element.textContent = message || "";
-    element.classList.toggle("forgot-modal__success", Boolean(isSuccess));
+    element.classList.remove("forgot-modal__success");
 }
 
 function showForgotStep(step) {
@@ -610,7 +623,7 @@ async function handleForgotLookup() {
         showForgotStep("verify");
         forgotOtpInput.focus();
     } catch (error) {
-        setForgotMessage(forgotLookupMessage, error.message || "Không thể gửi mã OTP lúc này.");
+        showForgotError(forgotLookupMessage, error.message || "Không thể gửi mã OTP lúc này.");
     }
 }
 
@@ -634,7 +647,7 @@ async function handleForgotVerify() {
         showForgotStep("reset");
         forgotNewPasswordInput.focus();
     } catch (error) {
-        setForgotMessage(forgotVerifyMessage, error.message || "Mã OTP không đúng hoặc đã hết hạn.");
+        showForgotError(forgotVerifyMessage, error.message || "Mã OTP không đúng hoặc đã hết hạn.");
     }
 }
 
@@ -668,7 +681,7 @@ async function handleForgotResend() {
         if (typeof error.retryAfter === "number") {
             startResendCooldown(error.retryAfter);
         }
-        setForgotMessage(forgotVerifyMessage, error.message || "Không thể gửi lại mã OTP lúc này.");
+        showForgotError(forgotVerifyMessage, error.message || "Không thể gửi lại mã OTP lúc này.");
     }
 }
 
@@ -710,7 +723,7 @@ async function handleForgotReset() {
             resetForgotModal();
         }, 1200);
     } catch (error) {
-        setForgotMessage(forgotResetMessage, error.message || "Không thể cập nhật mật khẩu.");
+        showForgotError(forgotResetMessage, error.message || "Không thể cập nhật mật khẩu.");
     }
 }
 
@@ -755,8 +768,8 @@ forgotVerifyCloseBtn.addEventListener("click", closeForgotModal);
 forgotResetBtn.addEventListener("click", handleForgotReset);
 forgotResetCloseBtn.addEventListener("click", closeForgotModal);
 registerNowBtn.addEventListener("click", btnDangKyNgayClick);
-googleLoginBtn.addEventListener("click", () => alert("Đăng nhập Google đang được phát triển."));
-facebookLoginBtn.addEventListener("click", () => alert("Đăng nhập Facebook đang được phát triển."));
+googleLoginBtn.addEventListener("click", () => AppToast.warning("Đăng nhập Google đang được phát triển."));
+facebookLoginBtn.addEventListener("click", () => AppToast.warning("Đăng nhập Facebook đang được phát triển."));
 
 forgotPasswordModal.addEventListener("click", (event) => {
     if (event.target === forgotPasswordModal) {

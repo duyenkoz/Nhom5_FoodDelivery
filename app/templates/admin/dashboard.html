@@ -67,16 +67,6 @@
             </div>
         </section>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <section class="admin-card admin-panel">
-                {% for category, message in messages %}
-                <div class="admin-alert admin-alert--{{ category }}">{{ message }}</div>
-                {% endfor %}
-            </section>
-            {% endif %}
-        {% endwith %}
-
         {% if section_name == 'dashboard' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">

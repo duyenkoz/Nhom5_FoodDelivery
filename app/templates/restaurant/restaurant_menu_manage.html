@@ -59,16 +59,6 @@
                 </div>
             </section>
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                <div class="restaurant-alerts">
-                    {% for category, message in messages %}
-                    <div class="restaurant-alert restaurant-alert--{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            {% endwith %}
-
             <section class="restaurant-toolbar" id="menu-toolbar">
                 <form class="restaurant-toolbar__main-form" method="get" action="{{ url_for('restaurant.dashboard') }}" id="toolbarForm" data-live-search-form data-live-search-target="#menu-results" autocomplete="off">
                     <div class="restaurant-toolbar__search">

@@ -385,7 +385,7 @@ registerForm.addEventListener("submit", function (e) {
     }
 
     if (!termsInput.checked) {
-        alert("Bạn phải đồng ý điều khoản");
+        AppToast.warning("Bạn phải đồng ý điều khoản");
         e.preventDefault();
         return;
     }
