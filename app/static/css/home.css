@@ -83,7 +83,7 @@
 
 .home-section {
     padding: 12px 0 0;
-    margin-bottom: 12px;
+    margin-bottom: 48px;
 }
 
 .home-section__header {
@@ -92,7 +92,8 @@
 
 .home-section__header h2 {
     margin: 0;
-    font-size: 1.6rem;
+    color: #ff8a00;
+    font-size: clamp(1.8rem, 2.8vw, 2.0rem);
     font-weight: 800;
     letter-spacing: -0.03em;
 }
@@ -108,7 +109,41 @@
     gap: 24px;
 }
 
+.home-section--slider {
+    overflow: hidden;
+}
+
+.restaurant-grid--slider {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - 72px) / 4);
+    grid-template-columns: none;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 4px 0 10px;
+    margin: 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    cursor: grab;
+    touch-action: pan-x;
+    user-select: none;
+}
+
+.restaurant-grid--slider::-webkit-scrollbar {
+    display: none;
+}
+
+.restaurant-grid--slider.is-dragging {
+    cursor: grabbing;
+}
+
+.restaurant-grid--slider.is-dragging > .dish-card {
+    pointer-events: none;
+}
+
 .dish-card {
+    position: relative;
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 20px;
@@ -116,6 +151,17 @@
     box-shadow: 0 2px 10px rgba(35, 48, 67, 0.05);
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
     will-change: transform;
+}
+
+.dish-card__link-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+}
+
+.dish-card__favorite {
+    z-index: 2;
 }
 
 .dish-card:hover {
@@ -359,6 +405,17 @@
     padding-bottom: 10px;
 }
 
+.home-more--button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.home-more--button:disabled {
+    cursor: wait;
+    opacity: 0.75;
+}
+
 .home-more::after {
     content: "";
     position: absolute;
@@ -460,6 +517,11 @@
     .restaurant-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .restaurant-grid--slider {
+        grid-auto-columns: calc((100% - 24px) / 2);
+        grid-template-columns: none;
+    }
 }
 
 @media (max-width: 720px) {
@@ -492,6 +554,17 @@
     .restaurant-grid {
         grid-template-columns: 1fr;
         gap: 18px;
+    }
+
+    .restaurant-grid--slider {
+        grid-auto-columns: 100%;
+        grid-template-columns: none;
+        gap: 16px;
+        padding-bottom: 8px;
+    }
+
+    .home-section {
+        margin-bottom: 36px;
     }
 
     .dish-card__media {

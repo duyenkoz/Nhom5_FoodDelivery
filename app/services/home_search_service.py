@@ -219,6 +219,7 @@ def _build_card(restaurant, index, distance_km=None, featured_dish=None, footer_
 
     return {
         "name": _restaurant_title(restaurant),
+        "href": f"/restaurants/{restaurant.restaurant_id}",
         "image_path": _normalize_image_path(image_value),
         "rating": preset["rating"],
         "reviews": preset["reviews"],

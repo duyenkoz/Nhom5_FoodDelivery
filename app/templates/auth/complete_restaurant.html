@@ -23,16 +23,6 @@
                     <p class="auth-page__subtitle">{{ page_subtitle }}</p>
                 </div>
 
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                    <div class="mb-3">
-                        {% for category, message in messages %}
-                        <div class="auth-notice auth-notice--{{ category }}">{{ message }}</div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                {% endwith %}
-
                 <form id="restaurantForm" method="POST" enctype="multipart/form-data" data-restaurant-image-url="{{ restaurant_image_url }}" data-restaurant-image-name="{{ existing_image_name or '' }}">
                     <div class="mb-3">
                         <label class="form-label" for="tenNhaHang">Tên nhà hàng *</label>

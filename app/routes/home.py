@@ -1,11 +1,18 @@
-from flask import Blueprint, jsonify, make_response, render_template, request, session
+from flask import Blueprint, abort, jsonify, make_response, render_template, request, session
 from flask import redirect, url_for
 
 from app.extensions import db
 from app.models.customer import Customer
 from app.services.auth_service import is_customer_profile_complete
 from app.services.home_search_service import build_hot_search_keywords, build_search_suggestions, get_home_page_context
+from app.services.home_service import get_restaurant_collection_context
 from app.services.location_service import resolve_address
+from app.services.public_restaurant_service import (
+    add_to_restaurant_cart,
+    build_public_restaurant_context,
+    get_restaurant_cart_snapshot,
+    update_restaurant_cart_item,
+)
 
 bp = Blueprint("home", __name__)
 
@@ -116,6 +123,58 @@ def index():
     return response
 
 
+@bp.route("/collections/<section_key>")
+def restaurant_collection(section_key):
+    user_location = _get_user_location()
+    hero_address = user_location["address"] if user_location else ""
+    page_number = request.args.get("page", default=1, type=int)
+    page = get_restaurant_collection_context(
+        section_key,
+        page_number=page_number,
+        user_location=user_location,
+        hero_address=hero_address,
+    )
+    if page is None:
+        abort(404)
+
+    page["location_storage_key"] = _get_location_storage_key()
+    page["location_persist"] = True
+    clear_location_cookie = request.cookies.get("fivefood_clear_location") == "1"
+    if clear_location_cookie:
+        page["location_clear_storage_key"] = "fivefood:location:anonymous"
+
+    response = make_response(render_template("restaurant_collection.html", page=page))
+    if clear_location_cookie:
+        response.delete_cookie("fivefood_clear_location")
+    return response
+
+
+@bp.route("/collections/<section_key>/load-more")
+def restaurant_collection_load_more(section_key):
+    user_location = _get_user_location()
+    hero_address = user_location["address"] if user_location else ""
+    page_number = request.args.get("page", default=1, type=int)
+    page = get_restaurant_collection_context(
+        section_key,
+        page_number=page_number,
+        user_location=user_location,
+        hero_address=hero_address,
+    )
+    if page is None:
+        abort(404)
+
+    html = render_template("partials/home_card_items.html", items=page["items"])
+    return jsonify(
+        {
+            "ok": True,
+            "html": html,
+            "has_more": page["has_more"],
+            "next_page": page["current_page"] + 1 if page["has_more"] else None,
+            "load_more_url": page["load_more_url"],
+        }
+    )
+
+
 @bp.route("/search-popover")
 def search_popover():
     hot_limit = request.args.get("limit", default=10, type=int) or 10
@@ -136,3 +195,73 @@ def clear_search_history():
     session.pop("fivefood_recent_searches", None)
     session.modified = True
     return jsonify({"ok": True})
+
+
+def _parse_json_payload():
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
+
+
+@bp.route("/restaurants/<int:restaurant_id>")
+def restaurant_detail(restaurant_id):
+    context = build_public_restaurant_context(restaurant_id)
+    if context is None:
+        abort(404)
+
+    context["cart"] = get_restaurant_cart_snapshot(session, restaurant_id)
+    return render_template("restaurant_detail.html", page=context)
+
+
+@bp.route("/restaurants/<int:restaurant_id>/cart")
+def restaurant_cart(restaurant_id):
+    context = build_public_restaurant_context(restaurant_id)
+    if context is None:
+        abort(404)
+    return jsonify({"ok": True, "cart": get_restaurant_cart_snapshot(session, restaurant_id)})
+
+
+@bp.route("/restaurants/<int:restaurant_id>/cart/items", methods=["POST"])
+def add_restaurant_cart_item(restaurant_id):
+    context = build_public_restaurant_context(restaurant_id)
+    if context is None:
+        abort(404)
+
+    payload = _parse_json_payload()
+    dish_id = payload.get("dish_id")
+    quantity = payload.get("quantity", 1)
+    note = payload.get("note", "")
+
+    try:
+        dish_id = int(dish_id)
+        quantity = int(quantity)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "Dữ liệu món ăn không hợp lệ."}), 400
+
+    cart = add_to_restaurant_cart(session, restaurant_id, dish_id, quantity=quantity, note=note)
+    if cart is None:
+        return jsonify({"ok": False, "message": "Không tìm thấy món ăn hợp lệ."}), 404
+
+    return jsonify({"ok": True, "cart": cart})
+
+
+@bp.route("/restaurants/<int:restaurant_id>/cart/items/<int:dish_id>", methods=["POST"])
+def update_restaurant_cart(restaurant_id, dish_id):
+    context = build_public_restaurant_context(restaurant_id)
+    if context is None:
+        abort(404)
+
+    payload = _parse_json_payload()
+    quantity = payload.get("quantity")
+    note = payload.get("note") if "note" in payload else None
+
+    try:
+        if quantity is not None:
+            quantity = int(quantity)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "Số lượng không hợp lệ."}), 400
+
+    cart = update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=quantity, note=note)
+    if cart is None:
+        return jsonify({"ok": False, "message": "Không tìm thấy món ăn hợp lệ."}), 404
+
+    return jsonify({"ok": True, "cart": cart})

@@ -54,16 +54,6 @@
             </div>
         </section>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <div class="restaurant-alerts">
-                {% for category, message in messages %}
-                <div class="restaurant-alert restaurant-alert--{{ category }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        {% endwith %}
-
         <section class="restaurant-section">
             <div class="restaurant-section__card restaurant-section__card--stats">
                 <div class="restaurant-section__stats restaurant-section__stats--two">

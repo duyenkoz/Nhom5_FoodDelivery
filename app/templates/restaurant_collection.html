@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page["title"] }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="home-hero">
+    <h1 class="home-hero__title">Địa chỉ bạn muốn giao món</h1>
+
+    <div
+        class="delivery-address location-autocomplete-shell"
+        data-location-autocomplete="true"
+        data-location-mode="home"
+        data-location-search-url="{{ url_for('location.search') }}"
+        data-location-resolve-url="{{ url_for('location.resolve') }}"
+        data-location-storage-key="{{ page['location_storage_key'] }}"
+        data-location-persist="{{ 'true' if page['location_persist'] else 'false' }}"
+        data-location-clear-storage-key="{{ page['location_clear_storage_key']|default('') }}"
+    >
+        <div class="delivery-address__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"></path>
+                <circle cx="12" cy="10" r="2.4"></circle>
+            </svg>
+        </div>
+        <div class="delivery-address__content">
+            <input
+                id="homeAddressInput"
+                class="delivery-address__input location-autocomplete__input"
+                type="search"
+                data-location-input="true"
+                placeholder="Nhập địa chỉ của bạn"
+                value="{{ page['hero_value'] if page['location_persist'] else '' }}"
+                autocomplete="off"
+                aria-label="Nhập địa chỉ của bạn"
+            >
+            <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+        </div>
+    </div>
+</section>
+
+<section class="home-section home-collection-section" data-load-more-list="true">
+    <div class="home-section__header">
+        <h2>{{ page["title"] }}</h2>
+        <p class="home-section__result-note">{{ page["total_count"] }} nhà hàng</p>
+    </div>
+
+    {% if page["items"] %}
+    <div class="restaurant-grid" data-load-more-grid="true">
+        {% for item in page["items"] %}
+            {% include "partials/home_card_search.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>{{ page["empty_title"] }}</h3>
+        <p>{{ page["empty_description"] }}</p>
+    </div>
+    {% endif %}
+
+    {% if page["has_more"] %}
+    <div class="home-section__footer">
+        <button
+            class="home-more home-more--button"
+            type="button"
+            data-load-more-button="true"
+            data-load-more-url="{{ page['load_more_url'] }}"
+        >
+            Xem thêm
+        </button>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/restaurant_collection.js') }}" defer></script>
+{% endblock %}
