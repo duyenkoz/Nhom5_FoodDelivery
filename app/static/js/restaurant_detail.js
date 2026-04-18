@@ -45,7 +45,9 @@
         const searchEmpty = root.querySelector("[data-search-empty='true']");
         const cartItemsContainer = root.querySelector("[data-cart-items='true']");
         const cartTotal = root.querySelector("[data-cart-total='true']");
+        const cartOrdersCta = root.querySelector("[data-cart-orders-cta='true']");
         const modal = document.querySelector("[data-dish-modal='true']");
+        const cartConfirmModal = document.querySelector("[data-cart-confirm-modal='true']");
         const similarToggle = root.querySelector("[data-similar-toggle='true']");
         const similarSection = document.getElementById("similarRestaurants");
 
@@ -65,6 +67,7 @@
         let activeCategory = categoryTabs.length ? categoryTabs[0].dataset.categoryTab : "";
         let modalDishId = null;
         let modalQuantity = 1;
+        let pendingZeroQuantitySubmit = null;
 
         function setSimilarOpen(isOpen) {
             if (!similarToggle || !similarSection) {
@@ -80,6 +83,51 @@
             return cartUpdateUrlTemplate.replace(/0\/?$/, `${dishId}`);
         }
 
+        function syncCartCtaState() {
+            if (!cartOrdersCta) {
+                return;
+            }
+
+            const isEmpty = !Array.isArray(cart.items) || cart.items.length === 0;
+            cartOrdersCta.disabled = isEmpty;
+            cartOrdersCta.setAttribute("aria-disabled", isEmpty ? "true" : "false");
+            cartOrdersCta.classList.toggle("is-disabled", isEmpty);
+        }
+
+        function openZeroQuantityConfirm() {
+            if (!cartConfirmModal) {
+                return;
+            }
+
+            cartConfirmModal.hidden = false;
+            cartConfirmModal.setAttribute("aria-hidden", "false");
+        }
+
+        function closeZeroQuantityConfirm() {
+            if (!cartConfirmModal) {
+                return;
+            }
+
+            cartConfirmModal.hidden = true;
+            cartConfirmModal.setAttribute("aria-hidden", "true");
+        }
+
+        function promptCartItemRemoval(dishId, note) {
+            pendingZeroQuantitySubmit = {
+                dishId: Number(dishId),
+                note: note || "",
+            };
+
+            if (cartConfirmModal) {
+                const confirmMessage = cartConfirmModal.querySelector("[data-cart-confirm-message='true']");
+                if (confirmMessage) {
+                    confirmMessage.textContent = "Bạn có chắc sẽ xoá món này khỏi giỏ hàng?";
+                }
+            }
+
+            openZeroQuantityConfirm();
+        }
+
         function setCartState(nextCart) {
             cart = nextCart || { items: [], total_amount: 0, total_amount_text: formatPrice(0), is_empty: true };
             renderCart();
@@ -91,6 +139,7 @@
             }
 
             cartTotal.textContent = cart.total_amount_text || formatPrice(cart.total_amount);
+            syncCartCtaState();
 
             if (!Array.isArray(cart.items) || !cart.items.length) {
                 cartItemsContainer.innerHTML = '<div class="restaurant-cart__empty">Giỏ hàng đang trống. Hãy chọn món từ thực đơn của nhà hàng này.</div>';
@@ -199,6 +248,8 @@
             }
 
             modalDishId = Number(dishId);
+            pendingZeroQuantitySubmit = null;
+            closeZeroQuantityConfirm();
             const cartItem = Array.isArray(cart.items) ? cart.items.find((item) => Number(item.dish_id) === modalDishId) : null;
             modalQuantity = cartItem ? Number(cartItem.quantity || 1) : 1;
 
@@ -232,6 +283,8 @@
             modal.hidden = true;
             document.body.classList.remove("is-modal-open");
             modalDishId = null;
+            pendingZeroQuantitySubmit = null;
+            closeZeroQuantityConfirm();
         }
 
         function requestJson(url, payload) {
@@ -328,7 +381,12 @@
                     const dishId = Number(minusButton.dataset.cartQtyMinus);
                     const cartItem = cart.items.find((item) => Number(item.dish_id) === dishId);
                     if (cartItem) {
-                        updateDishQuantity(dishId, Math.max(0, Number(cartItem.quantity) - 1), cartItem.note || "").catch(() => {});
+                        const nextQuantity = Math.max(0, Number(cartItem.quantity) - 1);
+                        if (nextQuantity <= 0) {
+                            promptCartItemRemoval(dishId, cartItem.note || "");
+                        } else {
+                            updateDishQuantity(dishId, nextQuantity, cartItem.note || "").catch(() => {});
+                        }
                     }
                     return;
                 }
@@ -349,9 +407,50 @@
 
                 if (deleteButton) {
                     const dishId = Number(deleteButton.dataset.deleteCartItem);
-                    updateDishQuantity(dishId, 0, "").catch(() => {});
+                    const cartItem = cart.items.find((item) => Number(item.dish_id) === dishId);
+                    promptCartItemRemoval(dishId, cartItem ? cartItem.note || "" : "");
                 }
             });
+        }
+
+        if (cartOrdersCta) {
+            cartOrdersCta.addEventListener("click", () => {
+                if (cartOrdersCta.disabled) {
+                    return;
+                }
+
+                const orderUrl = cartOrdersCta.dataset.orderUrl;
+                if (orderUrl) {
+                    window.location.href = orderUrl;
+                }
+            });
+        }
+
+        if (cartConfirmModal) {
+            const confirmAcceptButton = cartConfirmModal.querySelector("[data-cart-confirm-accept='true']");
+            const confirmCancelButtons = Array.from(cartConfirmModal.querySelectorAll("[data-cart-confirm-cancel='true']"));
+
+            confirmCancelButtons.forEach((button) => {
+                button.addEventListener("click", () => {
+                    pendingZeroQuantitySubmit = null;
+                    closeZeroQuantityConfirm();
+                });
+            });
+
+            if (confirmAcceptButton) {
+                confirmAcceptButton.addEventListener("click", () => {
+                    if (!pendingZeroQuantitySubmit) {
+                        closeZeroQuantityConfirm();
+                        return;
+                    }
+
+                    const { dishId, note } = pendingZeroQuantitySubmit;
+                    pendingZeroQuantitySubmit = null;
+                    closeZeroQuantityConfirm();
+                    updateDishQuantity(dishId, 0, note || "").catch(() => {});
+                    closeDishModal();
+                });
+            }
         }
 
         if (modal) {
@@ -368,7 +467,7 @@
 
             if (minusButton) {
                 minusButton.addEventListener("click", () => {
-                    modalQuantity = Math.max(1, modalQuantity - 1);
+                    modalQuantity = Math.max(0, modalQuantity - 1);
                     updateModalSubmitLabel();
                 });
             }
@@ -386,7 +485,13 @@
                         return;
                     }
 
-                    addDishToCart(modalDishId, modalQuantity, noteField ? noteField.value : "")
+                    const note = noteField ? noteField.value : "";
+                    if (modalQuantity <= 0) {
+                        promptCartItemRemoval(modalDishId, note);
+                        return;
+                    }
+
+                    addDishToCart(modalDishId, modalQuantity, note)
                         .then(() => {
                             closeDishModal();
                         })
@@ -396,6 +501,12 @@
         }
 
         document.addEventListener("keydown", (event) => {
+            if (cartConfirmModal && !cartConfirmModal.hidden && event.key === "Escape") {
+                pendingZeroQuantitySubmit = null;
+                closeZeroQuantityConfirm();
+                return;
+            }
+
             if (event.key === "Escape" && modal && !modal.hidden) {
                 closeDishModal();
             }
