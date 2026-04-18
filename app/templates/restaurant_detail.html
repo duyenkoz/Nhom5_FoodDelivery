@@ -191,7 +191,13 @@
                         <strong data-cart-total="true">{{ page.cart.total_amount_text }}</strong>
                     </div>
                     {% if session.get('auth_state') == 'logged_in' and session.get('user_role') == 'customer' %}
-                    <a class="restaurant-cart__cta" href="{{ url_for('auth.orders') }}">Xem đơn hàng</a>
+                    <button
+                        type="button"
+                        class="restaurant-cart__cta"
+                        data-cart-orders-cta="true"
+                        data-order-url="{{ url_for('auth.orders') }}"
+                        {% if page.cart.is_empty %}disabled aria-disabled="true"{% endif %}
+                    >Xem đơn hàng</button>
                     {% else %}
                     <a class="restaurant-cart__cta" href="{{ url_for('auth.login') }}">Đăng nhập để đặt đơn</a>
                     {% endif %}
@@ -238,6 +244,19 @@
                 <button type="button" data-modal-qty-plus="true" aria-label="Tăng số lượng">+</button>
             </div>
             <button type="button" class="dish-modal__add" data-dish-modal-submit="true"></button>
+        </div>
+    </div>
+</div>
+
+<div class="cart-confirm-modal" data-cart-confirm-modal="true" hidden>
+    <div class="cart-confirm-modal__backdrop" data-cart-confirm-cancel="true"></div>
+    <div class="cart-confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cartConfirmTitle">
+        <button type="button" class="cart-confirm-modal__close" data-cart-confirm-cancel="true" aria-label="Đóng">&times;</button>
+        <h3 id="cartConfirmTitle">Cập nhật giỏ hàng</h3>
+        <p data-cart-confirm-message="true">Bạn có chắc muốn giữ số lượng món này bằng 0?</p>
+        <div class="cart-confirm-modal__actions">
+            <button type="button" class="cart-confirm-modal__secondary" data-cart-confirm-cancel="true">Hủy</button>
+            <button type="button" class="cart-confirm-modal__primary" data-cart-confirm-accept="true">OK</button>
         </div>
     </div>
 </div>
