@@ -66,8 +66,7 @@ def _dish_name_key(dish):
     return _slugify(_clean(dish.dish_name))
 
 
-def _dish_orders(dish, index):
-    del index
+def _dish_orders(dish):
     return sum(int(item.quantity or 0) for item in (dish.order_items or []))
 
 
@@ -158,8 +157,8 @@ def get_public_dish(restaurant_id, dish_id):
     return dish
 
 
-def _dish_to_view(dish, index=0):
-    base = build_dish_view_model(dish, index=index)
+def _dish_to_view(dish):
+    base = build_dish_view_model(dish)
     image_path = base["image_path"] or _fallback_image(dish)
     return {
         "dish_id": dish.dish_id,
@@ -171,7 +170,7 @@ def _dish_to_view(dish, index=0):
         "category": dish.category or base["category"],
         "category_slug": _slugify(dish.category or base["category"]),
         "image_path": _normalize_image_path(image_path),
-        "sold_count": _dish_orders(dish, index),
+        "sold_count": _dish_orders(dish),
         "search_text": _dish_search_text(dish),
     }
 
@@ -495,7 +494,7 @@ def build_public_restaurant_context(restaurant_id):
         return None
 
     dishes = _active_dishes(restaurant)
-    dish_views = [_dish_to_view(dish, index=index) for index, dish in enumerate(dishes)]
+    dish_views = [_dish_to_view(dish) for dish in dishes]
 
     categories = []
     counts = {}
