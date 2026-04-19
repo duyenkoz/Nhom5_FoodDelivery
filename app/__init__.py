@@ -5,6 +5,7 @@ from flask import Flask, session
 from app.commands import register_commands
 from config import Config
 from app.extensions import db, login_manager, mail, migrate
+from app.utils.time_utils import format_vietnam_date, format_vietnam_datetime
 
 
 def create_app(config_class=Config):
@@ -57,16 +58,26 @@ def create_app(config_class=Config):
             "header_restaurant_display_name": restaurant_display_name,
         }
 
+    @app.template_filter("vn_datetime")
+    def vn_datetime_filter(value, fmt="%d/%m/%Y %H:%M"):
+        return format_vietnam_datetime(value, fmt)
+
+    @app.template_filter("vn_date")
+    def vn_date_filter(value, fmt="%d/%m/%Y"):
+        return format_vietnam_date(value, fmt)
+
     from app.routes.auth import bp as auth_bp
     from app.routes.home import bp as home_bp
     from app.routes.location import bp as location_bp
     from app.routes.admin import bp as admin_bp
     from app.routes.password_reset import bp as password_reset_bp
     from app.routes.restaurant import bp as restaurant_bp
+    from app.routes.checkout import bp as checkout_bp
 
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(location_bp)
+    app.register_blueprint(checkout_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(password_reset_bp)
     app.register_blueprint(restaurant_bp)
