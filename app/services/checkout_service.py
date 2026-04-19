@@ -168,6 +168,8 @@ def format_order_status_label(status):
     normalized = (status or "").strip().lower()
     if normalized in {"completed", "delivered", "done", "đã giao", "giao thành công"}:
         return "Đã giao"
+    if normalized in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
+        return "Đang chờ hoàn tiền"
     if normalized in {"pending_payment", "chờ thanh toán"}:
         return "Chờ thanh toán"
     if normalized in {"pending", "chờ xác nhận", "đợi nhà hàng xác nhận"}:
@@ -392,6 +394,8 @@ def _cancel_order_if_allowed(order):
     if not order:
         return False, "Không tìm thấy đơn hàng."
     current_status = (order.status or "").lower()
+    if current_status in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
+        return False, "Đơn hàng đang chờ hoàn tiền."
     if current_status in {"cancelled", "canceled", "đã hủy"}:
         return False, "Đơn hàng đã được hủy trước đó."
     if current_status in {"pending_payment", "chờ thanh toán"}:

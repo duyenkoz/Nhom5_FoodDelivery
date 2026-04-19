@@ -9,8 +9,6 @@
     const voucherCodeHidden = document.getElementById("voucher_code_hidden");
     const voucherModalMessage = document.getElementById("voucherModalMessage");
     const voucherList = document.getElementById("voucherList");
-    const manualVoucherInput = document.getElementById("manualVoucherInput");
-    const applyManualVoucherBtn = document.getElementById("applyManualVoucherBtn");
     const saveVoucherSelectionBtn = document.getElementById("saveVoucherSelectionBtn");
     const checkoutItemsList = document.getElementById("checkoutItemsList");
     const checkoutItemsJson = document.getElementById("checkout_items_json");
@@ -414,6 +412,13 @@
                     voucherModalMessage.classList.remove("is-error");
                 });
             });
+            if (selectedVoucher.code) {
+                voucherList.querySelectorAll("input[data-voucher-code]").forEach((radio) => {
+                    if ((radio.dataset.voucherCode || "") === selectedVoucher.code) {
+                        radio.checked = true;
+                    }
+                });
+            }
         } catch (error) {
             voucherList.innerHTML = '<div class="voucher-empty">Không tải được mã khuyến mãi.</div>';
             voucherModalMessage.textContent = error.message || "Không tải được mã khuyến mãi.";
@@ -432,54 +437,9 @@
     document.querySelectorAll("[data-close-voucher-modal]").forEach((btn) => btn.addEventListener("click", closeVoucherModal));
     document.querySelectorAll("[data-close-item-modal]").forEach((btn) => btn.addEventListener("click", closeItemModal));
 
-    async function applyManualVoucher() {
-        const code = (manualVoucherInput.value || "").trim();
-        if (!code) {
-            voucherModalMessage.textContent = "Vui lòng nhập mã voucher.";
-            return;
-        }
-
-        const payload = new URLSearchParams();
-        payload.append("voucher_code", code);
-        payload.append("restaurant_id", pageData.restaurant_id || "");
-
-        try {
-            const result = await fetchJson(pageData.checkout_voucher_url, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-                body: payload.toString(),
-            });
-            const response = result.response;
-            const data = result.data;
-            if (!response.ok || !data || !data.ok) {
-                throw new Error((data && data.message) || "Mã voucher không hợp lệ.");
-            }
-            selectedVoucher = {
-                code: code,
-                id: data.voucher_id || "",
-                discountValue: Number(data.discount_value || 0),
-            };
-            voucherModalMessage.textContent = data.message || `Đã áp dụng mã ${code}.`;
-            voucherModalMessage.classList.remove("is-error");
-            updateVoucherChip();
-            updateVoucherSummaryLabel();
-            refreshTotals();
-            queueQuoteRefresh();
-            await loadVouchers();
-        } catch (error) {
-            selectedVoucher = { code: "", id: "", discountValue: 0 };
-            updateVoucherChip();
-            updateVoucherSummaryLabel();
-            refreshTotals();
-            voucherModalMessage.textContent = error.message || "Mã voucher không hợp lệ.";
-            voucherModalMessage.classList.add("is-error");
-        }
-    }
-
-    applyManualVoucherBtn?.addEventListener("click", applyManualVoucher);
     saveVoucherSelectionBtn?.addEventListener("click", async () => {
         if (!selectedVoucher.code) {
-            voucherModalMessage.textContent = "Vui lòng chọn một mã hoặc nhập mã voucher.";
+            voucherModalMessage.textContent = "Vui lòng chọn một mã có sẵn.";
             voucherModalMessage.classList.add("is-error");
             return;
         }

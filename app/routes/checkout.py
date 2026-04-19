@@ -1,12 +1,11 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import uuid
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.models.order import Order
-from app.models.payment import Payment
-from app.models.voucher import Voucher
 from app.services.checkout_service import (
     _build_checkout_form_values,
     _build_order_snapshot,
@@ -15,10 +14,10 @@ from app.services.checkout_service import (
     _clean,
     _expire_pending_momo_order,
     _get_available_vouchers,
+    _image_url,
     _require_customer_access,
     _safe_int,
     _session_payload_expired,
-    _success_cancel_remaining,
     build_checkout_context,
     create_order_from_snapshot,
     format_payment_method_label,
@@ -27,6 +26,7 @@ from app.services.checkout_service import (
     validate_voucher_for_checkout,
 )
 from app.services.momo_service import create_momo_payment
+from app.services.restaurant_service import infer_category, infer_image_path
 
 bp = Blueprint("checkout", __name__, url_prefix="/checkout")
 
@@ -50,6 +50,139 @@ def _checkout_redirect_url(order=None, pending_checkout=None):
     if restaurant_id:
         return url_for("checkout.checkout", restaurant_id=restaurant_id)
     return url_for("checkout.checkout")
+
+
+def _orders_redirect_url():
+    return url_for("auth.orders")
+
+
+def _success_countdown_seconds(order_id, initialize=True):
+    session_key = f"success_countdown_started_at_{order_id}"
+    started_at = session.get(session_key)
+    if not started_at:
+        if not initialize:
+            return 0
+        started_at = datetime.utcnow().isoformat()
+        session[session_key] = started_at
+
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        started = datetime.utcnow()
+        session[session_key] = started.isoformat()
+
+    return max(0, int((started + timedelta(seconds=30) - datetime.utcnow()).total_seconds()))
+
+
+def _mark_order_pending_refund(order):
+    if not order:
+        return False
+    order.status = "refund_pending"
+    if order.payment:
+        order.payment.status = "refund_pending"
+    db.session.commit()
+    return True
+
+
+def _build_order_item_view(item):
+    dish = item.dish
+    if not dish:
+        return None
+
+    quantity = max(1, _safe_int(item.quantity, 1))
+    price = _safe_int(item.price if item.price is not None else getattr(dish, "price", 0), 0)
+    image_path = dish.image or getattr(dish, "image", "") or ""
+    if not image_path:
+        image_path = infer_image_path(infer_category(dish), dish)
+    return {
+        "dish_id": dish.dish_id,
+        "name": dish.dish_name or "Món ăn",
+        "price": price,
+        "quantity": quantity,
+        "line_total": price * quantity,
+        "image_path": image_path,
+        "image_url": _image_url(image_path),
+        "category": getattr(dish, "category", "") or infer_category(dish),
+        "description": getattr(dish, "description", "") or "",
+        "note": _clean(getattr(item, "note", "")),
+    }
+
+
+def _hydrate_pending_momo_checkout(order):
+    if not order or not order.payment:
+        return None
+    if (order.payment.payment_method or "").lower() != "momo":
+        return None
+    if (order.status or "").lower() not in {"pending_payment", "chờ thanh toán"}:
+        return None
+
+    customer_user = order.customer.user if order.customer and order.customer.user else None
+    restaurant = order.restaurant
+    items = []
+    subtotal = 0
+    for item in order.items or []:
+        item_view = _build_order_item_view(item)
+        if not item_view:
+            continue
+        items.append(item_view)
+        subtotal += item_view["line_total"]
+
+    delivery_fee = _safe_int(order.delivery_fee, 0)
+    total_amount = _safe_int(order.total_amount, subtotal + delivery_fee)
+    discount_value = max(0, subtotal + delivery_fee - total_amount)
+    checkout_data = {
+        "customer": customer_user,
+        "customer_profile": order.customer,
+        "restaurant": restaurant,
+        "restaurant_name": restaurant.user.display_name if restaurant and restaurant.user else "Nhà hàng",
+        "items": items,
+        "subtotal": subtotal,
+        "delivery_fee": delivery_fee,
+        "shipping_fee": 0,
+        "platform_fee": 0,
+        "raw_delivery_fee": delivery_fee,
+        "distance_km": None,
+        "distance_text": "",
+        "shipping_rule": None,
+        "discount_value": discount_value,
+        "discount_text": "{:,}đ".format(discount_value) if discount_value else "0đ",
+        "total_amount": total_amount,
+        "voucher": order.voucher,
+        "source": "resume",
+    }
+    form_values = {
+        "customer_name": customer_user.display_name if customer_user else "",
+        "phone": customer_user.phone if customer_user else "",
+        "delivery_address": order.delivery_address or "",
+        "note": "",
+    }
+    pending_checkout = _build_session_checkout_payload(checkout_data, form_values=form_values, payment_method="momo")
+    pending_checkout["order_id"] = order.order_id
+    pending_checkout["discount_value"] = discount_value
+    pending_checkout["discount_text"] = "{:,}đ".format(discount_value) if discount_value else "0đ"
+    pending_checkout["items"] = items
+    pending_checkout["expires_at"] = (order.order_date + timedelta(minutes=10)).isoformat() if order.order_date else pending_checkout.get("expires_at")
+
+    momo_order_id = f"{order.order_id}{int(datetime.utcnow().timestamp() * 1000)}{uuid.uuid4().hex[:4]}"
+    momo_result = create_momo_payment(
+        amount=total_amount,
+        order_info=f"Thanh toán đơn hàng tại {checkout_data['restaurant_name']}",
+        return_url=url_for("checkout.momo_return", _external=True),
+        ipn_url=url_for("checkout.momo_ipn", _external=True),
+        order_id=momo_order_id,
+        extra_data={
+            "order_id": order.order_id,
+            "customer_id": customer_user.user_id if customer_user else None,
+            "restaurant_id": restaurant.restaurant_id if restaurant else None,
+            "voucher_id": order.voucher_id,
+            "discount_value": discount_value,
+        },
+    )
+    pending_checkout["momo_pay_url"] = momo_result.get("payUrl") if momo_result else ""
+    pending_checkout["momo_order_id"] = momo_result.get("orderId") if momo_result else momo_order_id
+    pending_checkout["momo_result_code"] = momo_result.get("resultCode") if momo_result else None
+    pending_checkout["momo_message"] = momo_result.get("message") if momo_result else ""
+    return pending_checkout
 
 
 @bp.route("/", methods=["GET", "POST"])
@@ -122,7 +255,6 @@ def checkout():
                         "redirect_url": url_for("checkout.checkout_success", order_id=order.order_id),
                     }
                 )
-            flash("Đặt hàng thành công.", "success")
             return redirect(url_for("checkout.checkout_success", order_id=order.order_id))
 
         order, _payment = create_order_from_snapshot(
@@ -412,18 +544,40 @@ def checkout_momo():
         return access_redirect
 
     pending_checkout = session.get("pending_checkout") if isinstance(session.get("pending_checkout"), dict) else {}
+    requested_order_id = request.args.get("order_id", type=int)
     order_id = pending_checkout.get("order_id")
     pay_url = pending_checkout.get("momo_pay_url")
 
+    if requested_order_id:
+        order = _expire_pending_momo_order(requested_order_id)
+        if not order:
+            flash("Không tìm thấy đơn MoMo cần thanh toán tiếp.", "warning")
+            return redirect(_orders_redirect_url())
+        if (order.status or "").lower() == "cancelled":
+            session.pop("pending_checkout", None)
+            flash("Đơn hàng đã quá thời gian thanh toán và đã bị hủy.", "warning")
+            return redirect(_orders_redirect_url())
+
+        pending_checkout = _hydrate_pending_momo_checkout(order)
+        if not pending_checkout:
+            flash("Đơn hàng không còn ở trạng thái chờ thanh toán MoMo.", "warning")
+            return redirect(_orders_redirect_url())
+
+        session["pending_checkout"] = pending_checkout
+        order_id = pending_checkout.get("order_id")
+        pay_url = pending_checkout.get("momo_pay_url")
+        if pay_url and request.method == "GET":
+            return redirect(pay_url)
+
     if not order_id and request.method == "GET" and not pending_checkout:
         flash("Phiên thanh toán MoMo không hợp lệ. Vui lòng đặt hàng lại.", "warning")
-        return redirect(_checkout_redirect_url(pending_checkout=pending_checkout))
+        return redirect(_orders_redirect_url())
 
     order = _expire_pending_momo_order(order_id) if order_id else None
     if order and (order.status or "").lower() == "cancelled":
         session.pop("pending_checkout", None)
         flash("Đơn hàng đã quá thời gian thanh toán và đã bị hủy.", "warning")
-        return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+        return redirect(_orders_redirect_url())
 
     remaining_seconds = 0
     if pending_checkout:
@@ -437,11 +591,11 @@ def checkout_momo():
     if request.method == "POST":
         if request.form.get("simulate_failure") == "1":
             flash("Thanh toán thất bại. Vui lòng thử lại hoặc chọn phương thức khác.", "error")
-            return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
 
         if not pending_checkout:
             flash("Phiên thanh toán MoMo đã hết hạn.", "warning")
-            return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
 
         if _session_payload_expired(pending_checkout):
             order = Order.query.filter_by(order_id=order_id, customer_id=session.get("user_id")).one_or_none()
@@ -449,34 +603,36 @@ def checkout_momo():
                 _cancel_order_if_allowed(order)
             session.pop("pending_checkout", None)
             flash("Đơn hàng MoMo đã quá 10 phút nên đã bị hủy.", "warning")
-            return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
 
         order = Order.query.filter_by(order_id=order_id, customer_id=session.get("user_id")).one_or_none()
         if not order:
             flash("Không tìm thấy đơn hàng chờ thanh toán.", "warning")
-            return redirect(_checkout_redirect_url(pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
 
         if (order.status or "").lower() == "cancelled":
             session.pop("pending_checkout", None)
             flash("Đơn hàng đã bị hủy.", "warning")
-            return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
 
         order.status = "pending"
         if order.payment:
             order.payment.status = "paid"
         db.session.commit()
         session.pop("pending_checkout", None)
-        flash("Đặt hàng thành công.", "success")
         return redirect(url_for("checkout.checkout_success", order_id=order.order_id))
 
     if not pending_checkout:
         checkout_data = build_checkout_context(session.get("user_id"))
         if not checkout_data:
-            return redirect(_checkout_redirect_url(pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
         pending_checkout = _build_session_checkout_payload(checkout_data, payment_method="momo")
         if not pending_checkout.get("order_id"):
             flash("Phiên thanh toán MoMo không hợp lệ. Vui lòng đặt hàng lại.", "warning")
-            return redirect(_checkout_redirect_url(pending_checkout=pending_checkout))
+            return redirect(_orders_redirect_url())
+
+    if request.method == "GET" and pay_url:
+        return redirect(pay_url)
 
     return render_template(
         "checkout/momo.html",
@@ -528,12 +684,11 @@ def momo_return():
             order.payment.status = "paid"
         db.session.commit()
         session.pop("pending_checkout", None)
-        flash("Đặt hàng thành công.", "success")
         return redirect(url_for("checkout.checkout_success", order_id=order.order_id))
 
     _clear_flash_messages()
     flash(message or "Thanh toán MoMo thất bại.", "error")
-    return redirect(_checkout_redirect_url(order=order, pending_checkout=pending_checkout))
+    return redirect(_orders_redirect_url())
 
 
 @bp.route("/momo-ipn", methods=["POST"])
@@ -565,7 +720,7 @@ def checkout_success(order_id):
         voucher_display_text=voucher_display_text,
         order_status_label=format_order_status_label(order.status),
         payment_method_label=payment_method_label,
-        cancel_remaining_seconds=_success_cancel_remaining(order),
+        cancel_remaining_seconds=_success_countdown_seconds(order.order_id, initialize=True),
         show_search=False,
         show_auth=False,
     )
@@ -581,6 +736,17 @@ def checkout_cancel(order_id):
     if not order:
         flash("Không tìm thấy đơn hàng để hủy.", "warning")
         return redirect(_checkout_redirect_url())
+
+    current_status = (order.status or "").lower()
+    if current_status in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
+        flash("Đơn hàng đang chờ hoàn tiền.", "info")
+        return redirect(_orders_redirect_url())
+
+    if (order.payment.payment_method if order.payment else "").lower() == "momo" and (order.payment.status or "").lower() == "paid":
+        if _success_countdown_seconds(order.order_id, initialize=False) > 0:
+            _mark_order_pending_refund(order)
+            flash("Đơn hàng đang chờ hoàn tiền.", "success")
+            return redirect(_orders_redirect_url())
 
     cancelled, message = _cancel_order_if_allowed(order)
     flash(message, "success" if cancelled else "warning")

@@ -663,7 +663,7 @@ def build_hot_search_keywords(limit=10, days=7):
         days = 7
 
     cutoff = datetime.utcnow() - timedelta(days=days)
-    excluded_statuses = {"cancel", "canceled", "cancelled", "failed", "refund", "refunded", "rejected"}
+    excluded_statuses = {"cancel", "canceled", "cancelled", "failed", "refund", "refund_pending", "pending_refund", "refunded", "rejected"}
     status_expr = func.lower(func.coalesce(Order.status, ""))
 
     rows = (
