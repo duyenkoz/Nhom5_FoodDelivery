@@ -533,7 +533,7 @@ def orders():
         pending_count=len(pending_orders),
         delivered_count=len(delivered_orders),
         cancelled_count=len(cancelled_orders),
-        show_search=False,
+        show_search=True,
         show_auth=False,
     )
 
@@ -663,7 +663,7 @@ def order_detail(order_id):
         shipper_name="Shipper" if status_info["step_key"] in {"preparing", "shipping", "delivered"} else "",
         payment_remaining_seconds=payment_remaining_seconds,
         shipping_remaining_seconds=shipping_remaining_seconds,
-        show_search=False,
+        show_search=True,
         show_auth=False,
     )
 

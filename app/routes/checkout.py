@@ -230,7 +230,7 @@ def checkout():
             return render_template(
                 "checkout/checkout.html",
                 checkout=checkout_data,
-                show_search=False,
+                show_search=True,
                 show_auth=False,
             )
 
@@ -318,7 +318,7 @@ def checkout():
     return render_template(
         "checkout/checkout.html",
         checkout=checkout_data,
-        show_search=False,
+        show_search=True,
         show_auth=False,
     )
 
@@ -648,7 +648,7 @@ def checkout_momo():
             "order_id": order_id,
             "remaining_seconds": remaining_seconds,
         },
-        show_search=False,
+        show_search=True,
         show_auth=False,
     )
 
@@ -721,7 +721,7 @@ def checkout_success(order_id):
         order_status_label=format_order_status_label(order.status),
         payment_method_label=payment_method_label,
         cancel_remaining_seconds=_success_countdown_seconds(order.order_id, initialize=True),
-        show_search=False,
+        show_search=True,
         show_auth=False,
     )
 

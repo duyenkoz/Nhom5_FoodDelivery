@@ -350,7 +350,9 @@ def _restaurant_distance(user_location, restaurant):
 
 
 def _within_search_radius(distance_km):
-    return distance_km is not None and distance_km <= SEARCH_RADIUS_KM
+    if distance_km is None:
+        return True
+    return distance_km <= SEARCH_RADIUS_KM
 
 
 def _parse_search_filters(filters):
@@ -503,9 +505,10 @@ def _build_search_cards(query, tab, user_location=None, filters=None):
     )
 
     cards = []
+    has_location = user_location is not None
     for index, restaurant in enumerate(restaurants):
         distance_km = _restaurant_distance(user_location, restaurant)
-        if not _within_search_radius(distance_km):
+        if has_location and not _within_search_radius(distance_km):
             continue
 
         restaurant_matches = _restaurant_matches_query(restaurant, normalized_query)
