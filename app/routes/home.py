@@ -109,9 +109,16 @@ def index():
         _remember_search_query(query)
     tab = request.args.get("tab", "all").strip().lower()
     page_number = request.args.get("page", default=1, type=int)
+    search_filters = {
+        "sort": request.args.get("sort", "").strip(),
+        "min_rating": request.args.get("min_rating", "").strip(),
+        "price_min": request.args.get("price_min", "").strip(),
+        "price_max": request.args.get("price_max", "").strip(),
+        "price_range": request.args.get("price_range", "").strip(),
+    }
     user_location = _get_user_location()
     hero_address = user_location["address"] if user_location else ""
-    page = get_home_page_context(query, page_number, user_location=user_location, hero_address=hero_address, tab=tab)
+    page = get_home_page_context(query, page_number, user_location=user_location, hero_address=hero_address, tab=tab, filters=search_filters)
     page["location_storage_key"] = _get_location_storage_key()
     page["location_persist"] = True
     clear_location_cookie = request.cookies.get("fivefood_clear_location") == "1"

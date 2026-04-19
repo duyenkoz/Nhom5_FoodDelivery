@@ -60,6 +60,14 @@
             { items: [], total_amount: 0, total_amount_text: formatPrice(0), is_empty: true }
         );
 
+        const cartCleared = new URLSearchParams(window.location.search).get("cart_cleared") === "1";
+        if (cartCleared) {
+            window.AppToast?.success("Đã xoá hết món khỏi giỏ hàng.");
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.delete("cart_cleared");
+            window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+        }
+
         const dishById = new Map(dishes.map((dish) => [Number(dish.dish_id), dish]));
         const cartAddUrl = root.dataset.cartAddUrl;
         const cartUpdateUrlTemplate = root.dataset.cartUpdateUrlTemplate || "";
@@ -515,6 +523,7 @@
         syncCategoryTabs();
         applyFilters();
         renderCart();
+        syncCartCtaState();
     }
 
     function initAll() {

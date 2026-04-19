@@ -1,0 +1,115 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/customer_account.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+{% set customer_email = user.email if user and user.email else 'Chưa cập nhật' %}
+{% set customer_phone = user.phone if user and user.phone else 'Chưa cập nhật' %}
+{% set customer_area_value = customer_area|default('') %}
+{% set customer_address_value = customer_address|default('') %}
+<div class="auth-page auth-page--customer auth-page--customer-account">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4 customer-account-card">
+                <div class="auth-page__heading-block">
+                    <h3 class="auth-page__heading">Thông tin tài khoản</h3>
+                    <p class="auth-page__subtitle">Cập nhật tên hiển thị, khu vực và địa chỉ giao hàng của bạn trong một màn hình.</p>
+                </div>
+
+                <form method="POST" autocomplete="off">
+                    <div class="mb-3">
+                        <label class="form-label" for="email">Email</label>
+                        <input
+                            type="text"
+                            id="email"
+                            class="form-control customer-account-readonly"
+                            value="{{ customer_email }}"
+                            readonly
+                        >
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="phone">Số điện thoại</label>
+                        <input
+                            type="text"
+                            id="phone"
+                            class="form-control customer-account-readonly"
+                            value="{{ customer_phone }}"
+                            readonly
+                        >
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="tenHienThi">Tên hiển thị *</label>
+                        <input
+                            type="text"
+                            id="tenHienThi"
+                            name="tenHienThi"
+                            class="form-control{% if form_errors.tenHienThi %} is-invalid{% endif %}"
+                            required
+                            maxlength="100"
+                            value="{{ form_values.get('tenHienThi', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.tenHienThi }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="khuVuc">Khu vực *</label>
+                        <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
+                            <option value="">-- Chọn khu vực --</option>
+                            <option value="Hồ Chí Minh" {% if form_values.get('khuVuc', customer_area_value) == 'Hồ Chí Minh' %}selected{% endif %}>Hồ Chí Minh</option>
+                            <option value="Hà Nội" {% if form_values.get('khuVuc', customer_area_value) == 'Hà Nội' %}selected{% endif %}>Hà Nội</option>
+                            <option value="Đà Nẵng" {% if form_values.get('khuVuc', customer_area_value) == 'Đà Nẵng' %}selected{% endif %}>Đà Nẵng</option>
+                        </select>
+                        <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <div
+                            class="location-autocomplete-shell customer-account-location"
+                            data-location-autocomplete="true"
+                            data-location-mode="form"
+                            data-location-search-url="{{ url_for('location.search') }}"
+                            data-location-resolve-url="{{ url_for('location.resolve') }}"
+                            data-location-area-selector="#khuVuc"
+                            data-location-require-area="true"
+                            data-location-disable-until-area="true"
+                        >
+                            <div class="location-autocomplete">
+                                <input
+                                    type="text"
+                                    id="diaChi"
+                                    name="diaChi"
+                                    class="location-autocomplete__input form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                                    required
+                                    maxlength="200"
+                                    value="{{ form_values.get('diaChi', customer_address_value) }}"
+                                    autocomplete="off"
+                                    data-location-input="true"
+                                    aria-label="Địa chỉ"
+                                >
+                                <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
+                    </div>
+
+                    <div class="customer-account-note-inline">
+                        Hệ thống sẽ dùng khu vực và địa chỉ này để tính phí giao hàng chính xác hơn.
+                    </div>
+
+                    <button class="btn btn-primary w-100 customer-account-save" type="submit">Lưu thay đổi</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

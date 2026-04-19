@@ -27,6 +27,7 @@
             <a href="{{ url_for('admin.review_reports') }}" class="{% if section_name == 'review_reports' %}is-active{% endif %}">Báo cáo đánh giá</a>
             <a href="{{ url_for('admin.complaints') }}" class="{% if section_name == 'complaints' %}is-active{% endif %}">Khiếu nại</a>
             <a href="{{ url_for('admin.disputes') }}" class="{% if section_name == 'disputes' %}is-active{% endif %}">Tranh chấp / hủy đơn</a>
+            <a href="{{ url_for('admin.shipping_fees') }}" class="{% if section_name == 'shipping' %}is-active{% endif %}">Phí sàn nhà hàng</a>
         </nav>
 
         <div class="admin-card admin-sidebar__note">
@@ -421,6 +422,146 @@
             </div>
             {% endif %}
             </div>
+        </section>
+                                        {% elif section_name == 'shipping' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Phí ship theo khoảng km</h2>
+                    <p>Thiết lập phí ship theo khoảng cách và phí sàn riêng cho từng nhà hàng trong cùng một màn hình.</p>
+                </div>
+            </div>
+
+            <section class="admin-card admin-panel" style="margin-bottom: 18px; padding: 18px;">
+                <form method="post" action="{{ url_for('admin.shipping_fees') }}" class="admin-shipping-form">
+                    <input type="hidden" name="form_type" value="shipping_rules">
+                    <div class="admin-panel__header">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.05rem;">Phí ship theo khoảng km</h3>
+                            <p style="margin-top: 4px;">Cập nhật mức phí ship và phí sàn hệ thống cho các khoảng cách giao hàng.</p>
+                        </div>
+                    </div>
+
+                    <div class="admin-table admin-table--fees admin-table--shipping-rules">
+                        <div class="admin-table__head">
+                            <div>Km tối thiểu</div>
+                            <div>Km tối đa</div>
+                            <div>Phí ship</div>
+                            <div>Mô tả</div>
+                        </div>
+                        {% for rule in shipping_rules or [] %}
+                        <div class="admin-table__row">
+                            <div><input class="admin-input" type="number" step="0.1" min="0" name="min_km" value="{{ rule.min_km }}"></div>
+                            <div><input class="admin-input" type="number" step="0.1" min="0" name="max_km" value="{{ rule.max_km if rule.max_km is not none else '' }}"></div>
+                            <div><input class="admin-input" type="number" step="1" min="0" name="fee" value="{{ rule.fee }}"></div>
+                            <div>{{ rule.label }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="admin-actions admin-actions--sticky">
+                        <button class="admin-btn admin-btn--primary" type="submit">Lưu phí ship</button>
+                    </div>
+                </form>
+            </section>
+
+            <div class="admin-toolbar admin-toolbar--stacked">
+                <form method="get" action="{{ url_for('admin.shipping_fees') }}" data-live-search-form data-live-search-target="#admin-restaurant-fee-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khu vực, địa chỉ hoặc phí" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+                <div class="admin-fee-summary">
+                    <div class="admin-stat">
+                        <span>Nhà hàng</span>
+                        <strong>{{ stats.total or 0 }}</strong>
+                    </div>
+                    <div class="admin-stat">
+                        <span>Đã cấu hình</span>
+                        <strong>{{ stats.configured or 0 }}</strong>
+                    </div>
+                    <div class="admin-stat">
+                        <span>Chưa cấu hình</span>
+                        <strong>{{ stats.unconfigured or 0 }}</strong>
+                    </div>
+                    <div class="admin-stat">
+                        <span>Phí trung bình</span>
+                        <strong>{{ "{:,}".format(stats.average_fee or 0) }}đ</strong>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" action="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page) }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="bulk_apply_area">
+                <div class="admin-note-box">
+                    <strong>Áp dụng đồng loạt theo khu vực</strong>
+                    <p>Chọn khu vực và nhập phí sàn để áp dụng cho tất cả nhà hàng trong khu vực đó. Bạn vẫn có thể sửa từng nhà hàng ở bảng bên dưới.</p>
+                </div>
+
+                <div class="admin-bulk-apply">
+                    <div class="admin-bulk-apply__field">
+                        <label>Khu vực</label>
+                        <select class="admin-select" name="area">
+                            <option value="">Chọn khu vực</option>
+                            {% for area in area_options or [] %}
+                            <option value="{{ area }}">{{ area }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="admin-bulk-apply__field">
+                        <label>Phí sàn (đ)</label>
+                        <input class="admin-input" type="number" step="1" min="0" name="platform_fee" value="0" placeholder="0">
+                    </div>
+                    <div class="admin-bulk-apply__actions">
+                        <button class="admin-btn admin-btn--primary" type="submit">Áp dụng đồng loạt</button>
+                    </div>
+                </div>
+            </form>
+
+            <form method="post" action="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page) }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="restaurant_fees">
+                <div id="admin-restaurant-fee-results" class="admin-table admin-table--fees">
+                    <div class="admin-table__head">
+                        <div>Nhà hàng</div>
+                        <div>Khu vực</div>
+                        <div>Địa chỉ</div>
+                        <div>Phí sàn (đ)</div>
+                    </div>
+                    {% if page_items %}
+                    {% for item in page_items %}
+                    {% set restaurant = item.restaurant %}
+                    <div class="admin-table__row">
+                        <div class="admin-table__cell--strong">
+                            {{ item.restaurant_name }}
+                            <div class="admin-list__meta">#{{ restaurant.restaurant_id }}</div>
+                        </div>
+                        <div>{{ item.area }}</div>
+                        <div>{{ item.address }}</div>
+                        <div class="admin-fee-input-cell">
+                            <input type="hidden" name="restaurant_id" value="{{ restaurant.restaurant_id }}">
+                            <input class="admin-input" type="number" step="1" min="0" name="platform_fee" value="{{ item.platform_fee or 0 }}" placeholder="0">
+                            <small>Hiện tại: {{ item.platform_fee_text }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="admin-empty">Không tìm thấy nhà hàng phù hợp.</div>
+                    {% endif %}
+                </div>
+
+                {% if page_info.total_pages > 1 %}
+                <div class="admin-pagination">
+                    <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page - 1) }}">Trước</a>
+                    {% for page_num in range(1, page_info.total_pages + 1) %}
+                    <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_num) }}">{{ page_num }}</a>
+                    {% endfor %}
+                    <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page + 1) }}">Sau</a>
+                </div>
+                {% endif %}
+
+                <div class="admin-actions admin-actions--sticky">
+                    <button class="admin-btn admin-btn--primary" type="submit">Lưu phí sàn</button>
+                </div>
+            </form>
         </section>
         {% endif %}
     </main>

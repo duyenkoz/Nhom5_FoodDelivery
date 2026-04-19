@@ -94,7 +94,7 @@
                             <p>{{ review.comment or 'Chưa có nội dung đánh giá.' }}</p>
                             <div class="restaurant-review-item__meta">
                                 <span>{{ review.sentiment or 'neutral' }}</span>
-                                <span>{{ review.review_date.strftime('%d/%m/%Y %H:%M') if review.review_date else '' }}</span>
+                                <span>{{ review.review_date | vn_datetime if review.review_date else '' }}</span>
                                 {% if item.report_status == 'pending' %}
                                 <span class="restaurant-review-item__report-badge">Đã báo cáo cho admin</span>
                                 {% endif %}

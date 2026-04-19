@@ -13,6 +13,7 @@ from app.models.review import Review
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.models.restaurant import Restaurant
+from app.utils.time_utils import format_vietnam_date, vietnam_today
 
 
 CATEGORY_RULES = [
@@ -203,11 +204,11 @@ def _format_date_value(value):
 
 
 def _format_start_date_label(value):
-    return value.strftime("%d/%m/%Y") if value else "Áp dụng ngay"
+    return format_vietnam_date(value) if value else "Áp dụng ngay"
 
 
 def _format_end_date_label(value):
-    return value.strftime("%d/%m/%Y") if value else "Không giới hạn"
+    return format_vietnam_date(value) if value else "Không giới hạn"
 
 
 def _voucher_discount_text(voucher):
@@ -219,7 +220,7 @@ def _voucher_discount_text(voucher):
 
 
 def _voucher_state_info(voucher):
-    today = date.today()
+    today = vietnam_today()
     is_started = not voucher.start_date or voucher.start_date <= today
     not_expired = not voucher.end_date or voucher.end_date >= today
 
@@ -304,7 +305,7 @@ def _validate_voucher_form(form):
     start_date = None
     end_date = None
     try:
-        start_date = _parse_date_input(start_date_raw) if start_date_raw else date.today()
+        start_date = _parse_date_input(start_date_raw) if start_date_raw else vietnam_today()
     except ValueError:
         errors["start_date"] = "Ng?y b?t ??u kh?ng h?p l?."
 
@@ -489,7 +490,7 @@ def build_voucher_section_context(
                 "voucher_code": "",
                 "discount_type": "amount",
                 "discount_value": "",
-                "start_date": date.today().isoformat(),
+                "start_date": vietnam_today().isoformat(),
                 "end_date": "",
                 "status": "on",
                 "voucher_scope": "restaurant",
@@ -498,9 +499,9 @@ def build_voucher_section_context(
 
     if not _clean((form_values or {}).get("start_date")):
         form_values = dict(form_values or {})
-        form_values["start_date"] = date.today().isoformat()
+        form_values["start_date"] = vietnam_today().isoformat()
 
-    today = date.today()
+    today = vietnam_today()
     stats = {
         "total_vouchers": len(voucher_views),
         "active_vouchers": sum(1 for item in voucher_views if item["status_class"] == "is-active"),
@@ -599,6 +600,7 @@ def build_section_context(user_id, section_name, edit_voucher_id=None, form_valu
         stats = {
             "total_orders": len(items),
             "completed_orders": sum(1 for item in items if (item["order"].status or "").lower() in {"completed", "delivered", "done"}),
+            "pending_orders": sum(1 for item in items if (item["order"].status or "").lower() in {"pending", "pending_payment", "chờ xác nhận", "chờ thanh toán"}),
         }
         return {
             "restaurant": restaurant,

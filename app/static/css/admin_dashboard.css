@@ -208,6 +208,11 @@
     margin-bottom: 16px;
 }
 
+.admin-toolbar--stacked {
+    flex-direction: column;
+    align-items: stretch;
+}
+
 .admin-toolbar form {
     display: flex;
     gap: 10px;
@@ -276,6 +281,17 @@
 
 .admin-table__row {
     border-top: 1px solid #eef2f7;
+}
+
+.admin-table--fees .admin-table__head,
+.admin-table--fees .admin-table__row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(140px, 0.7fr) minmax(0, 1.4fr) minmax(180px, 0.9fr);
+}
+
+.admin-table--shipping-rules .admin-table__head,
+.admin-table--shipping-rules .admin-table__row {
+    grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.7fr) minmax(150px, 0.8fr) minmax(0, 1.5fr);
+    column-gap: 16px;
 }
 
 .admin-table__row:hover {
@@ -359,8 +375,102 @@
     align-items: center;
 }
 
+.admin-actions--sticky {
+    margin-top: 16px;
+    justify-content: flex-end;
+}
+
 .admin-actions form {
     margin: 0;
+}
+
+.admin-fee-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.admin-note-box {
+    margin-bottom: 16px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a5a0a;
+}
+
+.admin-note-box strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.admin-note-box p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.admin-fee-input-cell {
+    display: grid;
+    gap: 6px;
+}
+
+.admin-table--shipping-rules .admin-table__row {
+    align-items: start;
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.admin-table--shipping-rules .admin-input {
+    width: 100%;
+    min-width: 0;
+    background: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.admin-table--shipping-rules .admin-table__row > div:last-child {
+    color: #334155;
+    line-height: 1.5;
+    padding-top: 10px;
+}
+
+.admin-fee-input-cell small {
+    color: #64748b;
+}
+.admin-bulk-apply__field label {
+    font-weight: 700;
+    color: #22324a;
+}
+
+.admin-bulk-apply {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(180px, 220px) auto;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #e7ebf2;
+    border-radius: 18px;
+    background: #fff;
+}
+
+.admin-bulk-apply__field {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-bulk-apply__actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.admin-bulk-apply .admin-input,
+.admin-bulk-apply .admin-select {
+    min-width: 0;
+    width: 100%;
+}
+
+.admin-shipping-form .admin-panel__header h3 {
+    color: #22324a;
 }
 
 .admin-empty {
@@ -445,6 +555,10 @@
     .admin-hero__stats,
     .admin-dashboard-grid {
         grid-template-columns: 1fr;
+    }
+
+    .admin-fee-summary {
+        grid-template-columns: 1fr 1fr;
     }
 
     .admin-table__head,
