@@ -121,33 +121,43 @@
                         <div class="restaurant-table__image">
                             <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ dish.dish_name }}">
                         </div>
-                        <div class="restaurant-table__name">
+                        <div class="restaurant-table__name" title="{{ dish.dish_name }}">
                             <strong>{{ dish.dish_name }}</strong>
                         </div>
                         <div class="restaurant-table__category">{{ item.category }}</div>
                         <div class="restaurant-table__price">{{ "{:,}".format(dish.price or 0) }}đ</div>
-                        <div class="restaurant-table__metric restaurant-table__metric--strong">{{ item.today_orders }}</div>
-                        <div class="restaurant-table__metric">{{ item.avg_day_orders }}</div>
+                        <div class="restaurant-table__metric restaurant-table__metric--strong {{ item.performance_class }}">{{ item.today_orders }}</div>
+                        <div class="restaurant-table__metric {{ item.performance_class }}">{{ item.avg_day_orders }}</div>
                         <div class="restaurant-table__description" title="{{ dish.description or 'Chưa có mô tả' }}" data-dish-name="{{ dish.dish_name }}" data-dish-description="{{ dish.description or 'Chưa có mô tả' }}">
                             <span class="restaurant-table__description-text">{{ (dish.description or 'Chưa có mô tả')|truncate(44, True, '...') }}</span>
                             <button type="button" class="restaurant-table__description-link" data-open-description>Xem</button>
                         </div>
-                        <div>
-                            <form method="post" action="{{ url_for('restaurant.toggle_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" class="restaurant-status-form">
-                                <button type="submit" class="restaurant-switch {% if dish.status %}is-on{% else %}is-off{% endif %}" aria-label="{{ 'Bật trạng thái món' if not dish.status else 'Tắt trạng thái món' }}">
-                                    <span class="restaurant-switch__thumb"></span>
-                                </button>
+                        <div class="restaurant-table__stock">
+                            <form method="post" action="{{ url_for('restaurant.toggle_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" class="restaurant-status-form restaurant-status-form--stock">
+                                <label class="restaurant-check" aria-label="{{ 'Đánh dấu hết món' if dish.status else 'Bỏ đánh dấu hết món' }}">
+                                    <input type="checkbox" name="sold_out" {% if not dish.status %}checked{% endif %} onchange="this.form.submit()">
+                                    <span class="restaurant-check__box">
+                                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                                            <path d="M5 10.5 8.2 13.7 15 7"></path>
+                                        </svg>
+                                    </span>
+                                </label>
                             </form>
                         </div>
                         <div class="restaurant-table__actions">
-                            <a class="restaurant-icon-btn restaurant-icon-btn--edit" href="{{ url_for('restaurant.dashboard', edit=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" aria-label="Sửa món">
+                            <a class="restaurant-icon-btn restaurant-icon-btn--edit" href="{{ url_for('restaurant.dashboard', edit=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" aria-label="Chỉnh sửa món">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
                             </a>
-                            <form method="post" action="{{ url_for('restaurant.delete_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" onsubmit="return confirm('Bạn chắc chắn muốn xoá món này?');">
-                                <button type="submit" class="restaurant-icon-btn restaurant-icon-btn--delete" aria-label="Xoá món">
-                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
-                                </button>
-                            </form>
+                            <button
+                                type="button"
+                                class="restaurant-icon-btn restaurant-icon-btn--delete"
+                                aria-label="Xóa món"
+                                data-open-delete-modal
+                                data-delete-action="{{ url_for('restaurant.delete_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}"
+                                data-dish-name="{{ dish.dish_name }}"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
@@ -188,6 +198,21 @@
             <h4 id="dishDescriptionName"></h4>
             <p id="dishDescriptionText"></p>
         </div>
+    </div>
+</div>
+
+<div class="restaurant-confirm-modal" id="deleteDishModal" aria-hidden="true">
+    <div class="restaurant-confirm-modal__backdrop" data-close-delete-modal="true"></div>
+    <div class="restaurant-confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="deleteDishModalTitle">
+        <button type="button" class="restaurant-confirm-modal__close" data-close-delete-modal="true" aria-label="Đóng">&times;</button>
+        <h3 id="deleteDishModalTitle">Xác nhận xóa món</h3>
+        <p id="deleteDishModalMessage">Bạn có chắc chắn muốn xóa món này không?</p>
+        <form method="post" id="deleteDishForm">
+            <div class="restaurant-confirm-modal__actions">
+                <button type="button" class="restaurant-btn restaurant-btn--ghost" data-close-delete-modal="true">Hủy</button>
+                <button type="submit" class="restaurant-btn restaurant-btn--danger">Xóa món</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -274,6 +299,11 @@ const openDescriptionButtons = document.querySelectorAll("[data-open-description
 const menuModal = document.getElementById("menuModal");
 const openButtons = document.querySelectorAll("[data-open-form]");
 const closeButtons = document.querySelectorAll("[data-close-form]");
+const deleteDishModal = document.getElementById("deleteDishModal");
+const deleteDishForm = document.getElementById("deleteDishForm");
+const deleteDishModalMessage = document.getElementById("deleteDishModalMessage");
+const deleteDishButtons = document.querySelectorAll("[data-open-delete-modal]");
+const closeDeleteButtons = document.querySelectorAll("[data-close-delete-modal]");
 
 function openDishDescriptionModal(name, description) {
     if (!dishDescriptionModal) return;
@@ -321,8 +351,32 @@ function closeMenuModal() {
     menuModal.setAttribute("aria-hidden", "true");
 }
 
+function openDeleteDishModal(action, dishName) {
+    if (!deleteDishModal || !deleteDishForm) return;
+    deleteDishForm.setAttribute("action", action || "#");
+    deleteDishModalMessage.textContent = `Bạn có chắc chắn muốn xóa món "${dishName || "này"}" không?`;
+    deleteDishModal.classList.add("is-open");
+    deleteDishModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDeleteDishModal() {
+    if (!deleteDishModal) return;
+    deleteDishModal.classList.remove("is-open");
+    deleteDishModal.setAttribute("aria-hidden", "true");
+}
+
 openButtons.forEach((button) => button.addEventListener("click", openMenuModal));
 closeButtons.forEach((button) => button.addEventListener("click", closeMenuModal));
+
+deleteDishButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+        openDeleteDishModal(button.dataset.deleteAction, button.dataset.dishName);
+    });
+});
+
+closeDeleteButtons.forEach((button) => {
+    button.addEventListener("click", closeDeleteDishModal);
+});
 
 if (menuModal) {
     menuModal.addEventListener("click", (event) => {
@@ -332,10 +386,19 @@ if (menuModal) {
     });
 }
 
+if (deleteDishModal) {
+    deleteDishModal.addEventListener("click", (event) => {
+        if (event.target === deleteDishModal) {
+            closeDeleteDishModal();
+        }
+    });
+}
+
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         closeDishDescriptionModalFn();
         closeMenuModal();
+        closeDeleteDishModal();
     }
 });
 </script>

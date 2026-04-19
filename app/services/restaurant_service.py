@@ -3,12 +3,14 @@ import re
 from datetime import date, datetime
 
 from flask import current_app
+from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models.customer import Customer
 from app.models.dish import Dish
 from app.models.order import Order
+from app.models.order_item import OrderItem
 from app.models.review import Review
 from app.models.user import User
 from app.models.voucher import Voucher
@@ -42,6 +44,7 @@ VOUCHER_DISCOUNT_LABELS = {
     "amount": "Giảm",
 }
 
+EXCLUDED_ORDER_STATUSES = {"cancel", "canceled", "cancelled", "failed", "refund", "refunded", "rejected"}
 
 
 def _clean(value):
@@ -81,15 +84,84 @@ def infer_image_path(category, dish):
     return IMAGE_FALLBACKS.get(category, IMAGE_FALLBACKS["Mặc định"])
 
 
-def build_dish_view_model(dish, index=0):
+def _get_restaurant_dish_sales_map(restaurant_id):
+    if not restaurant_id:
+        return {}
+
+    status_expr = func.lower(func.coalesce(Order.status, ""))
+    total_rows = (
+        db.session.query(
+            OrderItem.dish_id.label("dish_id"),
+            func.coalesce(func.sum(func.coalesce(OrderItem.quantity, 1)), 0).label("total_quantity"),
+            func.min(func.date(Order.order_date)).label("first_order_date"),
+        )
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .join(Dish, Dish.dish_id == OrderItem.dish_id)
+        .filter(Dish.restaurant_id == restaurant_id)
+        .filter(Order.restaurant_id == restaurant_id)
+        .filter(Order.order_date.isnot(None))
+        .filter(~status_expr.in_(EXCLUDED_ORDER_STATUSES))
+        .group_by(OrderItem.dish_id)
+        .all()
+    )
+
+    today = date.today()
+    today_rows = (
+        db.session.query(
+            OrderItem.dish_id.label("dish_id"),
+            func.coalesce(func.sum(func.coalesce(OrderItem.quantity, 1)), 0).label("today_quantity"),
+        )
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .join(Dish, Dish.dish_id == OrderItem.dish_id)
+        .filter(Dish.restaurant_id == restaurant_id)
+        .filter(Order.restaurant_id == restaurant_id)
+        .filter(Order.order_date.isnot(None))
+        .filter(func.date(Order.order_date) == today)
+        .filter(~status_expr.in_(EXCLUDED_ORDER_STATUSES))
+        .group_by(OrderItem.dish_id)
+        .all()
+    )
+
+    today_map = {row.dish_id: int(row.today_quantity or 0) for row in today_rows}
+    sales_map = {}
+
+    for row in total_rows:
+        first_order_date = row.first_order_date
+        if isinstance(first_order_date, str):
+            try:
+                first_order_date = date.fromisoformat(first_order_date)
+            except ValueError:
+                first_order_date = None
+
+        total_quantity = int(row.total_quantity or 0)
+        active_days = ((today - first_order_date).days + 1) if first_order_date else 0
+        avg_day_orders = round(total_quantity / active_days) if active_days > 0 else 0
+
+        sales_map[row.dish_id] = {
+            "today_orders": today_map.get(row.dish_id, 0),
+            "avg_day_orders": avg_day_orders,
+        }
+
+    for dish_id, today_orders in today_map.items():
+        sales_map.setdefault(
+            dish_id,
+            {
+                "today_orders": today_orders,
+                "avg_day_orders": 0,
+            },
+        )
+
+    return sales_map
+
+
+def build_dish_view_model(dish, sales_map=None):
     category = dish.category or infer_category(dish)
     dish_id = dish.dish_id or 0
-    price = dish.price or 0
-    today_orders = max(8, (price // 1000) % 60 + 8 + index * 2)
-    avg_day_orders = max(6, (price // 1200) % 55 + 6)
-    rating_value = round(4.0 + ((dish_id % 8) * 0.1), 1)
-    rating_count = 20 + (dish_id % 180)
+    sales_data = (sales_map or {}).get(dish_id, {})
+    today_orders = int(sales_data.get("today_orders", 0) or 0)
+    avg_day_orders = int(sales_data.get("avg_day_orders", 0) or 0)
     image_path = dish.image or infer_image_path(category, dish)
+    performance_class = "is-up" if today_orders >= avg_day_orders else "is-down"
 
     return {
         "dish": dish,
@@ -97,9 +169,7 @@ def build_dish_view_model(dish, index=0):
         "image_path": image_path,
         "today_orders": today_orders,
         "avg_day_orders": avg_day_orders,
-        "rating_value": rating_value,
-        "rating_count": rating_count,
-        "has_reviews": rating_count > 0,
+        "performance_class": performance_class,
     }
 
 
@@ -363,6 +433,7 @@ def build_dashboard_context(
 ):
     restaurant = get_restaurant_by_user_id(user_id)
     dishes = list(restaurant.dishes) if restaurant else []
+    sales_map = _get_restaurant_dish_sales_map(restaurant.restaurant_id) if restaurant else {}
     edit_dish = None
 
     if edit_dish_id is not None and restaurant is not None:
@@ -390,7 +461,7 @@ def build_dashboard_context(
                 "image_name": "",
             }
 
-    dish_views = [build_dish_view_model(dish, index) for index, dish in enumerate(dishes)]
+    dish_views = [build_dish_view_model(dish, sales_map=sales_map) for dish in dishes]
     categories = []
     seen_categories = set()
     for item in dish_views:

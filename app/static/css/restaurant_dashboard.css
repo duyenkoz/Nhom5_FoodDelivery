@@ -265,6 +265,12 @@
     border: 1px solid #ffe173;
 }
 
+.restaurant-btn--danger {
+    color: #fff;
+    background: linear-gradient(180deg, #f97316 0%, #ef4444 100%);
+    box-shadow: 0 10px 20px rgba(239, 68, 68, 0.18);
+}
+
 .restaurant-alerts {
     display: grid;
     gap: 8px;
@@ -401,7 +407,7 @@
 }
 
 .restaurant-table-card {
-    overflow: hidden;
+    overflow: visible;
     margin-top: -1px;
     border-top: 0;
     border-radius: 0 0 16px 16px;
@@ -409,7 +415,8 @@
 }
 
 .restaurant-table-wrap {
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .restaurant-table {
@@ -419,9 +426,9 @@
 .restaurant-table__head,
 .restaurant-table__row {
     display: grid;
-    grid-template-columns: 64px minmax(0, 1.35fr) 92px 88px 72px 72px minmax(0, 1.05fr) 70px 72px;
+    grid-template-columns: 64px minmax(0, 1.08fr) 108px 98px 86px 86px minmax(140px, 0.9fr) 104px 104px;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
 }
 
 .restaurant-table__head {
@@ -433,6 +440,7 @@
 
 .restaurant-table__head span{
     padding: 6px 6px;
+    white-space: nowrap;
 }
  .restaurant-table__row > * {
     min-width: 0;
@@ -447,7 +455,21 @@
 }
 
 .restaurant-table__row.is-offline {
-    opacity: 0.82;
+    background: #f8fafc;
+    color: #94a3b8;
+}
+
+.restaurant-table__row.is-offline .restaurant-table__image img {
+    filter: grayscale(1);
+    opacity: 0.72;
+}
+
+.restaurant-table__row.is-offline .restaurant-table__name strong,
+.restaurant-table__row.is-offline .restaurant-table__price,
+.restaurant-table__row.is-offline .restaurant-table__category,
+.restaurant-table__row.is-offline .restaurant-table__metric,
+.restaurant-table__row.is-offline .restaurant-table__description-text {
+    color: #94a3b8;
 }
 
 .restaurant-table__image {
@@ -469,9 +491,11 @@
     display: block;
     font-size: 0.92rem;
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .restaurant-table__metric,
-.restaurant-table__description,
 .restaurant-status-form,
 .restaurant-table__actions {
     justify-content: center;
@@ -490,6 +514,14 @@
     font-weight: 800;
 }
 
+.restaurant-table__metric.is-up {
+    color: #16a34a;
+}
+
+.restaurant-table__metric.is-down {
+    color: #ef4444;
+}
+
 .restaurant-table__price {
     color: #374151;
     font-weight: 800;
@@ -502,6 +534,8 @@
     font-size: 0.92rem;
     line-height: 1.45;
     text-align: left;
+    justify-content: start;
+    align-content: center;
 }
 
 .restaurant-table__description-text {
@@ -602,6 +636,10 @@
     justify-content: center;
 }
 
+.restaurant-status-form--stock {
+    width: 100%;
+}
+
 .restaurant-status-form--field {
     position: relative;
     justify-content: flex-start;
@@ -661,12 +699,31 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 10px;
+    overflow: visible;
+}
+
+.restaurant-table__head > :nth-child(8),
+.restaurant-table__head > :nth-child(9),
+.restaurant-table__row > :nth-child(8),
+.restaurant-table__row > :nth-child(9) {
+    justify-self: center;
+    text-align: center;
+}
+
+.restaurant-table__head > :nth-child(8),
+.restaurant-table__row > :nth-child(8) {
+    margin-right: 8px;
+}
+
+.restaurant-table__head > :nth-child(9),
+.restaurant-table__row > :nth-child(9) {
+    margin-left: 8px;
 }
 
 .restaurant-icon-btn {
-    width: 20px;
-    height: 20px;
+    width: 36px;
+    height: 36px;
     display: inline-grid;
     place-items: center;
     border: 0;
@@ -674,16 +731,141 @@
     color: #6b7280;
     cursor: pointer;
     text-decoration: none;
+    border-radius: 10px;
 }
 
 .restaurant-icon-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     fill: currentColor;
+}
+
+.restaurant-table__stock {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+}
+
+.restaurant-check {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.restaurant-check input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.restaurant-check__box {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.restaurant-check__box svg {
+    width: 15px;
+    height: 15px;
+    stroke: #fff;
+    stroke-width: 2.4;
+    fill: none;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.restaurant-check input:checked + .restaurant-check__box {
+    background: #94a3b8;
+    border-color: #94a3b8;
+}
+
+.restaurant-check input:checked + .restaurant-check__box svg {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.restaurant-check input:focus-visible + .restaurant-check__box {
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.22);
+}
+
+.restaurant-confirm-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 90;
+}
+
+.restaurant-confirm-modal.is-open {
+    display: flex;
+}
+
+.restaurant-confirm-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.restaurant-confirm-modal__panel {
+    position: relative;
+    width: min(100%, 420px);
+    padding: 22px 20px 18px;
+    border: 1px solid var(--rd-line);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.25);
+}
+
+.restaurant-confirm-modal__panel h3 {
+    margin: 0 0 10px;
+    color: #111827;
+    font-size: 1.2rem;
+}
+
+.restaurant-confirm-modal__panel p {
+    margin: 0;
+    color: #475569;
+    line-height: 1.6;
+}
+
+.restaurant-confirm-modal__close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #374151;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.restaurant-confirm-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
 }
 
 .restaurant-icon-btn--edit:hover {
     color: #64748b;
+    background: #f8fafc;
 }
 
 .restaurant-icon-btn--delete {
@@ -692,6 +874,7 @@
 
 .restaurant-icon-btn--delete:hover {
     color: #dc2626;
+    background: #fef2f2;
 }
 
 .restaurant-switch__label {
@@ -1061,8 +1244,8 @@
 
     .restaurant-table__head,
     .restaurant-table__row {
-        grid-template-columns: 72px minmax(140px, 1.5fr) 120px 100px 80px 80px 110px 80px 80px;
-        min-width: 980px;
+        grid-template-columns: 72px minmax(150px, 1.1fr) 120px 100px 92px 92px minmax(180px, 1fr) 106px 106px;
+        min-width: 1090px;
     }
 
     .menu-modal {

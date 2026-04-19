@@ -67,6 +67,24 @@ def _safe_next_url(next_url):
     return next_url
 
 
+def _log_in_user_session(user, remember=False):
+    session["user_id"] = user.user_id
+    session["user_role"] = user.role
+    session["auth_state"] = "logged_in"
+    session["username"] = user.username
+    session["user_display_name"] = user.display_name or user.username
+    session.permanent = remember
+
+
+def _set_registration_pending_session(user):
+    session["user_id"] = user.user_id
+    session["user_role"] = user.role
+    session["username"] = user.username
+    session.pop("auth_state", None)
+    session.pop("user_display_name", None)
+    session.permanent = False
+
+
 def _is_email_or_phone(value):
     if not value:
         return False
@@ -280,12 +298,7 @@ def login():
             elif not verify_password(user.password, password):
                 form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
             else:
-                session["user_id"] = user.user_id
-                session["user_role"] = user.role
-                session["auth_state"] = "logged_in"
-                session["username"] = user.username
-                session["user_display_name"] = user.display_name or user.username
-                session.permanent = remember
+                _log_in_user_session(user, remember=remember)
                 if user.role == "admin":
                     if next_url and next_url.startswith("/admin"):
                         return redirect(next_url)
@@ -338,8 +351,7 @@ def register():
                 show_search=False,
                 show_auth=False,
             )
-        session["user_id"] = new_user.user_id
-        session["user_role"] = new_user.role
+        _set_registration_pending_session(new_user)
 
         if new_user.role == "customer":
             return redirect(url_for("auth.complete_customer"))
@@ -387,12 +399,7 @@ def forgot_password_accept():
     if not user or user.user_id != int(user_id):
         return jsonify({"ok": False, "message": "Tài khoản không hợp lệ."}), 400
 
-    session["user_id"] = user.user_id
-    session["user_role"] = user.role
-    session["auth_state"] = "logged_in"
-    session["username"] = user.username
-    session["user_display_name"] = user.display_name or user.username
-    session.permanent = False
+    _log_in_user_session(user)
     session.pop("forgot_password_user_id", None)
 
     redirect_url = url_for("restaurant.dashboard") if user.role == "restaurant" else url_for("home.index")
@@ -1274,6 +1281,8 @@ def complete_customer():
             )
         if not user:
             return redirect(url_for("auth.register"))
+        if session.get("auth_state") != "logged_in":
+            _log_in_user_session(user)
         return redirect(url_for("home.index"))
 
     return render_template("auth/complete_customer.html", show_search=False, show_auth=False)
@@ -1340,7 +1349,10 @@ def complete_restaurant():
             )
         if not user:
             return redirect(url_for("auth.register"))
-        session["user_display_name"] = user.display_name or user.username
+        if session.get("auth_state") == "logged_in":
+            session["user_display_name"] = user.display_name or user.username
+        else:
+            _log_in_user_session(user)
         flash("Đã cập nhật thông tin nhà hàng." if (is_edit_mode or restaurant) else "Đã hoàn tất thông tin nhà hàng.", "success")
         return redirect(url_for("auth.complete_restaurant", edit=1)) if (is_edit_mode or restaurant) else redirect(url_for("restaurant.dashboard"))
 

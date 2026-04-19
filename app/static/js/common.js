@@ -97,6 +97,28 @@
         });
     }
 
+    function initScrollTopButton() {
+        const scrollTopButton = document.querySelector("[data-scroll-top='true']");
+        if (!scrollTopButton) {
+            return;
+        }
+
+        const toggleVisibility = () => {
+            const shouldShow = window.scrollY > 280;
+            scrollTopButton.classList.toggle("is-visible", shouldShow);
+        };
+
+        scrollTopButton.addEventListener("click", () => {
+            window.scrollTo({
+                top: 0,
+                behavior: "smooth",
+            });
+        });
+
+        window.addEventListener("scroll", toggleVisibility, { passive: true });
+        toggleVisibility();
+    }
+
     window.AppToast = {
         show,
         success,
@@ -109,5 +131,8 @@
     window.showErrorToast = error;
     window.showWarningToast = warning;
 
-    document.addEventListener("DOMContentLoaded", showFlashedMessages);
+    document.addEventListener("DOMContentLoaded", () => {
+        showFlashedMessages();
+        initScrollTopButton();
+    });
 })();
