@@ -16,16 +16,6 @@
         <p>Xác nhận giao dịch mô phỏng trước khi tạo đơn hàng.</p>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="checkout-notices">
-            {% for category, message in messages %}
-            <div class="auth-notice auth-notice--{{ category }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    {% endwith %}
-
     <div class="checkout-momo">
         <section class="checkout-momo__panel">
             <div class="checkout-momo__brand">

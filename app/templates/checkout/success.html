@@ -14,16 +14,6 @@
         <h1>Đặt hàng thành công</h1>
         <p>Đơn hàng <strong>#{{ order.order_id }}</strong> đã được tạo và chuyển sang trạng thái chờ xác nhận.</p>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <div class="checkout-notices">
-                {% for category, message in messages %}
-                <div class="auth-notice auth-notice--{{ category }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        {% endwith %}
-
         <div class="checkout-success__card">
             <div class="checkout-success__row"><span>Trạng thái đơn</span><strong>{{ order_status_label or 'Chờ xác nhận' }}</strong></div>
             <div class="checkout-success__row"><span>Tạm tính</span><strong>{{ "{:,}".format(subtotal_amount or 0) }}đ</strong></div>

@@ -145,6 +145,16 @@ def _normalize_order_status(order):
             "step_key": "cancelled",
         }
 
+    if lowered in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
+        return {
+            "bucket": "cancelled",
+            "label": "Đang chờ hoàn tiền",
+            "badge_class": "is-warning",
+            "stage": "Đang chờ hoàn tiền",
+            "description": "Đơn đã hủy sau khi thanh toán và đang chờ hoàn tiền.",
+            "step_key": "refund_pending",
+        }
+
     if lowered in {"đang giao hàng", "đang giao"}:
         return {
             "bucket": "pending",
@@ -513,13 +523,16 @@ def orders():
     order_cards = [_order_card_view(order) for order in order_rows]
     pending_orders = [order for order in order_cards if order["status_bucket"] == "pending"]
     delivered_orders = [order for order in order_cards if order["status_bucket"] == "delivered"]
+    cancelled_orders = [order for order in order_cards if order["status_bucket"] == "cancelled"]
 
     return render_template(
         "auth/orders.html",
         pending_orders=pending_orders,
         delivered_orders=delivered_orders,
+        cancelled_orders=cancelled_orders,
         pending_count=len(pending_orders),
         delivered_count=len(delivered_orders),
+        cancelled_count=len(cancelled_orders),
         show_search=False,
         show_auth=False,
     )

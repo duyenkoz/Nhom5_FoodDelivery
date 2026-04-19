@@ -131,7 +131,12 @@
 
             {% if status_info.step_key == 'payment' %}
             <div class="order-detail-timer order-detail-timer--warning">
-                <strong>Đếm ngược thanh toán</strong>
+                <div class="order-detail-timer__header">
+                    <strong>Đếm ngược thanh toán</strong>
+                    {% if order.payment and (order.payment.payment_method or '') == 'momo' %}
+                    <a class="order-detail-timer__button" href="{{ url_for('checkout.checkout_momo', order_id=order.order_id) }}">Thanh toán tiếp</a>
+                    {% endif %}
+                </div>
                 <span id="paymentCountdown" data-seconds="{{ payment_remaining_seconds }}">{{ payment_remaining_seconds }} giây</span>
                 <small>Không thanh toán trong 10 phút, đơn sẽ tự chuyển sang đã hủy.</small>
             </div>

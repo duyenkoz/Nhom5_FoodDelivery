@@ -31,16 +31,6 @@
         <h1>Thanh toán - {{ checkout_data.get('restaurant_name') or 'Đơn hàng của bạn' }}</h1>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="checkout-notices">
-            {% for category, message in messages %}
-            <div class="auth-notice auth-notice--{{ category }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    {% endwith %}
-
     <div class="checkout-layout">
         <section class="checkout-main">
             <section class="checkout-panel">
@@ -224,19 +214,10 @@
 
         <div class="voucher-modal__body">
             <div class="voucher-modal__section">
-                <h4>Tự nhập mã</h4>
-                <div class="voucher-manual">
-                    <input type="text" id="manualVoucherInput" placeholder="Nhập mã voucher">
-                    <button type="button" class="voucher-manual__apply" id="applyManualVoucherBtn">Áp dụng</button>
-                </div>
-                <small class="checkout-voucher__message" id="voucherModalMessage">Chọn một mã có sẵn hoặc nhập mã thủ công.</small>
-            </div>
-            
-            <div class="voucher-modal__section">
-                <h4>Mã có sẵn</h4>
                 <div class="voucher-list" id="voucherList">
                     <div class="voucher-empty">Đang tải mã khuyến mãi...</div>
                 </div>
+                <small class="checkout-voucher__message" id="voucherModalMessage">Chọn một mã có sẵn để áp dụng.</small>
             </div>
         </div>
 
@@ -265,8 +246,6 @@
     const voucherCodeHidden = document.getElementById("voucher_code_hidden");
     const voucherModalMessage = document.getElementById("voucherModalMessage");
     const voucherList = document.getElementById("voucherList");
-    const manualVoucherInput = document.getElementById("manualVoucherInput");
-    const applyManualVoucherBtn = document.getElementById("applyManualVoucherBtn");
     const saveVoucherSelectionBtn = document.getElementById("saveVoucherSelectionBtn");
     const checkoutItemsList = document.getElementById("checkoutItemsList");
     const checkoutItemsJson = document.getElementById("checkout_items_json");
@@ -399,51 +378,9 @@
     openVoucherModalBtn?.addEventListener("click", openVoucherModal);
     document.querySelectorAll("[data-close-voucher-modal]").forEach((btn) => btn.addEventListener("click", closeVoucherModal));
 
-    async function applyManualVoucher() {
-        const code = (manualVoucherInput.value || "").trim();
-        if (!code) {
-            voucherModalMessage.textContent = "Vui lòng nhập mã voucher.";
-            return;
-        }
-
-        const payload = new URLSearchParams();
-        payload.append("voucher_code", code);
-        payload.append("restaurant_id", {{ (restaurant.restaurant_id if restaurant else '')|tojson }});
-
-        try {
-            const result = await fetchJson("{{ url_for('checkout.checkout_voucher_safe') }}", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
-                body: payload.toString(),
-            });
-            const response = result.response;
-            const data = result.data;
-            if (!response.ok || !data || !data.ok) {
-                throw new Error((data && data.message) || "Mã voucher không hợp lệ.");
-            }
-            selectedVoucher = {
-                code: code,
-                id: data.voucher_id || "",
-                discountValue: Number(data.discount_value || 0),
-            };
-            voucherModalMessage.textContent = data.message || `Đã áp dụng mã ${code}.`;
-            voucherModalMessage.classList.remove("is-error");
-            updateVoucherChip();
-            refreshTotals();
-            await loadVouchers();
-        } catch (error) {
-            selectedVoucher = {code: "", id: "", discountValue: 0};
-            updateVoucherChip();
-            refreshTotals();
-            voucherModalMessage.textContent = error.message || "Mã voucher không hợp lệ.";
-            voucherModalMessage.classList.add("is-error");
-        }
-    }
-
-    applyManualVoucherBtn?.addEventListener("click", applyManualVoucher);
     saveVoucherSelectionBtn?.addEventListener("click", async () => {
         if (!selectedVoucher.code) {
-            voucherModalMessage.textContent = "Vui lòng chọn một mã hoặc nhập mã voucher.";
+            voucherModalMessage.textContent = "Vui lòng chọn một mã có sẵn.";
             voucherModalMessage.classList.add("is-error");
             return;
         }

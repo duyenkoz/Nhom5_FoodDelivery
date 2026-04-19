@@ -44,7 +44,7 @@ VOUCHER_DISCOUNT_LABELS = {
     "amount": "Giảm",
 }
 
-EXCLUDED_ORDER_STATUSES = {"cancel", "canceled", "cancelled", "failed", "refund", "refunded", "rejected"}
+EXCLUDED_ORDER_STATUSES = {"cancel", "canceled", "cancelled", "failed", "refund", "refund_pending", "pending_refund", "refunded", "rejected"}
 
 
 def _clean(value):
