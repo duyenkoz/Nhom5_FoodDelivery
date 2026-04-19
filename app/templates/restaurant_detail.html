@@ -195,7 +195,7 @@
                         type="button"
                         class="restaurant-cart__cta"
                         data-cart-orders-cta="true"
-                        data-order-url="{{ url_for('auth.orders') }}"
+                        data-order-url="{{ url_for('checkout.checkout', restaurant_id=page.restaurant_id) }}"
                         {% if page.cart.is_empty %}disabled aria-disabled="true"{% endif %}
                     >Xem đơn hàng</button>
                     {% else %}

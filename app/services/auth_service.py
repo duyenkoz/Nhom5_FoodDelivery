@@ -379,6 +379,27 @@ def complete_customer_profile(user_id, form):
     return user
 
 
+def update_customer_profile(user_id, form):
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+
+    data = _validate_customer_profile(form)
+    user.display_name = data["tenHienThi"]
+
+    customer = db.session.get(Customer, user.user_id)
+    if not customer:
+        customer = Customer(customer_id=user.user_id)
+        db.session.add(customer)
+
+    customer.address = data["diaChi"]
+    customer.area = data["khuVuc"]
+    customer.latitude = data["latitude"]
+    customer.longitude = data["longitude"]
+    db.session.commit()
+    return user
+
+
 def complete_restaurant_profile(user_id, form, file_storage=None):
     user, restaurant = get_restaurant_by_user_id(user_id)
     if not user:

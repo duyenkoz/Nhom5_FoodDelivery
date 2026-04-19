@@ -1,6 +1,9 @@
 from sqlalchemy.orm import joinedload
 
+from app.extensions import db
 from app.models import Dish, Restaurant
+from app.models.cart import Cart
+from app.models.cart_item import CartItem
 from app.services.location_service import normalize_text
 from app.services.restaurant_service import build_dish_view_model, infer_image_path, infer_category
 
@@ -176,11 +179,81 @@ def _dish_to_view(dish, index=0):
 def _empty_cart_payload(restaurant_id):
     return {
         "restaurant_id": restaurant_id,
+        "cart_id": None,
         "items": [],
         "total_quantity": 0,
         "total_amount": 0,
         "total_amount_text": _format_price(0),
         "is_empty": True,
+    }
+
+
+def _session_user_id(session_obj):
+    try:
+        return int(session_obj.get("user_id"))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _is_logged_in_customer(session_obj):
+    return (
+        session_obj.get("auth_state") == "logged_in"
+        and session_obj.get("user_role") == "customer"
+        and _session_user_id(session_obj) is not None
+    )
+
+
+def _get_db_cart(session_obj, restaurant_id):
+    customer_id = _session_user_id(session_obj)
+    if customer_id is None:
+        return None
+    return (
+        Cart.query.filter_by(customer_id=customer_id, restaurant_id=restaurant_id)
+        .order_by(Cart.created_at.desc(), Cart.cart_id.desc())
+        .first()
+    )
+
+
+def _serialize_db_cart(cart, restaurant_id):
+    if not cart:
+        return _empty_cart_payload(restaurant_id)
+
+    payload_items = []
+    total_quantity = 0
+    total_amount = 0
+    for cart_item in sorted(cart.items or [], key=lambda item: item.cart_item_id or 0):
+        dish = cart_item.dish
+        if not dish or not dish.status:
+            continue
+        quantity = max(1, int(cart_item.quantity or 1))
+        price = int(cart_item.price if cart_item.price is not None else dish.price or 0)
+        line_total = price * quantity
+        total_quantity += quantity
+        total_amount += line_total
+        payload_items.append(
+            {
+                "dish_id": dish.dish_id,
+                "name": dish.dish_name or "Món ăn",
+                "price": price,
+                "price_text": _format_price(price),
+                "quantity": quantity,
+                "note": _clean(getattr(cart_item, "note", "")),
+                "line_total": line_total,
+                "line_total_text": _format_price(line_total),
+                "image_path": _normalize_image_path(dish.image or _fallback_image(dish)),
+            }
+        )
+
+    payload_items.sort(key=lambda item: (item["name"].lower(), item["dish_id"]))
+
+    return {
+        "restaurant_id": restaurant_id,
+        "cart_id": cart.cart_id,
+        "items": payload_items,
+        "total_quantity": total_quantity,
+        "total_amount": total_amount,
+        "total_amount_text": _format_price(total_amount),
+        "is_empty": not payload_items,
     }
 
 
@@ -218,6 +291,11 @@ def get_restaurant_cart_snapshot(session, restaurant_id):
     restaurant = get_public_restaurant(restaurant_id)
     if not restaurant:
         return _empty_cart_payload(restaurant_id)
+
+    if _is_logged_in_customer(session):
+        db_cart = _get_db_cart(session, restaurant_id)
+        if db_cart:
+            return _serialize_db_cart(db_cart, restaurant_id)
 
     cart = _ensure_restaurant_cart(session, restaurant_id)
     items_state = cart.get("items", {})
@@ -293,6 +371,39 @@ def add_to_restaurant_cart(session, restaurant_id, dish_id, quantity=1, note="")
     if not dish:
         return None
 
+    if _is_logged_in_customer(session):
+        customer_id = _session_user_id(session)
+        cart = _get_db_cart(session, restaurant_id)
+        if not cart:
+            cart = Cart(customer_id=customer_id, restaurant_id=restaurant_id, total_amount=0)
+            db.session.add(cart)
+            db.session.flush()
+
+        cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, dish_id=dish.dish_id).one_or_none()
+        if not cart_item:
+            cart_item = CartItem(cart_id=cart.cart_id, dish_id=dish.dish_id, quantity=0, price=int(dish.price or 0))
+            db.session.add(cart_item)
+
+        current_quantity = int(cart_item.quantity or 0)
+        next_quantity = max(0, current_quantity + int(quantity or 0))
+
+        if next_quantity <= 0:
+            db.session.delete(cart_item)
+        else:
+            cart_item.quantity = next_quantity
+            cart_item.price = int(dish.price or 0)
+
+        db.session.flush()
+        cart.total_amount = sum(
+            int(item.price or item.dish.price or 0) * max(1, int(item.quantity or 1))
+            for item in cart.items
+            if item.dish and item.quantity and int(item.quantity or 0) > 0
+        )
+        if not cart.items:
+            db.session.delete(cart)
+        db.session.commit()
+        return get_restaurant_cart_snapshot(session, restaurant_id)
+
     cart = _ensure_restaurant_cart(session, restaurant_id)
     items = cart["items"]
     item_key = str(dish_id)
@@ -317,6 +428,41 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
     dish = get_public_dish(restaurant_id, dish_id)
     if not dish:
         return None
+
+    if _is_logged_in_customer(session):
+        cart = _get_db_cart(session, restaurant_id)
+        if not cart:
+            cart = Cart(customer_id=_session_user_id(session), restaurant_id=restaurant_id, total_amount=0)
+            db.session.add(cart)
+            db.session.flush()
+
+        cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, dish_id=dish.dish_id).one_or_none()
+        next_quantity = int(cart_item.quantity or 0) if cart_item else 0
+        if quantity is not None:
+            next_quantity = max(0, int(quantity))
+
+        if next_quantity <= 0:
+            if cart_item:
+                db.session.delete(cart_item)
+        else:
+            if not cart_item:
+                cart_item = CartItem(cart_id=cart.cart_id, dish_id=dish.dish_id, quantity=next_quantity, price=int(dish.price or 0))
+                db.session.add(cart_item)
+            else:
+                cart_item.quantity = next_quantity
+                cart_item.price = int(dish.price or 0)
+
+        db.session.flush()
+        if cart.items:
+            cart.total_amount = sum(
+                int(item.price or item.dish.price or 0) * max(1, int(item.quantity or 1))
+                for item in cart.items
+                if item.dish and item.quantity and int(item.quantity or 0) > 0
+            )
+        else:
+            db.session.delete(cart)
+        db.session.commit()
+        return get_restaurant_cart_snapshot(session, restaurant_id)
 
     cart = _ensure_restaurant_cart(session, restaurant_id)
     items = cart["items"]

@@ -4,9 +4,11 @@ from datetime import datetime
 
 from app.extensions import db
 from app.models.review import Review
+from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.admin_service import build_admin_context
+from app.services.shipping_service import get_shipping_fee_settings, save_shipping_fee_settings
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -76,6 +78,75 @@ def review_reports():
 @bp.route("/disputes")
 def disputes():
     return _render_admin("disputes")
+
+
+@bp.route("/shipping-fees", methods=["GET", "POST"])
+def shipping_fees():
+    if not _require_admin():
+        return _login_redirect()
+
+    if request.method == "POST":
+        form_type = (request.form.get("form_type") or "").strip()
+
+        if form_type == "shipping_rules":
+            existing_floor_fee = get_shipping_fee_settings().get("floor_fee", 0)
+            min_km_values = request.form.getlist("min_km")
+            max_km_values = request.form.getlist("max_km")
+            fee_values = request.form.getlist("fee")
+            rules = []
+            for min_km, max_km, fee in zip(min_km_values, max_km_values, fee_values):
+                rules.append(
+                    {
+                        "min_km": min_km,
+                        "max_km": max_km,
+                        "fee": fee,
+                    }
+                )
+            save_shipping_fee_settings({"floor_fee": existing_floor_fee, "rules": rules})
+            flash("Đã cập nhật phí ship theo khoảng cách.", "success")
+            return redirect(url_for("admin.shipping_fees"))
+
+        if form_type == "bulk_apply_area":
+            area = (request.form.get("area") or "").strip()
+            fee_value = request.form.get("platform_fee", 0)
+            if not area:
+                flash("Vui lòng chọn khu vực trước khi áp dụng đồng loạt.", "warning")
+                return redirect(url_for("admin.shipping_fees", **request.args))
+
+            try:
+                normalized_fee = max(0, int(fee_value))
+            except (TypeError, ValueError):
+                normalized_fee = 0
+
+            restaurants = Restaurant.query.filter(Restaurant.area == area).all()
+            updated_count = 0
+            for restaurant in restaurants:
+                restaurant.platform_fee = normalized_fee
+                updated_count += 1
+
+            db.session.commit()
+            flash(f"Đã áp dụng phí sàn {normalized_fee:,}đ cho {updated_count} nhà hàng ở khu vực {area}.", "success")
+            return redirect(url_for("admin.shipping_fees", q=request.args.get("q", ""), page=request.args.get("page", 1), role=request.args.get("role", "all")))
+
+        restaurant_ids = request.form.getlist("restaurant_id")
+        fee_values = request.form.getlist("platform_fee")
+        updated_count = 0
+
+        for restaurant_id, fee_value in zip(restaurant_ids, fee_values):
+            restaurant = db.session.get(Restaurant, restaurant_id)
+            if not restaurant:
+                continue
+            try:
+                restaurant.platform_fee = max(0, int(fee_value))
+            except (TypeError, ValueError):
+                restaurant.platform_fee = 0
+            updated_count += 1
+
+        db.session.commit()
+        flash(f"Đã cập nhật phí sàn cho {updated_count} nhà hàng.", "success")
+        return redirect(url_for("admin.shipping_fees"))
+
+    return _render_admin("shipping")
 
 
 @bp.route("/accounts/<int:user_id>/toggle-status", methods=["POST"])

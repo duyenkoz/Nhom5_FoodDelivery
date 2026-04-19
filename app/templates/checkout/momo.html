@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Thanh toán MoMo | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checkout.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set checkout_data = checkout or {} %}
+{% set momo_items = checkout_data.get('items', []) %}
+<div class="checkout-page checkout-page--momo">
+    <div class="checkout-page__heading">
+        <h1>Thanh toán qua MoMo</h1>
+        <p>Xác nhận giao dịch mô phỏng trước khi tạo đơn hàng.</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="checkout-notices">
+            {% for category, message in messages %}
+            <div class="auth-notice auth-notice--{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="checkout-momo">
+        <section class="checkout-momo__panel">
+            <div class="checkout-momo__brand">
+                <span class="checkout-momo__logo">m</span>
+                <div>
+                    <strong>MoMo giả lập</strong>
+                    <span>Giao dịch trực tuyến</span>
+                </div>
+            </div>
+
+            <div class="checkout-momo__timer" id="momoTimerBox" data-remaining="{{ checkout_data.remaining_seconds or 600 }}">
+                <strong>Thời gian thanh toán còn lại</strong>
+                <span id="momoTimerText"></span>
+            </div>
+
+            <div class="checkout-momo__qr">
+                <div class="checkout-momo__qr-box"></div>
+                <p>Quét mã hoặc bấm xác nhận để hoàn tất giao dịch thử nghiệm.</p>
+            </div>
+
+            <div class="checkout-momo__actions">
+                {% if checkout_data.pay_url %}
+                <a class="checkout-btn checkout-btn--primary" href="{{ checkout_data.pay_url }}" target="_blank" rel="noopener">Mở cổng thanh toán MoMo</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('checkout.checkout_momo') }}">
+                    <button type="submit" class="checkout-btn checkout-btn--primary">Xác nhận thanh toán MoMo</button>
+                </form>
+                <form method="post" action="{{ url_for('checkout.checkout_momo') }}">
+                    <button type="submit" name="simulate_failure" value="1" class="checkout-btn checkout-btn--soft">Giả lập lỗi giao dịch</button>
+                </form>
+                <form id="momoCancelForm" method="post" action="{{ url_for('checkout.checkout_cancel', order_id=checkout_data.order_id) }}" style="display:none;"></form>
+                <a class="checkout-momo__back" href="{{ url_for('checkout.checkout') }}">Quay lại trang thanh toán</a>
+            </div>
+        </section>
+
+        <aside class="checkout-momo__summary">
+            <h2>Thông tin đơn hàng</h2>
+            <div class="checkout-momo__row"><span>Nhà hàng</span><strong>{{ checkout_data.restaurant_name }}</strong></div>
+            <div class="checkout-momo__row"><span>Tạm tính</span><strong>{{ "{:,}".format(checkout_data.subtotal or 0) }}đ</strong></div>
+            <div class="checkout-momo__row"><span>Phí giao hàng</span><strong>{{ "{:,}".format(checkout_data.delivery_fee or 0) }}đ</strong></div>
+            <div class="checkout-momo__row"><span>Giảm voucher</span><strong>{{ '-' ~ checkout_data.discount_text if checkout_data.discount_value else '0đ' }}</strong></div>
+            <div class="checkout-momo__divider"></div>
+            <div class="checkout-momo__row checkout-momo__row--total"><span>Tổng tiền</span><strong>{{ "{:,}".format(checkout_data.total_amount or 0) }}đ</strong></div>
+            <div class="checkout-momo__items">
+                {% for item in momo_items %}
+                <div class="checkout-momo__item">
+                    <span>{{ item.quantity }}x {{ item.name }}</span>
+                    <strong>{{ "{:,}".format(item.line_total or 0) }}đ</strong>
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
+    </div>
+</div>
+
+<script>
+(function () {
+    const timerBox = document.getElementById("momoTimerBox");
+    const timerText = document.getElementById("momoTimerText");
+    const cancelForm = document.getElementById("momoCancelForm");
+    const payUrl = {{ checkout_data.pay_url|tojson }};
+
+    if (payUrl) {
+        window.location.replace(payUrl);
+        return;
+    }
+
+    if (!timerBox || !timerText) return;
+
+    let remaining = Number(timerBox.dataset.remaining || 0);
+    const tick = () => {
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        timerText.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`;
+        if (remaining <= 0) {
+            timerText.textContent = "Hết thời gian thanh toán";
+            if (cancelForm) {
+                cancelForm.submit();
+            }
+            return;
+        }
+        remaining -= 1;
+        window.setTimeout(tick, 1000);
+    };
+
+    tick();
+})();
+</script>
+{% endblock %}

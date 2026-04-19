@@ -640,6 +640,11 @@
     opacity: 1;
 }
 
+.restaurant-cart__cta--primary {
+    background: linear-gradient(180deg, #ffb347 0%, #f97316 100%);
+    color: #fff;
+}
+
 .restaurant-cart__note {
     margin: 16px 0 0;
     color: #68778d;

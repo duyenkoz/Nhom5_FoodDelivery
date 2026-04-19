@@ -35,7 +35,6 @@
 
         let hotLoaded = false;
         let hotLoading = false;
-        let panelInput = null;
         let suppressClose = false;
         let suppressCloseTimer = null;
         let suggestionItems = [];
@@ -117,17 +116,15 @@
 
         function syncSearchInputs(value, sourceInput) {
             const normalized = value != null ? String(value) : "";
-            if (sourceInput !== input) {
-                input.value = normalized;
-            }
-            if (panelInput && sourceInput !== panelInput) {
-                panelInput.value = normalized;
+            input.value = normalized;
+            if (sourceInput && sourceInput !== input) {
+                sourceInput.value = normalized;
             }
         }
 
         function submitCurrentQuery(sourceInput, explicitValue) {
             const isInputLike = sourceInput && typeof sourceInput === "object" && "value" in sourceInput;
-            const activeInput = isInputLike ? sourceInput : (panelInput || input);
+            const activeInput = isInputLike ? sourceInput : input;
             const rawValue = typeof explicitValue === "string"
                 ? explicitValue
                 : (isInputLike ? activeInput.value : sourceInput);
@@ -151,7 +148,13 @@
             button.textContent = item.label || item.value || "";
             button.addEventListener("mousedown", (event) => {
                 event.preventDefault();
-                submitCurrentQuery(panelInput || input, item.value || item.label || "");
+                event.stopPropagation();
+                suppressClose = true;
+            });
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                submitCurrentQuery(input, item.value || item.label || "");
             });
             return button;
         }
@@ -186,7 +189,13 @@
 
             button.addEventListener("mousedown", (event) => {
                 event.preventDefault();
-                submitCurrentQuery(panelInput || input, item.value || item.label || "");
+                event.stopPropagation();
+                suppressClose = true;
+            });
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                submitCurrentQuery(input, item.value || item.label || "");
             });
 
             return button;
@@ -215,7 +224,13 @@
 
             button.addEventListener("mousedown", (event) => {
                 event.preventDefault();
-                submitCurrentQuery(panelInput || input, keyword);
+                event.stopPropagation();
+                suppressClose = true;
+            });
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                submitCurrentQuery(input, keyword);
             });
 
             return button;
@@ -246,6 +261,7 @@
                 action.addEventListener("click", (event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    suppressClose = true;
                     actionHandler();
                 });
                 header.appendChild(action);
@@ -351,68 +367,7 @@
 
         function renderPopoverPanel() {
             clearResults();
-            panelInput = null;
-
-            const wrapper = document.createElement("div");
-            wrapper.className = "site-search__popover";
-
-            const closeButton = document.createElement("button");
-            closeButton.type = "button";
-            closeButton.className = "site-search__close";
-            closeButton.setAttribute("aria-label", "Đóng tìm kiếm");
-            closeButton.textContent = "×";
-            closeButton.addEventListener("click", () => {
-                setOpen(false);
-                input.blur();
-            });
-            wrapper.appendChild(closeButton);
-
-            const panel = document.createElement("div");
-            panel.className = "site-search__popover-panel";
-
-            const panelSearch = document.createElement("div");
-            panelSearch.className = "site-search__panel-search";
-
-            const panelSearchIcon = document.createElement("span");
-            panelSearchIcon.className = "site-search__panel-search-icon";
-            panelSearchIcon.setAttribute("aria-hidden", "true");
-            panelSearchIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>';
-            panelSearch.appendChild(panelSearchIcon);
-
-            panelInput = document.createElement("input");
-            panelInput.type = "search";
-            panelInput.className = "site-search__panel-input";
-            panelInput.value = input.value;
-            panelInput.placeholder = input.getAttribute("placeholder") || "";
-            panelInput.setAttribute("aria-label", input.getAttribute("aria-label") || "Tìm món ăn hoặc nhà hàng");
-            panelInput.autocomplete = "off";
-            panelInput.autocapitalize = "off";
-            panelInput.autocorrect = "off";
-            panelInput.spellcheck = false;
-            panelInput.addEventListener("input", () => {
-                syncSearchInputs(panelInput.value, panelInput);
-                scheduleFetchSearchSuggestions(panelInput.value);
-            });
-            panelInput.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    event.preventDefault();
-                    submitCurrentQuery(panelInput);
-                }
-            });
-            panelInput.addEventListener("blur", () => {
-                window.setTimeout(() => {
-                    if (suppressClose) {
-                        return;
-                    }
-                    if (!form.matches(":focus-within")) {
-                        setOpen(false);
-                    }
-                }, 120);
-            });
-            panelSearch.appendChild(panelInput);
-            panel.appendChild(panelSearch);
-
-            const currentQuery = normalizeKeyword(panelInput.value || input.value);
+            const currentQuery = normalizeKeyword(input.value);
             if (currentQuery.length) {
                 const suggestionSection = createSection("GỢI Ý TÌM KIẾM");
                 const suggestionBody = document.createElement("div");
@@ -433,7 +388,7 @@
 
                 if (suggestionBody.childElementCount) {
                     suggestionSection.appendChild(suggestionBody);
-                    panel.appendChild(suggestionSection);
+                    dropdown.appendChild(suggestionSection);
                 }
             }
 
@@ -445,8 +400,8 @@
                     renderPopoverPanel();
                     setOpen(true);
                     window.setTimeout(() => {
-                        if (panelInput && panelInput.isConnected) {
-                            panelInput.focus({ preventScroll: true });
+                        if (input && input.isConnected) {
+                            input.focus({ preventScroll: true });
                         }
                     }, 0);
                     if (clearUrl) {
@@ -464,7 +419,7 @@
                     chips.appendChild(createChipButton({ value: keyword }, "site-search__chip--recent"));
                 });
                 recentSection.appendChild(chips);
-                panel.appendChild(recentSection);
+                dropdown.appendChild(recentSection);
             }
 
             if (!currentQuery.length) {
@@ -495,18 +450,10 @@
                 }
 
                 hotSection.appendChild(hotBody);
-                panel.appendChild(hotSection);
+                dropdown.appendChild(hotSection);
             }
 
-            wrapper.appendChild(panel);
-            dropdown.appendChild(wrapper);
             setOpen(true);
-
-            window.setTimeout(() => {
-                if (panelInput && panelInput.isConnected) {
-                    panelInput.focus({ preventScroll: true });
-                }
-            }, 0);
         }
 
         function fetchHotKeywords() {
@@ -553,7 +500,7 @@
         function openPopoverIfNeeded() {
             renderPopoverPanel();
             fetchHotKeywords();
-            scheduleFetchSearchSuggestions(panelInput ? panelInput.value : input.value);
+            scheduleFetchSearchSuggestions(input.value);
         }
 
         input.addEventListener("input", () => {
