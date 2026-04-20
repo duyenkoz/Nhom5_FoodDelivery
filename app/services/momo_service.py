@@ -12,6 +12,15 @@ SECRET_KEY = os.getenv("MOMO_SECRET_KEY", "K951B6PE1waDMi640xX08PD3vg6EkVlz")
 ENDPOINT = os.getenv("MOMO_ENDPOINT", "https://test-payment.momo.vn/v2/gateway/api/create")
 
 
+def _fix_vn_text(value):
+    if not isinstance(value, str):
+        return value
+    try:
+        return value.encode("latin1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return value
+
+
 def create_momo_payment(amount, order_info, return_url, ipn_url, order_id=None, extra_data=None):
     momo_order_id = str(order_id or uuid.uuid4())
     request_id = str(uuid.uuid4())
@@ -70,25 +79,25 @@ def create_momo_payment(amount, order_info, return_url, ipn_url, order_id=None, 
         except json.JSONDecodeError:
             result = {"raw_body": raw_body}
         result.setdefault("resultCode", exc.code)
-        result.setdefault("message", f"MoMo API trả về lỗi HTTP {exc.code}")
+        result.setdefault("message", _fix_vn_text(f"MoMo API trả về lỗi HTTP {exc.code}"))
         result["http_status"] = exc.code
         result["request"] = payload
         return result
     except urllib.error.URLError as exc:
         return {
             "resultCode": -1,
-            "message": f"Không kết nối được tới MoMo: {getattr(exc, 'reason', exc)}",
+            "message": _fix_vn_text(f"Không kết nối được tới MoMo: {getattr(exc, 'reason', exc)}"),
             "request": payload,
         }
     except TimeoutError:
         return {
             "resultCode": -1,
-            "message": "MoMo phản hồi quá lâu, vui lòng thử lại.",
+            "message": _fix_vn_text("MoMo phản hồi quá lâu, vui lòng thử lại."),
             "request": payload,
         }
     except json.JSONDecodeError:
         return {
             "resultCode": -1,
-            "message": "MoMo trả về dữ liệu không hợp lệ.",
+            "message": _fix_vn_text("MoMo trả về dữ liệu không hợp lệ."),
             "request": payload,
         }

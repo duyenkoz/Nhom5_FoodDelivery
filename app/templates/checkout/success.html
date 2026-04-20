@@ -22,7 +22,7 @@
             <div class="checkout-success__row"><span>{{ payment_method_label or (order.payment.payment_method if order.payment else 'Thanh toán') }}</span><strong>{% if order.payment and order.payment.payment_method == 'momo' %}Đã thanh toán{% else %}{{ "{:,}".format(order.total_amount or 0) }}đ{% endif %}</strong></div>
         </div>
 
-        <div class="checkout-success__countdown" id="successCountdownBox" data-remaining="{{ cancel_remaining_seconds or 0 }}">
+        <div class="checkout-success__countdown" id="successCountdownBox" data-remaining="{{ cancel_remaining_seconds or 0 }}" data-clear-cart-url="{{ success_cart_clear_url or '' }}">
             <strong id="successCountdownText"></strong>
             <p>Trong 30 giây này bạn có thể hủy đơn nếu đổi ý.</p>
         </div>
@@ -30,7 +30,7 @@
         <div class="checkout-success__actions">
             {% if cancel_remaining_seconds and cancel_remaining_seconds > 0 %}
             <form method="post" action="{{ url_for('checkout.checkout_cancel', order_id=order.order_id) }}">
-                <button class="checkout-btn checkout-btn--soft" type="submit">Hủy đơn</button>
+                <button class="checkout-btn checkout-btn--soft" type="submit" id="cancelOrderBtn">Hủy đơn</button>
             </form>
             {% endif %}
             <a class="checkout-btn checkout-btn--primary" href="{{ url_for('auth.orders') }}">Xem đơn hàng</a>
@@ -43,12 +43,37 @@
 (function () {
     const box = document.getElementById("successCountdownBox");
     const text = document.getElementById("successCountdownText");
+    const cancelBtn = document.getElementById("cancelOrderBtn");
     if (!box || !text) return;
 
     let remaining = Number(box.dataset.remaining || 0);
+    const clearCartUrl = box.dataset.clearCartUrl || "";
+    let clearCartSent = false;
+
+    async function clearCartIfNeeded() {
+        if (!clearCartUrl || clearCartSent) return;
+        clearCartSent = true;
+        try {
+            await fetch(clearCartUrl, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json",
+                },
+            });
+        } catch (error) {
+            return;
+        }
+    }
+
     const tick = () => {
         if (remaining <= 0) {
             text.textContent = "Đã hết thời gian cho phép hủy đơn.";
+            if (cancelBtn) {
+                cancelBtn.disabled = true;
+                cancelBtn.classList.add("is-disabled");
+            }
+            clearCartIfNeeded();
             return;
         }
         text.textContent = `Còn ${remaining}s để hủy đơn`;

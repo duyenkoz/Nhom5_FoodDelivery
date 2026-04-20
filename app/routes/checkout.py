@@ -18,6 +18,7 @@ from app.services.checkout_service import (
     _require_customer_access,
     _safe_int,
     _session_payload_expired,
+    _success_cancel_remaining,
     build_checkout_context,
     create_order_from_snapshot,
     format_payment_method_label,
@@ -25,7 +26,9 @@ from app.services.checkout_service import (
     format_voucher_summary_label,
     validate_voucher_for_checkout,
 )
+from app.services.checkout_recommendation_service import get_checkout_recommendations
 from app.services.momo_service import create_momo_payment
+from app.services.public_restaurant_service import clear_restaurant_cart
 from app.services.restaurant_service import infer_category, infer_image_path
 
 bp = Blueprint("checkout", __name__, url_prefix="/checkout")
@@ -352,6 +355,42 @@ def checkout_quote():
             "distance_km": checkout_data.get("distance_km"),
             "distance_text": checkout_data.get("distance_text", ""),
             "total_amount": checkout_data.get("total_amount", 0),
+        }
+    )
+
+
+@bp.route("/recommendations")
+def checkout_recommendations():
+    access_redirect = _require_customer_access()
+    if access_redirect:
+        return jsonify({"ok": False, "message": "Vui lòng đăng nhập lại."}), 401
+
+    restaurant_id = request.args.get("restaurant_id") or None
+    checkout_data = build_checkout_context(session.get("user_id"), restaurant_id=restaurant_id)
+    restaurant = checkout_data.get("restaurant") if checkout_data else None
+    if not checkout_data or not restaurant:
+        return jsonify({"ok": False, "message": "Không thể tải gợi ý món ăn."}), 400
+
+    cart_items = checkout_data.get("items", [])
+    recommendations = get_checkout_recommendations(
+        restaurant,
+        cart_items,
+        user_id=session.get("user_id"),
+        customer_profile=checkout_data.get("customer_profile"),
+        delivery_distance_km=checkout_data.get("distance_km"),
+    )
+    html = render_template(
+        "partials/checkout_recommendations.html",
+        checkout=checkout_data,
+        recommendations=recommendations,
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "html": html,
+            "recommendations": recommendations,
+            "title": "Gợi ý món thêm",
+            "hint": "Gợi ý theo giỏ hàng hiện tại.",
         }
     )
 
@@ -711,6 +750,7 @@ def checkout_success(order_id):
     voucher_discount_value = max(0, subtotal_amount + (order.delivery_fee or 0) - (order.total_amount or 0))
     payment_method_label = format_payment_method_label(order.payment.payment_method if order.payment else "")
     voucher_display_text = format_voucher_summary_label(order.voucher, voucher_discount_value)
+    remaining_seconds = _success_cancel_remaining(order.order_id, initialize=True)
 
     return render_template(
         "checkout/success.html",
@@ -720,10 +760,30 @@ def checkout_success(order_id):
         voucher_display_text=voucher_display_text,
         order_status_label=format_order_status_label(order.status),
         payment_method_label=payment_method_label,
-        cancel_remaining_seconds=_success_countdown_seconds(order.order_id, initialize=True),
+        cancel_remaining_seconds=remaining_seconds,
+        success_cart_clear_url=url_for("checkout.checkout_success_clear_cart", order_id=order.order_id),
         show_search=True,
         show_auth=False,
     )
+
+
+@bp.route("/success/<int:order_id>/clear-cart", methods=["POST"])
+def checkout_success_clear_cart(order_id):
+    access_redirect = _require_customer_access()
+    if access_redirect:
+        return access_redirect
+
+    order = Order.query.filter_by(order_id=order_id, customer_id=session.get("user_id")).one_or_none()
+    if not order:
+        return jsonify({"ok": False, "message": "Không tìm thấy đơn hàng."}), 404
+
+    remaining_seconds = _success_cancel_remaining(order_id, initialize=False)
+    if remaining_seconds > 0:
+        return jsonify({"ok": True, "cleared": False, "remaining_seconds": remaining_seconds})
+
+    clear_restaurant_cart(session, order.restaurant_id)
+    session.pop(f"success_cart_cleared_{order_id}", None)
+    return jsonify({"ok": True, "cleared": True, "remaining_seconds": 0})
 
 
 @bp.route("/cancel/<int:order_id>", methods=["POST"])
@@ -743,11 +803,13 @@ def checkout_cancel(order_id):
         return redirect(_orders_redirect_url())
 
     if (order.payment.payment_method if order.payment else "").lower() == "momo" and (order.payment.status or "").lower() == "paid":
-        if _success_countdown_seconds(order.order_id, initialize=False) > 0:
+        if _success_cancel_remaining(order.order_id, initialize=False) > 0:
             _mark_order_pending_refund(order)
             flash("Đơn hàng đang chờ hoàn tiền.", "success")
-            return redirect(_orders_redirect_url())
+            return redirect(url_for("auth.order_detail", order_id=order.order_id))
 
     cancelled, message = _cancel_order_if_allowed(order)
     flash(message, "success" if cancelled else "warning")
+    if cancelled and (order.payment.payment_method if order.payment else "").lower() == "momo":
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
     return redirect(_checkout_redirect_url(order=order))

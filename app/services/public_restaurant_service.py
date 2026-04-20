@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
+
+from flask import session
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import Dish, Restaurant
+from app.models import Dish, Order, Restaurant
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.services.location_service import normalize_text
@@ -286,12 +289,80 @@ def _prune_empty_restaurant_cart(session, restaurant_id):
         carts.pop(restaurant_key, None)
 
 
+def clear_restaurant_cart(session, restaurant_id):
+    if restaurant_id in (None, "", 0, "0"):
+        return False
+
+    cleared = False
+
+    if _is_logged_in_customer(session):
+        customer_id = _session_user_id(session)
+        if customer_id is not None:
+            cart = _get_db_cart(session, restaurant_id)
+            if cart:
+                db.session.delete(cart)
+                db.session.commit()
+                cleared = True
+
+    carts = session.get(CART_SESSION_KEY)
+    if isinstance(carts, dict):
+        restaurant_key = str(restaurant_id)
+        if restaurant_key in carts:
+            carts.pop(restaurant_key, None)
+            session.modified = True
+            cleared = True
+
+    _prune_empty_restaurant_cart(session, restaurant_id)
+    return cleared
+
+
+def _clear_expired_successful_order_cart(session, restaurant_id):
+    if not _is_logged_in_customer(session):
+        return False
+
+    customer_id = _session_user_id(session)
+    if customer_id is None or restaurant_id in (None, "", 0, "0"):
+        return False
+
+    orders = (
+        Order.query.filter_by(customer_id=customer_id, restaurant_id=restaurant_id)
+        .order_by(Order.order_date.desc(), Order.order_id.desc())
+        .all()
+    )
+    expired_session_keys = []
+    for order in orders:
+        session_key = f"success_countdown_started_at_{order.order_id}"
+        started_at = session.get(session_key)
+        if not started_at:
+            continue
+
+        try:
+            started = datetime.fromisoformat(started_at)
+        except ValueError:
+            expired_session_keys.append(session_key)
+            continue
+
+        if datetime.utcnow() < started + timedelta(seconds=30):
+            return False
+
+        expired_session_keys.append(session_key)
+
+    if not expired_session_keys:
+        return False
+
+    cleared = clear_restaurant_cart(session, restaurant_id)
+    for session_key in expired_session_keys:
+        session.pop(session_key, None)
+    return cleared or bool(expired_session_keys)
+
+
 def get_restaurant_cart_snapshot(session, restaurant_id):
     restaurant = get_public_restaurant(restaurant_id)
     if not restaurant:
         return _empty_cart_payload(restaurant_id)
 
     if _is_logged_in_customer(session):
+        _clear_expired_successful_order_cart(session, restaurant_id)
         db_cart = _get_db_cart(session, restaurant_id)
         if db_cart:
             return _serialize_db_cart(db_cart, restaurant_id)
@@ -371,6 +442,7 @@ def add_to_restaurant_cart(session, restaurant_id, dish_id, quantity=1, note="")
         return None
 
     if _is_logged_in_customer(session):
+        _clear_expired_successful_order_cart(session, restaurant_id)
         customer_id = _session_user_id(session)
         cart = _get_db_cart(session, restaurant_id)
         if not cart:
@@ -429,6 +501,7 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
         return None
 
     if _is_logged_in_customer(session):
+        _clear_expired_successful_order_cart(session, restaurant_id)
         cart = _get_db_cart(session, restaurant_id)
         if not cart:
             cart = Cart(customer_id=_session_user_id(session), restaurant_id=restaurant_id, total_amount=0)

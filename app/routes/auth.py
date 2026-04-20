@@ -1190,7 +1190,8 @@ def checkout_success(order_id):
         voucher_discount_value=voucher_discount_value,
         order_status_label=format_order_status_label(order.status),
         payment_method_label=payment_method_label,
-        cancel_remaining_seconds=_success_cancel_remaining(order),
+        cancel_remaining_seconds=_success_cancel_remaining(order.order_id, initialize=True),
+        success_cart_clear_url=url_for("checkout.checkout_success_clear_cart", order_id=order.order_id),
         show_search=False,
         show_auth=False,
     )
@@ -1207,8 +1208,16 @@ def checkout_cancel(order_id):
         flash("Không tìm thấy đơn hàng để hủy.", "warning")
         return redirect(url_for("auth.orders"))
 
+    if (order.payment.payment_method if order.payment else "").lower() == "momo" and (order.payment.status or "").lower() == "paid":
+        if _success_cancel_remaining(order.order_id, initialize=False) > 0:
+            _mark_order_pending_refund(order)
+            flash("Đơn hàng đang chờ hoàn tiền.", "success")
+            return redirect(url_for("auth.order_detail", order_id=order.order_id))
+
     cancelled, message = _cancel_order_if_allowed(order)
     flash(message, "success" if cancelled else "warning")
+    if (order.payment.payment_method if order.payment else "").lower() == "momo":
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
     if order.restaurant_id:
         return redirect(url_for("home.restaurant_detail", restaurant_id=order.restaurant_id))
     return redirect(url_for("auth.orders"))
