@@ -9,3 +9,4 @@ from app.models.order_item import OrderItem
 from app.models.payment import Payment
 from app.models.review import Review
 from app.models.voucher import Voucher
+from app.models.notification import Notification

@@ -3,14 +3,17 @@
 from app.services.restaurant_service import (
     build_dashboard_context,
     build_section_context,
+    cancel_order_for_restaurant,
     delete_dish_for_restaurant,
     delete_voucher_for_restaurant,
+    confirm_order_for_restaurant,
     report_review_for_restaurant,
     save_dish_for_restaurant,
     save_voucher_for_restaurant,
     toggle_dish_status_for_restaurant,
     toggle_voucher_status_for_restaurant,
 )
+from app.services.notification_service import build_order_cancelled_notification, emit_structured_notification
 
 bp = Blueprint("restaurant", __name__, url_prefix="/restaurant")
 
@@ -25,7 +28,17 @@ def _render_section(section_name):
     if not _require_restaurant():
         return redirect(url_for("home.index"))
 
-    context = build_section_context(session.get("user_id"), section_name)
+    context = build_section_context(
+        session.get("user_id"),
+        section_name,
+        query=request.args.get("q", "").strip(),
+        order_status=request.args.get("status", "all").strip() or "all",
+        sort=request.args.get("sort", "desc").strip() or "desc",
+        date_from=request.args.get("start", "").strip(),
+        date_to=request.args.get("end", "").strip(),
+        focus_order_id=request.args.get("focus", type=int),
+        page=request.args.get("page", default=1, type=int),
+    )
     if context["restaurant"] is None:
         flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi vào khu quản trị.", "warning")
         return redirect(url_for("auth.complete_restaurant"))
@@ -114,6 +127,66 @@ def dashboard():
 @bp.route("/orders")
 def orders():
     return _render_section("orders")
+
+
+@bp.route("/orders/<int:order_id>/confirm", methods=["POST"])
+def confirm_order(order_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    order, status = confirm_order_for_restaurant(session.get("user_id"), order_id)
+    if status == "not_found":
+        flash("Không tìm thấy đơn hàng để xác nhận.", "error")
+    elif status == "cancelled":
+        flash("Đơn hàng này đã bị hủy trước đó.", "warning")
+    elif status == "completed":
+        flash("Đơn hàng đã ở trạng thái hoàn thành.", "warning")
+    elif order:
+        flash(f"Đã chuyển đơn #{order.order_id} sang trạng thái Đang chuẩn bị.", "success")
+    else:
+        flash("Không thể xác nhận đơn hàng lúc này.", "error")
+
+    return redirect(
+        url_for(
+            "restaurant.orders",
+            q=request.values.get("q", ""),
+            status=request.values.get("status", "all"),
+            sort=request.values.get("sort", "desc"),
+            start=request.values.get("start", ""),
+            end=request.values.get("end", ""),
+            focus=request.values.get("focus", ""),
+            page=request.values.get("page", 1),
+        )
+    )
+
+
+@bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
+def cancel_order(order_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    reason = (request.form.get("reason") or request.args.get("reason") or "").strip()
+    order, resolved_reason = cancel_order_for_restaurant(session.get("user_id"), order_id, reason=reason)
+    if not order:
+        flash("Không tìm thấy đơn hàng để hủy.", "error")
+    else:
+        restaurant_name = session.get("user_display_name") or session.get("username") or "Nhà hàng"
+        notification_data = build_order_cancelled_notification(order, cancel_reason=resolved_reason, restaurant_name=restaurant_name)
+        emit_structured_notification(notification_data)
+        flash(f"Đã hủy đơn #{order.order_id}.", "success")
+
+    return redirect(
+        url_for(
+            "restaurant.orders",
+            q=request.values.get("q", ""),
+            status=request.values.get("status", "all"),
+            sort=request.values.get("sort", "desc"),
+            start=request.values.get("start", ""),
+            end=request.values.get("end", ""),
+            focus=request.values.get("focus", ""),
+            page=request.values.get("page", 1),
+        )
+    )
 
 
 @bp.route("/analytics")

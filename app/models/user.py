@@ -29,6 +29,7 @@ class User(UserMixin, db.Model):
         uselist=False,
     )
     created_vouchers = db.relationship("Voucher", back_populates="creator")
+    notifications = db.relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
     def get_id(self):
         return str(self.user_id)
