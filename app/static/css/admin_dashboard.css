@@ -253,6 +253,174 @@
     border: 1px solid #d6dce7;
 }
 
+.admin-voucher-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.admin-voucher-controls form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.42);
+    z-index: 60;
+}
+
+.admin-modal.is-open {
+    display: flex;
+}
+
+.admin-modal__backdrop {
+    position: absolute;
+    inset: 0;
+}
+
+.admin-modal__panel {
+    position: relative;
+    width: min(680px, 100%);
+    max-height: min(90vh, 860px);
+    overflow: auto;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #ffffff 0%, #fffaf1 100%);
+    border: 1px solid rgba(251, 146, 60, 0.16);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
+    padding: 22px;
+    z-index: 1;
+}
+
+.admin-modal__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.admin-modal__header h2 {
+    margin: 0 0 6px;
+    color: #22324a;
+    font-size: 1.35rem;
+}
+
+.admin-modal__header p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.admin-modal__close {
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 12px;
+    background: #fff4e6;
+    color: #9a5a0a;
+    font-size: 1.4rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.admin-form {
+    display: grid;
+    gap: 16px;
+}
+
+.admin-form__grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-form__field {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-form__field label {
+    font-weight: 700;
+    color: #22324a;
+}
+
+.admin-form__note {
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.admin-form__note--error {
+    color: #b91c1c;
+}
+
+.admin-form__field--switch {
+    align-content: start;
+}
+
+.admin-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.admin-switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.admin-switch__track {
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.2s ease;
+}
+
+.admin-switch__thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+}
+
+.admin-switch input:checked + .admin-switch__track {
+    background: linear-gradient(135deg, #ffb347 0%, #ff8c1a 100%);
+}
+
+.admin-switch input:checked + .admin-switch__track .admin-switch__thumb {
+    transform: translateX(22px);
+}
+
+.admin-form__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.admin-input.is-invalid {
+    border-color: #fca5a5;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.12);
+}
+
 .admin-table {
     width: 100%;
     overflow: hidden;
@@ -569,5 +737,30 @@
     .admin-input {
         min-width: 0;
         width: 100%;
+    }
+
+    .admin-voucher-controls {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .admin-voucher-controls form {
+        width: 100%;
+    }
+
+    .admin-voucher-controls .admin-btn {
+        width: 100%;
+    }
+
+    .admin-modal {
+        padding: 12px;
+    }
+
+    .admin-modal__panel {
+        padding: 18px;
+    }
+
+    .admin-form__grid {
+        grid-template-columns: 1fr;
     }
 }

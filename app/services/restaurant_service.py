@@ -1056,11 +1056,14 @@ def save_voucher_for_restaurant(user_id, form):
             .first()
         )
     else:
-        voucher = Voucher(created_by=restaurant.restaurant_id, voucher_scope="restaurant")
-        db.session.add(voucher)
         duplicate = (
             Voucher.query.filter(db.func.upper(Voucher.voucher_code) == data["voucher_code"]).first()
         )
+        if duplicate:
+            raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
+
+        voucher = Voucher(created_by=restaurant.restaurant_id, voucher_scope="restaurant")
+        db.session.add(voucher)
 
     if duplicate:
         raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
@@ -1074,9 +1077,7 @@ def save_voucher_for_restaurant(user_id, form):
     voucher.voucher_scope = "restaurant"
     voucher.created_by = restaurant.restaurant_id
 
-    voucher.voucher_code = data["voucher_code"]
-    voucher.discount_type = "amount"
-    voucher.discount_value = data["discount_value"]
+    db.session.commit()
     return voucher, action
 
 
