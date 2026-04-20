@@ -136,6 +136,8 @@ def request_otp_for_email(email):
     user = _find_user_by_email(normalized_email)
     if not user:
         return generic_payload, 200
+    if not (user.password or "").strip():
+        return {"ok": False, "message": "Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu."}, 400
 
     now = _now()
     cooldown_until = _get_effective_cooldown_until(normalized_email)
@@ -169,6 +171,8 @@ def resend_otp_for_email(email):
     user = _find_user_by_email(normalized_email)
     if not user:
         return generic_payload, 200
+    if not (user.password or "").strip():
+        return {"ok": False, "message": "Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu."}, 400
 
     now = _now()
     cooldown_until = _get_effective_cooldown_until(normalized_email)
@@ -265,6 +269,8 @@ def reset_password_for_email(email, new_password, confirm_password=None):
     user = _find_user_by_email(normalized_email)
     if not user:
         return {"ok": True, "message": "Nếu xác minh hợp lệ, mật khẩu đã được cập nhật."}, 200
+    if not (user.password or "").strip():
+        return {"ok": False, "message": "Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu."}, 400
 
     if not can_reset_password(normalized_email):
         return {"ok": False, "message": "Phiên đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."}, 400

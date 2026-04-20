@@ -82,13 +82,17 @@
                 {% if user_role == 'restaurant' %}
                 <a class="site-header__menu-item" href="{{ url_for('restaurant.dashboard') }}" role="menuitem">Quản lý thực đơn</a>
                 <a class="site-header__menu-item" href="{{ url_for('auth.complete_restaurant', edit=1) }}" role="menuitem">Thông tin nhà hàng</a>
+                {% if header_can_change_password|default(true) %}
                 <a class="site-header__menu-item" href="{{ url_for('auth.change_password') }}" role="menuitem">Đổi mật khẩu</a>
+                {% endif %}
                 {% elif user_role == 'admin' %}
                 <a class="site-header__menu-item" href="{{ url_for('admin.dashboard') }}" role="menuitem">Quản lý hệ thống</a>
                 {% else %}
                 <a class="site-header__menu-item" href="{{ url_for('auth.account') }}" role="menuitem">Thông tin tài khoản</a>
                 <a class="site-header__menu-item" href="{{ url_for('auth.orders') }}" role="menuitem">Đơn hàng</a>
+                {% if header_can_change_password|default(true) %}
                 <a class="site-header__menu-item" href="{{ url_for('auth.change_password') }}" role="menuitem">Đổi mật khẩu</a>
+                {% endif %}
                 {% endif %}
                 <a class="site-header__menu-item site-header__menu-item--danger" href="{{ url_for('auth.logout') }}" role="menuitem">Đăng xuất</a>
             </div>

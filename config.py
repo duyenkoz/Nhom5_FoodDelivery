@@ -22,6 +22,14 @@ def _build_database_uri():
     ).render_as_string(hide_password=False)
 
 
+def _env(*names, default=""):
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return default
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -40,3 +48,9 @@ class Config:
     MAIL_USERNAME = os.getenv("MAIL_USERNAME", "ngocnhu6212@gmail.com")
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", MAIL_USERNAME)
+    GOOGLE_CLIENT_ID = _env("GOOGLE_CLIENT_ID", "GOOGLE_CUSTOMER_ID", "GOOGLE_OAUTH_CLIENT_ID", default="")
+    GOOGLE_CLIENT_SECRET = _env("GOOGLE_CLIENT_SECRET", "GOOGLE_CUSTOMER_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET", default="")
+    GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:5000/callback")
+    GOOGLE_AUTH_URL = os.getenv("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth")
+    GOOGLE_TOKEN_URL = os.getenv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token")
+    GOOGLE_USERINFO_URL = os.getenv("GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo")
