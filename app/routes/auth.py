@@ -159,7 +159,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Đang giao hàng",
-            "badge_class": "is-warning",
+            "badge_class": "is-shipping",
             "stage": "Đang giao hàng",
             "description": "Shipper đang giao đơn đến cho bạn.",
             "step_key": "shipping",
@@ -189,7 +189,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Chờ xác nhận",
-            "badge_class": "is-info",
+            "badge_class": "is-pending",
             "stage": "Chờ xác nhận",
             "description": "Đợi nhà hàng xác nhận đơn hàng.",
             "step_key": "confirming",
@@ -199,7 +199,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Đang chuẩn bị",
-            "badge_class": "is-info",
+            "badge_class": "is-preparing",
             "stage": "Đang chuẩn bị",
             "description": "Nhà hàng đang chuẩn bị món.",
             "step_key": "preparing",
