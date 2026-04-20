@@ -1,5 +1,6 @@
 import os
 import re
+import uuid
 
 from flask import current_app
 import bcrypt
@@ -315,6 +316,71 @@ def create_registration_user(form):
     )
     db.session.add(user)
     db.session.commit()
+    return user
+
+
+def _build_unique_google_username(base_value):
+    candidate = re.sub(r"[^A-Za-z0-9_-]", "_", base_value or "").strip("_")
+    if not candidate:
+        candidate = f"google_{uuid.uuid4().hex[:12]}"
+    if len(candidate) > 50:
+        candidate = candidate[:50].rstrip("_")
+
+    original_candidate = candidate
+    suffix = 1
+    while username_exists(candidate):
+        suffix_text = f"_{suffix}"
+        trimmed_base = original_candidate[: max(1, 50 - len(suffix_text))]
+        candidate = f"{trimmed_base}{suffix_text}"
+        suffix += 1
+
+    return candidate
+
+
+def is_google_first_account(user):
+    return bool(user and not (user.password or "").strip())
+
+
+def create_google_customer_user(email, display_name="", google_sub=""):
+    normalized_email = _clean(email).lower()
+    if not normalized_email or not EMAIL_PATTERN.fullmatch(normalized_email):
+        raise ValueError("Email không hợp lệ.")
+
+    existing_user = User.query.filter(func.lower(User.email) == normalized_email).one_or_none()
+    if existing_user:
+        return existing_user
+
+    username_seed = google_sub or normalized_email.split("@", 1)[0]
+    user = User(
+        username=_build_unique_google_username(f"google_{username_seed}"),
+        email=normalized_email,
+        phone=None,
+        password="",
+        display_name=_clean(display_name) or normalized_email.split("@", 1)[0],
+        role="customer",
+        status=True,
+    )
+    db.session.add(user)
+    db.session.flush()
+
+    customer = db.session.get(Customer, user.user_id)
+    if not customer:
+        customer = Customer(customer_id=user.user_id)
+        db.session.add(customer)
+
+    db.session.commit()
+    return user
+
+
+def ensure_customer_draft(user):
+    if not user or user.role != "customer":
+        return user
+
+    customer = db.session.get(Customer, user.user_id)
+    if not customer:
+        customer = Customer(customer_id=user.user_id)
+        db.session.add(customer)
+        db.session.commit()
     return user
 
 

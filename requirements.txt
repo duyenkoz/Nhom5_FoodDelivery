@@ -9,3 +9,4 @@ python-dotenv>=1.0,<2.0
 email-validator>=2.0,<3.0
 PyMySQL>=1.1,<2.0
 bcrypt>=4.1,<5.0
+requests-oauthlib>=2.0,<3.0

@@ -60,8 +60,10 @@ def create_app(config_class=Config):
             "header_user_name": (user.display_name or user.username or "Tài khoản") if user else "Tài khoản",
             "header_user_role": user.role if user else session.get("user_role"),
             "header_restaurant_display_name": restaurant_display_name,
+            "header_can_change_password": bool(user and (user.password or "").strip()),
             "header_notifications": get_user_notifications(resolved_user_id, unread_only=False, limit=6),
             "header_notification_count": get_user_notification_count(resolved_user_id),
+
         }
 
     @app.template_filter("vn_datetime")
@@ -71,7 +73,7 @@ def create_app(config_class=Config):
     @app.template_filter("vn_date")
     def vn_date_filter(value, fmt="%d/%m/%Y"):
         return format_vietnam_date(value, fmt)
-
+    from app.routes.auth import bp as auth_bp, oauth_bp
     from app.routes.admin import bp as admin_bp
     from app.routes.auth import bp as auth_bp
     from app.routes.checkout import bp as checkout_bp
@@ -83,6 +85,7 @@ def create_app(config_class=Config):
 
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(oauth_bp)
     app.register_blueprint(location_bp)
     app.register_blueprint(checkout_bp)
     app.register_blueprint(admin_bp)
@@ -100,3 +103,4 @@ def create_app(config_class=Config):
     importlib.import_module("app.realtime")
 
     return app
+

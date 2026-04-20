@@ -1,9 +1,13 @@
 import json
+import secrets
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
-from sqlalchemy import or_
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
+from sqlalchemy import func, or_
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import selectinload
@@ -22,12 +26,16 @@ from app.services.notification_service import build_order_created_notification, 
 from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
+    create_google_customer_user,
     create_registration_user,
+    ensure_customer_draft,
     is_customer_profile_complete,
+    is_google_first_account,
     is_restaurant_profile_complete,
     get_restaurant_by_user_id,
     update_customer_profile,
     set_user_password,
+    PHONE_PATTERN,
     USERNAME_PATTERN,
     username_exists,
     verify_password,
@@ -57,6 +65,163 @@ from app.services.restaurant_service import infer_category, infer_image_path
 from app.utils.time_utils import format_vietnam_datetime
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
+oauth_bp = Blueprint("oauth", __name__)
+
+
+GOOGLE_SCOPE = "openid email profile"
+
+
+def _get_google_config():
+    return {
+        "client_id": current_app.config.get("GOOGLE_CLIENT_ID", ""),
+        "client_secret": current_app.config.get("GOOGLE_CLIENT_SECRET", ""),
+        "redirect_uri": current_app.config.get("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5000/callback"),
+        "auth_url": current_app.config.get("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+        "token_url": current_app.config.get("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+        "userinfo_url": current_app.config.get("GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
+    }
+
+
+def _build_google_authorize_url(state):
+    config = _get_google_config()
+    query = urlencode(
+        {
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "response_type": "code",
+            "scope": GOOGLE_SCOPE,
+            "state": state,
+            "prompt": "select_account",
+        }
+    )
+    return f'{config["auth_url"]}?{query}'
+
+
+def _get_google_oauth_pending():
+    pending = session.get("google_oauth_pending")
+    return pending if isinstance(pending, dict) else {}
+
+
+def _store_google_oauth_pending(state, next_url):
+    pending = _get_google_oauth_pending()
+    pending[state] = next_url
+    if len(pending) > 5:
+        for old_state in list(pending.keys())[:-5]:
+            pending.pop(old_state, None)
+    session["google_oauth_pending"] = pending
+
+
+def _consume_google_oauth_pending(state):
+    pending = _get_google_oauth_pending()
+    next_url = pending.pop(state, "")
+    session["google_oauth_pending"] = pending
+    return next_url
+
+
+def _google_urlopen_json(url, payload=None, method="GET", headers=None, timeout=10):
+    request_headers = {"Accept": "application/json"}
+    if headers:
+        request_headers.update(headers)
+
+    data = None
+    if payload is not None:
+        data = urlencode(payload).encode("utf-8")
+        request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
+
+    request = Request(url, data=data, headers=request_headers, method=method)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw)
+    except HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else ""
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {"error": raw or str(exc)}
+    except URLError as exc:
+        return {"error": str(exc.reason) if getattr(exc, "reason", None) else str(exc)}
+
+
+def _google_token_exchange(code):
+    config = _get_google_config()
+    return _google_urlopen_json(
+        config["token_url"],
+        payload={
+            "code": code,
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "redirect_uri": config["redirect_uri"],
+            "grant_type": "authorization_code",
+        },
+        method="POST",
+    )
+
+
+def _google_userinfo(access_token):
+    config = _get_google_config()
+    return _google_urlopen_json(
+        config["userinfo_url"],
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def _store_google_pending_user(user, google_profile, pending_phone=False):
+    session["user_id"] = user.user_id
+    session["user_role"] = user.role
+    session["username"] = user.username
+    session["user_display_name"] = user.display_name or user.username
+    session["auth_provider"] = "google"
+    if pending_phone:
+        session.pop("auth_state", None)
+        session["google_phone_pending_user_id"] = user.user_id
+        session["google_phone_pending_email"] = user.email or ""
+        session["google_phone_pending_name"] = google_profile.get("name") or user.display_name or user.username
+    else:
+        session["auth_state"] = "logged_in"
+        session.pop("google_phone_pending_user_id", None)
+        session.pop("google_phone_pending_email", None)
+        session.pop("google_phone_pending_name", None)
+    session.permanent = False
+
+
+def _clear_google_pending_session():
+    session.pop("google_phone_pending_user_id", None)
+    session.pop("google_phone_pending_email", None)
+    session.pop("google_phone_pending_name", None)
+
+
+def _google_phone_pending_context():
+    pending_user_id = session.get("google_phone_pending_user_id")
+    pending_user = None
+    if pending_user_id:
+        try:
+            pending_user = db.session.get(User, int(pending_user_id))
+        except (TypeError, ValueError):
+            pending_user = None
+
+    return {
+        "google_phone_pending": bool(pending_user_id and pending_user),
+        "google_phone_pending_name": session.get("google_phone_pending_name") or (pending_user.display_name if pending_user else ""),
+        "google_phone_pending_email": session.get("google_phone_pending_email") or (pending_user.email if pending_user else ""),
+    }
+
+
+def _complete_google_login(user, google_profile, remember=False):
+    _log_in_user_session(user, remember=remember)
+    session["auth_provider"] = "google"
+    session["user_display_name"] = user.display_name or google_profile.get("name") or user.username
+    _clear_google_pending_session()
+
+
+def _google_profile_name(profile):
+    name = (profile or {}).get("name") or ""
+    if name.strip():
+        return name.strip()
+    email = (profile or {}).get("email") or ""
+    if email and "@" in email:
+        return email.split("@", 1)[0]
+    return ""
 
 
 def _safe_next_url(next_url):
@@ -74,6 +239,7 @@ def _log_in_user_session(user, remember=False):
     session["auth_state"] = "logged_in"
     session["username"] = user.username
     session["user_display_name"] = user.display_name or user.username
+    session.pop("auth_provider", None)
     session.permanent = remember
 
 
@@ -81,6 +247,7 @@ def _set_registration_pending_session(user):
     session["user_id"] = user.user_id
     session["user_role"] = user.role
     session["username"] = user.username
+    session.pop("auth_provider", None)
     session.pop("auth_state", None)
     session.pop("user_display_name", None)
     session.permanent = False
@@ -306,6 +473,8 @@ def login():
 
             if not user:
                 form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không đúng. Vui lòng nhập lại."
+            elif not (user.password or "").strip():
+                form_errors["identifier"] = "Tài khoản này đăng nhập bằng Google. Vui lòng đăng nhập bằng Google."
             elif not verify_password(user.password, password):
                 form_errors["password"] = "Mật khẩu không đúng. Vui lòng nhập lại."
             else:
@@ -327,6 +496,9 @@ def login():
             form_errors=form_errors,
             form_values=form_values,
             forgot_resend_cooldown=RESEND_COOLDOWN_SECONDS,
+            google_login_url=url_for("auth.google_login"),
+            google_phone_submit_url=url_for("auth.google_phone_submit"),
+            **_google_phone_pending_context(),
             show_search=False,
             show_auth=False,
         )
@@ -334,9 +506,156 @@ def login():
     return render_template(
         "auth/login.html",
         forgot_resend_cooldown=RESEND_COOLDOWN_SECONDS,
+        google_login_url=url_for("auth.google_login"),
+        google_phone_submit_url=url_for("auth.google_phone_submit"),
+        **_google_phone_pending_context(),
         show_search=False,
         show_auth=False,
     )
+
+
+@bp.route("/check-google-account")
+def check_google_account():
+    identifier = _clean(request.args.get("identifier"))
+    if not identifier or not _is_login_identifier(identifier):
+        return jsonify({"ok": True, "is_google_account": False, "message": ""})
+
+    user = _find_user_by_identifier(identifier)
+    is_google_account = bool(user and not (user.password or "").strip())
+    return jsonify(
+        {
+            "ok": True,
+            "is_google_account": is_google_account,
+            "message": "Tài khoản này đăng nhập bằng Google. Vui lòng đăng nhập bằng Google." if is_google_account else "",
+        }
+    )
+
+
+@bp.route("/google-login")
+def google_login():
+    config = _get_google_config()
+    if not config["client_id"] or not config["client_secret"]:
+        flash("Đăng nhập Google chưa được cấu hình.", "warning")
+        return redirect(url_for("auth.login"))
+
+    state = secrets.token_urlsafe(32)
+    _store_google_oauth_pending(state, _safe_next_url(request.args.get("next")))
+    return redirect(_build_google_authorize_url(state))
+
+
+@bp.route("/google-phone", methods=["POST"])
+def google_phone_submit():
+    data = request.get_json(silent=True) or request.form or {}
+    phone = _clean(data.get("phone"))
+    pending_user_id = session.get("google_phone_pending_user_id")
+    pending_email = (session.get("google_phone_pending_email") or "").strip().lower()
+
+    if not pending_user_id:
+        return jsonify({"ok": False, "message": "Không tìm thấy phiên Google đang chờ số điện thoại."}), 400
+    if not phone:
+        return jsonify({"ok": False, "message": "Vui lòng nhập số điện thoại."}), 400
+    if not PHONE_PATTERN.fullmatch(phone):
+        return jsonify({"ok": False, "message": "Số điện thoại phải có 10 chữ số và bắt đầu bằng 03, 05, 07, 08 hoặc 09."}), 400
+
+    user = None
+    try:
+        user = db.session.get(User, int(pending_user_id))
+    except (TypeError, ValueError):
+        user = None
+
+    if not user or user.role != "customer":
+        _clear_google_pending_session()
+        return jsonify({"ok": False, "message": "Phiên Google không hợp lệ."}), 400
+    if pending_email and (user.email or "").strip().lower() != pending_email:
+        _clear_google_pending_session()
+        return jsonify({"ok": False, "message": "Phiên Google đã thay đổi. Vui lòng đăng nhập lại."}), 400
+
+    other_user = User.query.filter(User.phone == phone, User.user_id != user.user_id).one_or_none()
+    if other_user:
+        return jsonify({"ok": False, "message": "Số điện thoại đã được sử dụng."}), 400
+
+    user.phone = phone
+    if not user.display_name:
+        user.display_name = session.get("google_phone_pending_name") or user.username
+    db.session.commit()
+
+    _log_in_user_session(user)
+    session["auth_provider"] = "google"
+    session["user_display_name"] = user.display_name or user.username
+    _clear_google_pending_session()
+
+    return jsonify(
+        {
+            "ok": True,
+            "redirect_url": url_for("auth.complete_customer"),
+        }
+    )
+
+
+@oauth_bp.route("/callback")
+def google_callback():
+    error = request.args.get("error") or ""
+    if error:
+        flash("Đăng nhập Google thất bại.", "warning")
+        return redirect(url_for("auth.login"))
+
+    code = request.args.get("code") or ""
+    state = request.args.get("state") or ""
+    pending = _get_google_oauth_pending()
+
+    if not code or not state or state not in pending:
+        flash("Phiên đăng nhập Google không hợp lệ.", "warning")
+        return redirect(url_for("auth.login"))
+
+    next_url = _safe_next_url(_consume_google_oauth_pending(state))
+
+    token_data = _google_token_exchange(code)
+    access_token = token_data.get("access_token") or ""
+    if not access_token or token_data.get("error"):
+        flash("Không thể xác thực Google.", "warning")
+        return redirect(url_for("auth.login"))
+
+    profile = _google_userinfo(access_token)
+    if profile.get("error"):
+        flash("Không thể lấy thông tin tài khoản Google.", "warning")
+        return redirect(url_for("auth.login"))
+
+    email = _clean(profile.get("email")).lower()
+    google_name = _google_profile_name(profile)
+    google_sub = _clean(profile.get("sub"))
+    if not email:
+        flash("Google không trả về email hợp lệ.", "warning")
+        return redirect(url_for("auth.login"))
+    if profile.get("email_verified") is False:
+        flash("Tài khoản Google chưa được xác minh email.", "warning")
+        return redirect(url_for("auth.login"))
+
+    user = User.query.filter(func.lower(User.email) == email.lower()).one_or_none()
+    if user and user.role != "customer":
+        flash("Chỉ tài khoản khách hàng mới có thể đăng nhập bằng Google.", "warning")
+        return redirect(url_for("auth.login"))
+
+    if not user:
+        try:
+            user = create_google_customer_user(email, google_name, google_sub)
+        except ValueError:
+            flash("Không thể tạo tài khoản Google.", "warning")
+            return redirect(url_for("auth.login"))
+
+    ensure_customer_draft(user)
+
+    if is_google_first_account(user) and not (user.phone or "").strip():
+        _store_google_pending_user(user, profile, pending_phone=True)
+        flash("Vui lòng nhập số điện thoại để hoàn tất tài khoản.", "info")
+        return redirect(url_for("auth.login"))
+
+    _complete_google_login(user, profile)
+    if not is_customer_profile_complete(user.user_id):
+        return redirect(url_for("auth.complete_customer"))
+
+    if next_url:
+        return redirect(next_url)
+    return redirect(url_for("home.index"))
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -384,6 +703,8 @@ def forgot_password_lookup():
     user = _find_user_by_identifier(identifier)
     if not user:
         return jsonify({"ok": False, "message": "Không tìm thấy tài khoản phù hợp."}), 404
+    if is_google_first_account(user):
+        return jsonify({"ok": False, "message": "Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu."}), 400
 
     session["forgot_password_user_id"] = user.user_id
 
@@ -409,6 +730,8 @@ def forgot_password_accept():
     user = _find_user_by_identifier(identifier)
     if not user or user.user_id != int(user_id):
         return jsonify({"ok": False, "message": "Tài khoản không hợp lệ."}), 400
+    if is_google_first_account(user):
+        return jsonify({"ok": False, "message": "Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu."}), 400
 
     _log_in_user_session(user)
     session.pop("forgot_password_user_id", None)
@@ -1252,6 +1575,9 @@ def change_password():
 
     if not user:
         return redirect(url_for("auth.login"))
+    if is_google_first_account(user):
+        flash("Tài khoản đăng nhập bằng Google không hỗ trợ đổi mật khẩu.", "warning")
+        return redirect(url_for("auth.account"))
 
     form_errors = {}
     if request.method == "POST":
@@ -1303,6 +1629,25 @@ def logout():
 def complete_customer():
     if session.get("auth_state") == "logged_in" and session.get("user_role") == "customer" and is_customer_profile_complete(session.get("user_id")):
         return redirect(url_for("home.index"))
+    if session.get("google_phone_pending_user_id") and session.get("auth_state") != "logged_in":
+        flash("Vui lòng nhập số điện thoại trước khi hoàn tất hồ sơ khách hàng.", "warning")
+        return redirect(url_for("auth.login"))
+
+    user = None
+    customer = None
+    if session.get("user_id"):
+        try:
+            user = db.session.get(User, int(session.get("user_id")))
+        except (TypeError, ValueError):
+            user = None
+        if user:
+            customer = db.session.get(Customer, user.user_id)
+
+    form_values = {
+        "tenHienThi": (user.display_name if user and user.display_name else (session.get("google_phone_pending_name") if session.get("google_phone_pending_name") else (user.username if user else ""))),
+        "diaChi": customer.address if customer and customer.address else "",
+        "khuVuc": customer.area if customer and customer.area else "",
+    }
 
     if request.method == "POST":
         try:
@@ -1322,7 +1667,7 @@ def complete_customer():
             _log_in_user_session(user)
         return redirect(url_for("home.index"))
 
-    return render_template("auth/complete_customer.html", show_search=False, show_auth=False)
+    return render_template("auth/complete_customer.html", form_values=form_values, show_search=False, show_auth=False)
 
 
 @bp.route("/complete-restaurant", methods=["GET", "POST"])
@@ -1404,3 +1749,4 @@ def complete_restaurant():
 @bp.route("/check-username")
 def check_username():
     return jsonify({"exists": username_exists(request.args.get("username"))})
+
