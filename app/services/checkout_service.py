@@ -364,11 +364,32 @@ def _session_payload_expired(pending_checkout):
     return datetime.utcnow() >= expiry
 
 
-def _success_cancel_remaining(order):
-    if not order or not order.order_date:
+def _success_cancel_remaining(order_id, initialize=True):
+    if order_id in (None, "", 0, "0"):
         return 0
-    deadline = order.order_date + timedelta(seconds=30)
-    remaining = int((deadline - datetime.utcnow()).total_seconds())
+
+    try:
+        order_key = str(int(order_id))
+    except (TypeError, ValueError):
+        return 0
+
+    session_key = f"success_countdown_started_at_{order_key}"
+    started_at = session.get(session_key)
+    if not started_at:
+        if not initialize:
+            return 0
+        started_at = datetime.utcnow().isoformat()
+        session[session_key] = started_at
+        session.modified = True
+
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        started = datetime.utcnow()
+        session[session_key] = started.isoformat()
+        session.modified = True
+
+    remaining = int((started + timedelta(seconds=30) - datetime.utcnow()).total_seconds())
     return max(0, remaining)
 
 
@@ -405,7 +426,7 @@ def _cancel_order_if_allowed(order):
         db.session.commit()
         return True, "Đã hủy đơn hàng chờ thanh toán."
     if current_status in {"pending", "chờ xác nhận", "đợi nhà hàng xác nhận"}:
-        if _success_cancel_remaining(order) > 0:
+        if _success_cancel_remaining(order.order_id, initialize=False) > 0:
             order.status = "cancelled"
             if order.payment and (order.payment.status or "").lower() != "paid":
                 order.payment.status = "cancelled"

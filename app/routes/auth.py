@@ -22,6 +22,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.checkout_service import build_checkout_context, create_order_from_snapshot, format_payment_method_label, format_voucher_summary_label, validate_voucher_for_checkout
+from app.services.notification_service import build_order_created_notification, emit_structured_notification
 from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
@@ -326,7 +327,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Đang giao hàng",
-            "badge_class": "is-warning",
+            "badge_class": "is-shipping",
             "stage": "Đang giao hàng",
             "description": "Shipper đang giao đơn đến cho bạn.",
             "step_key": "shipping",
@@ -356,7 +357,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Chờ xác nhận",
-            "badge_class": "is-info",
+            "badge_class": "is-pending",
             "stage": "Chờ xác nhận",
             "description": "Đợi nhà hàng xác nhận đơn hàng.",
             "step_key": "confirming",
@@ -366,7 +367,7 @@ def _normalize_order_status(order):
         return {
             "bucket": "pending",
             "label": "Đang chuẩn bị",
-            "badge_class": "is-info",
+            "badge_class": "is-preparing",
             "stage": "Đang chuẩn bị",
             "description": "Nhà hàng đang chuẩn bị món.",
             "step_key": "preparing",
@@ -1118,6 +1119,13 @@ def checkout():
                 order_status="pending",
                 payment_status="pending",
             )
+            emit_structured_notification(
+                build_order_created_notification(
+                    order,
+                    customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                    payment_method_label=format_payment_method_label("cash"),
+                )
+            )
             session.pop("pending_checkout", None)
             flash("Đặt hàng thành công.", "success")
             return redirect(url_for("auth.checkout_success", order_id=order.order_id))
@@ -1146,6 +1154,13 @@ def checkout():
                 "voucher_id": snapshot.get("voucher_id"),
                 "discount_value": snapshot.get("discount_value", 0),
             },
+        )
+        emit_structured_notification(
+            build_order_created_notification(
+                order,
+                customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                payment_method_label=format_payment_method_label("momo"),
+            )
         )
         pending_checkout = _build_session_checkout_payload(checkout_data, form_values=form_values, payment_method="momo")
         pending_checkout["order_id"] = order.order_id
@@ -1513,7 +1528,8 @@ def checkout_success(order_id):
         voucher_discount_value=voucher_discount_value,
         order_status_label=format_order_status_label(order.status),
         payment_method_label=payment_method_label,
-        cancel_remaining_seconds=_success_cancel_remaining(order),
+        cancel_remaining_seconds=_success_cancel_remaining(order.order_id, initialize=True),
+        success_cart_clear_url=url_for("checkout.checkout_success_clear_cart", order_id=order.order_id),
         show_search=False,
         show_auth=False,
     )
@@ -1530,8 +1546,16 @@ def checkout_cancel(order_id):
         flash("Không tìm thấy đơn hàng để hủy.", "warning")
         return redirect(url_for("auth.orders"))
 
+    if (order.payment.payment_method if order.payment else "").lower() == "momo" and (order.payment.status or "").lower() == "paid":
+        if _success_cancel_remaining(order.order_id, initialize=False) > 0:
+            _mark_order_pending_refund(order)
+            flash("Đơn hàng đang chờ hoàn tiền.", "success")
+            return redirect(url_for("auth.order_detail", order_id=order.order_id))
+
     cancelled, message = _cancel_order_if_allowed(order)
     flash(message, "success" if cancelled else "warning")
+    if (order.payment.payment_method if order.payment else "").lower() == "momo":
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
     if order.restaurant_id:
         return redirect(url_for("home.restaurant_detail", restaurant_id=order.restaurant_id))
     return redirect(url_for("auth.orders"))

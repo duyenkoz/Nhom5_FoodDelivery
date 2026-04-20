@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Thanh toán | Food Delivery{% endblock %}
 
@@ -24,6 +24,7 @@
     "checkout_vouchers_url": url_for("checkout.checkout_vouchers_safe"),
     "checkout_voucher_url": url_for("checkout.checkout_voucher_safe"),
     "checkout_quote_url": url_for("checkout.checkout_quote"),
+    "checkout_recommendations_url": url_for("checkout.checkout_recommendations"),
     "checkout_momo_url": url_for("checkout.checkout_momo"),
 } %}
 <div class="checkout-page">
@@ -31,9 +32,9 @@
         <h1>Thanh toán - {{ checkout_data.get('restaurant_name') or 'Đơn hàng của bạn' }}</h1>
     </div>
 
-    <div class="checkout-layout">
+    <div class="checkout-layout checkout-layout--top">
         <section class="checkout-main">
-            <section class="checkout-panel">
+            <section class="checkout-panel checkout-panel--info">
                 <div class="checkout-panel__title">
                     <span class="checkout-panel__icon">📍</span>
                     <h2>Giao đến</h2>
@@ -45,21 +46,20 @@
                     <input type="hidden" name="voucher_code" id="voucher_code_hidden" value="{{ form_values.get('voucher_code', '') }}">
                     <input type="hidden" name="checkout_items_json" id="checkout_items_json" value='{{ checkout_items|tojson }}'>
 
-                    <div class="checkout-grid checkout-grid--two">
-                        <div class="checkout-field">
-                            <label for="customer_name">Tên</label>
-                            <input type="text" id="customer_name" name="customer_name" value="{{ form_values.get('customer_name', '') }}" class="{% if form_errors.get('customer_name') %}is-invalid{% endif %}" placeholder="Nguyễn Văn A">
-                            {% if form_errors.get('customer_name') %}
-                            <small class="checkout-field__error">{{ form_errors.get('customer_name') }}</small>
-                            {% endif %}
-                        </div>
-                        <div class="checkout-field">
-                            <label for="phone">Số điện thoại</label>
-                            <input type="tel" id="phone" name="phone" value="{{ form_values.get('phone', '') }}" class="{% if form_errors.get('phone') %}is-invalid{% endif %}" placeholder="090 123 4567">
-                            {% if form_errors.get('phone') %}
-                            <small class="checkout-field__error">{{ form_errors.get('phone') }}</small>
-                            {% endif %}
-                        </div>
+                    <div class="checkout-field">
+                        <label for="customer_name">Tên</label>
+                        <input type="text" id="customer_name" name="customer_name" value="{{ form_values.get('customer_name', '') }}" class="{% if form_errors.get('customer_name') %}is-invalid{% endif %}" placeholder="Nguyễn Văn A">
+                        {% if form_errors.get('customer_name') %}
+                        <small class="checkout-field__error">{{ form_errors.get('customer_name') }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="checkout-field">
+                        <label for="phone">Số điện thoại</label>
+                        <input type="tel" id="phone" name="phone" value="{{ form_values.get('phone', '') }}" class="{% if form_errors.get('phone') %}is-invalid{% endif %}" placeholder="090 123 4567">
+                        {% if form_errors.get('phone') %}
+                        <small class="checkout-field__error">{{ form_errors.get('phone') }}</small>
+                        {% endif %}
                     </div>
 
                     <div class="checkout-field">
@@ -76,43 +76,10 @@
                     </div>
                 </form>
             </section>
-
-            <section class="checkout-panel checkout-panel--order">
-                <div class="checkout-order-head">
-                    <h2>Đơn Hàng</h2>
-                    <a class="checkout-order-head__link" href="{{ url_for('home.restaurant_detail', restaurant_id=restaurant.restaurant_id) if restaurant else '#' }}">Thêm món</a>
-                </div>
-
-                <div class="checkout-items" id="checkoutItemsList">
-                    {% for item in checkout_items %}
-                    <article class="checkout-item" data-item-id="{{ item.dish_id }}" data-item-key="{{ item.dish_id }}">
-                        <div class="checkout-item__thumb">
-                            {% if item.image_url or item.image_path %}
-                            <img src="{{ item.image_url or url_for('static', filename=item.image_path) }}" alt="{{ item.name }}">
-                            {% endif %}
-                        </div>
-                        <div class="checkout-item__body">
-                            <div class="checkout-item__qty">{{ item.quantity }}x</div>
-                            <div class="checkout-item__meta">
-                                <strong>{{ item.name }}</strong>
-                                {% if item.note %}
-                                <small class="checkout-item__note">{{ item.note }}</small>
-                                {% endif %}
-                                <button type="button" class="checkout-item__edit" data-edit-item>Chỉnh sửa món</button>
-                            </div>
-                        </div>
-                        <div class="checkout-item__side">
-                            <button type="button" class="checkout-item__remove" data-remove-item aria-label="Xóa món">&times;</button>
-                            <div class="checkout-item__price">{{ "{:,}".format(item.line_total or 0) }}đ</div>
-                        </div>
-                    </article>
-                    {% endfor %}
-                </div>
-            </section>
         </section>
 
-        <aside class="checkout-side">
-            <section class="checkout-panel checkout-panel--sticky">
+        <aside class="checkout-side checkout-side--top">
+            <section class="checkout-panel checkout-panel--payment">
                 <h2>Hình thức thanh toán và Ưu đãi</h2>
 
                 <div class="payment-box">
@@ -154,13 +121,53 @@
                         <span>Tổng tiền</span>
                         <strong id="totalValue">{{ "{:,}".format(checkout_data.get('total_amount', 0)) }}đ</strong>
                     </div>
-                    <!-- {% if checkout_data.get('distance_text') %}
-                    <small class="checkout-summary__note">Khoảng cách giao hàng: {{ checkout_data.get('distance_text') }}</small>
-                    {% endif %} -->
                 </div>
 
                 <button type="submit" form="checkoutForm" class="checkout-btn checkout-btn--primary">Thanh toán</button>
             </section>
+        </aside>
+    </div>
+
+    <div class="checkout-layout checkout-layout--bottom">
+        <section class="checkout-main">
+            <section class="checkout-panel checkout-panel--order">
+                <div class="checkout-order-head">
+                    <h2>Đơn Hàng</h2>
+                    <a class="checkout-order-head__link" href="{{ url_for('home.restaurant_detail', restaurant_id=restaurant.restaurant_id) if restaurant else '#' }}">Thêm món</a>
+                </div>
+
+                <div class="checkout-items" id="checkoutItemsList">
+                    {% for item in checkout_items %}
+                    <article class="checkout-item" data-item-id="{{ item.dish_id }}" data-item-key="{{ item.dish_id }}">
+                        <div class="checkout-item__thumb">
+                            {% if item.image_url or item.image_path %}
+                            <img src="{{ item.image_url or url_for('static', filename=item.image_path) }}" alt="{{ item.name }}">
+                            {% endif %}
+                        </div>
+                        <div class="checkout-item__body">
+                            <div class="checkout-item__qty">{{ item.quantity }}x</div>
+                            <div class="checkout-item__meta">
+                                <strong>{{ item.name }}</strong>
+                                {% if item.note %}
+                                <small class="checkout-item__note">{{ item.note }}</small>
+                                {% endif %}
+                                <button type="button" class="checkout-item__edit" data-edit-item>Chỉnh sửa món</button>
+                            </div>
+                        </div>
+                        <div class="checkout-item__side">
+                            <button type="button" class="checkout-item__remove" data-remove-item aria-label="Xóa món">&times;</button>
+                            <div class="checkout-item__price">{{ "{:,}".format(item.line_total or 0) }}đ</div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </section>
+
+        <aside class="checkout-side checkout-side--bottom">
+            <div id="checkoutRecommendations">
+                {% include "partials/checkout_recommendations.html" %}
+            </div>
         </aside>
     </div>
 </div>
@@ -237,228 +244,5 @@
 </div>
 
 <script id="checkout-page-data" type="application/json">{{ checkout_page_data|tojson }}</script>
-<script type="text/plain" id="checkout-inline-disabled">
-(function () {
-    const voucherModal = document.getElementById("voucherModal");
-    const openVoucherModalBtn = document.getElementById("openVoucherModalBtn");
-    const voucherChipText = document.getElementById("voucherChipText");
-    const voucherId = document.getElementById("voucher_id");
-    const voucherCodeHidden = document.getElementById("voucher_code_hidden");
-    const voucherModalMessage = document.getElementById("voucherModalMessage");
-    const voucherList = document.getElementById("voucherList");
-    const saveVoucherSelectionBtn = document.getElementById("saveVoucherSelectionBtn");
-    const checkoutItemsList = document.getElementById("checkoutItemsList");
-    const checkoutItemsJson = document.getElementById("checkout_items_json");
-    const checkoutForm = document.getElementById("checkoutForm");
-    const subtotalValue = document.getElementById("subtotalValue");
-    const deliveryFeeValue = document.getElementById("deliveryFeeValue");
-    const discountValueEl = document.getElementById("discountValue");
-    const totalValue = document.getElementById("totalValue");
-    const summary = document.querySelector(".checkout-summary");
-    let checkoutItems = JSON.parse(checkoutItemsJson.value || "[]");
-    let selectedVoucher = {
-        code: {{ (checkout_data.get('form_values', {}).get('voucher_code') or '')|tojson }},
-        id: {{ (checkout_data.get('form_values', {}).get('voucher_id') or '')|tojson }},
-        text: {{ ('Đã áp dụng 1 mã KM' if checkout_data.get('form_values', {}).get('voucher_code') else 'Khuyến mãi')|tojson }},
-        discountValue: Number({{ checkout_data.get('discount_value', 0) | tojson }}),
-    };
-
-    function formatMoney(value) {
-        return new Intl.NumberFormat("vi-VN").format(Math.max(0, Number(value) || 0)) + "đ";
-    }
-
-    function refreshTotals() {
-        const subtotal = checkoutItems.reduce((sum, item) => sum + (Number(item.line_total) || 0), 0);
-        const deliveryFee = Number(summary.dataset.deliveryFee || 0);
-        const discountAmount = Number(selectedVoucher.discountValue || 0);
-        subtotalValue.textContent = formatMoney(subtotal);
-        deliveryFeeValue.textContent = formatMoney(deliveryFee);
-        discountValueEl.textContent = discountAmount > 0 ? `-${formatMoney(discountAmount)}` : "0đ";
-        totalValue.textContent = formatMoney(subtotal + deliveryFee - discountAmount);
-        checkoutItemsJson.value = JSON.stringify(checkoutItems);
-        summary.dataset.subtotal = String(subtotal);
-    }
-
-    function updateVoucherChip() {
-        if (selectedVoucher.code) {
-            voucherChipText.textContent = "Đã áp dụng 1 mã KM ......";
-        } else {
-            voucherChipText.textContent = "Khuyến mãi ......";
-        }
-        voucherCodeHidden.value = selectedVoucher.code || "";
-        voucherId.value = selectedVoucher.id || "";
-    }
-
-    function closeVoucherModal() {
-        voucherModal.classList.remove("is-open");
-        voucherModal.setAttribute("aria-hidden", "true");
-    }
-
-    async function syncCheckoutPayload() {
-        await fetch("{{ url_for('checkout.checkout_payload_safe') }}", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                items: checkoutItems,
-                delivery_fee: summary.dataset.deliveryFee || 0,
-                note: document.getElementById("note")?.value || "",
-            }),
-        });
-    }
-
-    async function fetchJson(url, options) {
-        const response = await fetch(url, options);
-        const contentType = response.headers.get("content-type") || "";
-        const bodyText = await response.text();
-        let data = null;
-
-        if (contentType.includes("application/json")) {
-            try {
-                data = JSON.parse(bodyText);
-            } catch (error) {
-                data = null;
-            }
-        }
-
-        return {
-            response,
-            data,
-            bodyText,
-        };
-    }
-
-    async function loadVouchers() {
-        const restaurantId = {{ (restaurant.restaurant_id if restaurant else '')|tojson }};
-        voucherList.innerHTML = '<div class="voucher-empty">Đang tải mã khuyến mãi...</div>';
-        try {
-            const result = await fetchJson(`{{ url_for('checkout.checkout_vouchers_safe') }}?restaurant_id=${encodeURIComponent(restaurantId)}`);
-            const response = result.response;
-            const data = result.data;
-            if (!response.ok || !data.ok) {
-                throw new Error((data && data.message) || "Không tải được mã khuyến mãi.");
-            }
-            const vouchers = data.vouchers || [];
-            if (!vouchers.length) {
-                voucherList.innerHTML = '<div class="voucher-empty">Chưa có mã khuyến mãi phù hợp.</div>';
-                return;
-            }
-            voucherList.innerHTML = vouchers.map((voucher) => `
-                <label class="voucher-card">
-                    <input type="radio" name="voucher_pick" value="${voucher.voucher_code}" data-voucher-code="${voucher.voucher_code}" data-voucher-id="${voucher.voucher_id}">
-                    <div class="voucher-card__content">
-                        <strong>${voucher.voucher_code}</strong>
-                        <span>${voucher.discount_text || ""}</span>
-                    </div>
-                </label>
-            `).join("");
-            voucherList.querySelectorAll("input[data-voucher-code]").forEach((radio) => {
-                radio.addEventListener("change", () => {
-                    selectedVoucher = {
-                        code: radio.dataset.voucherCode || "",
-                        id: radio.dataset.voucherId || "",
-                        discountValue: 0,
-                    };
-                    voucherModalMessage.textContent = `Đã chọn mã ${selectedVoucher.code}.`;
-                    voucherModalMessage.classList.remove("is-error");
-                });
-            });
-        } catch (error) {
-            voucherList.innerHTML = '<div class="voucher-empty">Không tải được mã khuyến mãi.</div>';
-            voucherModalMessage.textContent = error.message || "Không tải được mã khuyến mãi.";
-            voucherModalMessage.classList.add("is-error");
-        }
-    }
-
-    async function openVoucherModal() {
-        await loadVouchers();
-        voucherModal.classList.add("is-open");
-        voucherModal.setAttribute("aria-hidden", "false");
-    }
-
-    openVoucherModalBtn?.addEventListener("click", openVoucherModal);
-    document.querySelectorAll("[data-close-voucher-modal]").forEach((btn) => btn.addEventListener("click", closeVoucherModal));
-
-    saveVoucherSelectionBtn?.addEventListener("click", async () => {
-        if (!selectedVoucher.code) {
-            voucherModalMessage.textContent = "Vui lòng chọn một mã có sẵn.";
-            voucherModalMessage.classList.add("is-error");
-            return;
-        }
-
-        const payload = new URLSearchParams();
-        payload.append("voucher_code", selectedVoucher.code);
-        payload.append("restaurant_id", {{ (restaurant.restaurant_id if restaurant else '')|tojson }});
-
-        try {
-            const result = await fetchJson("{{ url_for('checkout.checkout_voucher_safe') }}", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
-                body: payload.toString(),
-            });
-            const response = result.response;
-            const data = result.data;
-            if (!response.ok || !data || !data.ok) {
-                throw new Error((data && data.message) || "Mã voucher không hợp lệ.");
-            }
-            selectedVoucher.discountValue = Number(data.discount_value || 0);
-            selectedVoucher.id = data.voucher_id || selectedVoucher.id || "";
-            voucherModalMessage.textContent = data.message || `Đã áp dụng mã ${selectedVoucher.code}.`;
-            voucherModalMessage.classList.remove("is-error");
-            updateVoucherChip();
-            refreshTotals();
-            closeVoucherModal();
-        } catch (error) {
-            voucherModalMessage.textContent = error.message || "Mã voucher không hợp lệ.";
-            voucherModalMessage.classList.add("is-error");
-        }
-    });
-
-    checkoutItemsList?.addEventListener("click", (event) => {
-        const removeBtn = event.target.closest("[data-remove-item]");
-        if (!removeBtn) return;
-        const row = removeBtn.closest("[data-item-id]");
-        if (!row) return;
-        const itemId = Number(row.dataset.itemId);
-        checkoutItems = checkoutItems.filter((item) => Number(item.dish_id) !== itemId);
-        row.remove();
-        refreshTotals();
-        syncCheckoutPayload();
-    });
-
-    checkoutForm?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        await syncCheckoutPayload();
-        const formData = new FormData(checkoutForm);
-        const paymentMethod = (formData.get("payment_method") || "cash").toString();
-        try {
-            const response = await fetch(checkoutForm.action, {
-                method: "POST",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Accept": "application/json",
-                },
-                body: new URLSearchParams(formData),
-            });
-            const data = await response.json();
-            if (!response.ok || !data || !data.success) {
-                throw new Error((data && data.message) || "Không thể xử lý đơn hàng.");
-            }
-
-            if (paymentMethod === "momo") {
-                window.location.href = data.momo_url || data.redirect_url || "/checkout/momo";
-                return;
-            }
-
-            window.location.href = data.redirect_url || "/checkout/success";
-        } catch (error) {
-            checkoutForm.submit();
-        }
-    });
-
-    updateVoucherChip();
-    refreshTotals();
-    syncCheckoutPayload();
-})();
- </script>
 <script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
 {% endblock %}

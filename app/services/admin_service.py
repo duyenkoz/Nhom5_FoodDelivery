@@ -1,7 +1,11 @@
+from datetime import date
+import re
+
 from sqlalchemy import or_
 from sqlalchemy import cast, String
 from sqlalchemy.orm import selectinload
 
+from app.extensions import db
 from app.models.order import Order
 from app.models.review import Review
 from app.models.restaurant import Restaurant
@@ -131,9 +135,9 @@ def _build_accounts(role_filter="all", query="", page=1, per_page=10):
 
 def _build_voucher_item(voucher):
     creator = voucher.creator
-    creator_role = ROLE_LABELS.get(creator.role, "T?i kho?n") if creator else "T?i kho?n"
-    discount_text = "{:,}?".format(voucher.discount_value or 0)
-    status_text = "?ang b?t" if voucher.status else "?ang t?t"
+    creator_role = ROLE_LABELS.get(creator.role, "Tài khoản") if creator else "Tài khoản"
+    discount_text = "{:,}đ".format(voucher.discount_value or 0)
+    status_text = "Đang bật" if voucher.status else "Đang tắt"
     usage_count = len(voucher.orders or [])
     return {
         "voucher": voucher,
@@ -141,11 +145,11 @@ def _build_voucher_item(voucher):
         "creator_name": _safe_name(creator),
         "creator_role": creator_role,
         "discount_text": discount_text,
-        "scope_text": "H? th?ng" if voucher.voucher_scope == "system" else "Nh? h?ng",
+        "scope_text": "Hệ thống" if voucher.voucher_scope == "system" else "Nhà hàng",
         "status_text": status_text,
         "usage_count": usage_count,
-        "start_date": format_vietnam_date(voucher.start_date) if voucher.start_date else "?p d?ng ngay",
-        "end_date": format_vietnam_date(voucher.end_date) if voucher.end_date else "Kh?ng gi?i h?n",
+        "start_date": format_vietnam_date(voucher.start_date) if voucher.start_date else "Áp dụng ngay",
+        "end_date": format_vietnam_date(voucher.end_date) if voucher.end_date else "Không giới hạn",
     }
 
 
@@ -177,6 +181,90 @@ def _build_vouchers(query="", page=1, per_page=10):
         "section_title": "Quản lý voucher",
         "section_subtitle": "Theo dõi toàn bộ voucher hệ thống và voucher của nhà hàng.",
     }
+
+
+def _normalize_voucher_code(value):
+    return re.sub(r"\s+", "", _clean(value)).upper()
+
+
+def _parse_date_input(value):
+    value = _clean(value)
+    if not value:
+        return None
+    return date.fromisoformat(value)
+
+
+def _validate_admin_voucher_form(form):
+    voucher_code = _normalize_voucher_code(form.get("voucher_code"))
+    discount_value_raw = _clean(form.get("discount_value"))
+    start_date_raw = _clean(form.get("start_date"))
+    end_date_raw = _clean(form.get("end_date"))
+    errors = {}
+
+    if not voucher_code:
+        errors["voucher_code"] = "Vui lòng nhập mã voucher."
+    elif len(voucher_code) > 50:
+        errors["voucher_code"] = "Mã voucher không được vượt quá 50 ký tự."
+
+    if not discount_value_raw:
+        errors["discount_value"] = "Vui lòng nhập giá trị giảm giá."
+    else:
+        try:
+            discount_value = int(discount_value_raw)
+            if discount_value <= 0:
+                raise ValueError
+        except ValueError:
+            errors["discount_value"] = "Giá trị giảm phải là số nguyên lớn hơn 0."
+
+    start_date = None
+    end_date = None
+    try:
+        start_date = _parse_date_input(start_date_raw) if start_date_raw else date.today()
+    except ValueError:
+        errors["start_date"] = "Ngày bắt đầu không hợp lệ."
+
+    try:
+        end_date = _parse_date_input(end_date_raw)
+    except ValueError:
+        errors["end_date"] = "Ngày kết thúc không hợp lệ."
+
+    if start_date and end_date and end_date < start_date:
+        errors["end_date"] = "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu."
+
+    if errors:
+        raise ValueError(errors)
+
+    return {
+        "voucher_code": voucher_code,
+        "discount_type": "amount",
+        "discount_value": int(discount_value_raw),
+        "start_date": start_date,
+        "end_date": end_date,
+        "status": form.get("status") == "on",
+    }
+
+
+def save_voucher_for_admin(user_id, form):
+    admin = db.session.get(User, int(user_id)) if user_id else None
+    if not admin or admin.role != "admin":
+        raise ValueError({"user": "Không tìm thấy tài khoản quản trị."})
+
+    data = _validate_admin_voucher_form(form)
+    duplicate = Voucher.query.filter(db.func.upper(Voucher.voucher_code) == data["voucher_code"]).first()
+    if duplicate:
+        raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
+
+    voucher = Voucher(created_by=admin.user_id, voucher_scope="system")
+    voucher.voucher_code = data["voucher_code"]
+    voucher.discount_type = data["discount_type"]
+    voucher.discount_value = data["discount_value"]
+    voucher.start_date = data["start_date"]
+    voucher.end_date = data["end_date"]
+    voucher.status = data["status"]
+    voucher.voucher_scope = "system"
+    db.session.add(voucher)
+    db.session.commit()
+    return voucher
 
 
 def _build_review_item(review):

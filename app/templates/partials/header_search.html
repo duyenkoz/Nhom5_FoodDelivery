@@ -59,6 +59,45 @@
         {% set user_name = header_user_name|default(session.get('user_display_name') or session.get('username') or 'Tài khoản') %}
         {% set user_role = header_user_role|default(session.get('user_role')) %}
         {% set restaurant_name = header_restaurant_display_name|default(session.get('user_display_name') or session.get('username') or 'Nhà hàng') %}
+        {% set notifications = header_notifications|default([]) %}
+        <div class="site-header__actions">
+        {% if user_role in ['restaurant', 'customer'] %}
+        <details class="site-header__notification-menu-wrap">
+            <summary class="site-header__notifications-button" aria-label="Thông báo" title="Thông báo">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"></path>
+                    <path d="M10 17a2 2 0 0 0 4 0"></path>
+                </svg>
+                {% if header_notification_count and header_notification_count > 0 %}
+                <span class="site-header__notification-badge" data-notification-count>{{ header_notification_count }}</span>
+                {% endif %}
+            </summary>
+            <div class="site-header__notification-menu" role="menu" aria-label="Thông báo">
+                <div class="site-header__notification-title">
+                    <strong>Thông báo</strong>
+                    <span>{{ header_notification_count or 0 }} chưa đọc</span>
+                </div>
+                {% if notifications %}
+                <div class="site-header__notification-list" data-notification-list>
+                    {% for notification in notifications %}
+                    <a
+                        class="site-header__notification-item{% if not notification.is_read %} is-unread{% endif %}"
+                        href="{{ notification.link or '#' }}"
+                        data-notification-link="true"
+                        data-notification-id="{{ notification.notification_id }}"
+                    >
+                        <strong>{{ notification.title }}</strong>
+                        <span>{{ notification.message }}</span>
+                        <small>{{ notification.created_at_text }}</small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="site-header__notification-empty">Chưa có thông báo mới.</div>
+                {% endif %}
+            </div>
+        </details>
+        {% endif %}
         <details class="site-header__user-menu">
             <summary class="site-header__user" aria-label="{{ user_name }}" title="{{ user_name }}">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -97,6 +136,7 @@
                 <a class="site-header__menu-item site-header__menu-item--danger" href="{{ url_for('auth.logout') }}" role="menuitem">Đăng xuất</a>
             </div>
         </details>
+        </div>
         {% elif show_auth|default(true) %}
         <a class="site-header__auth" href="{{ url_for('auth.login') }}" aria-label="Đăng nhập hoặc đăng ký">
             <span class="site-header__auth-link">Đăng nhập</span>

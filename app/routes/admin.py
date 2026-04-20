@@ -7,7 +7,7 @@ from app.models.review import Review
 from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
-from app.services.admin_service import build_admin_context
+from app.services.admin_service import build_admin_context, save_voucher_for_admin
 from app.services.shipping_service import get_shipping_fee_settings, save_shipping_fee_settings
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -58,6 +58,33 @@ def accounts():
 @bp.route("/vouchers")
 def vouchers():
     return _render_admin("vouchers")
+
+
+@bp.route("/vouchers/create", methods=["POST"])
+def create_voucher():
+    if not _require_admin():
+        return _login_redirect()
+
+    search_query = (request.form.get("q") or request.args.get("q", "")).strip()
+    try:
+        voucher = save_voucher_for_admin(session.get("user_id"), request.form)
+    except ValueError as exc:
+        form_errors = exc.args[0] if exc.args else {}
+        form_values = dict(request.form)
+        if not form_values.get("status"):
+            form_values["status"] = ""
+        context = build_admin_context("vouchers", query=search_query)
+        return render_template(
+            "admin/dashboard.html",
+            show_search=False,
+            show_auth=False,
+            admin_voucher_form_values=form_values,
+            admin_voucher_form_errors=form_errors,
+            **context,
+        )
+
+    flash(f"Đã tạo voucher {voucher.voucher_code}.", "success")
+    return redirect(url_for("admin.vouchers", q=search_query))
 
 
 @bp.route("/reviews")

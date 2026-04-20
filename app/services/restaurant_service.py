@@ -3,7 +3,9 @@ import re
 from datetime import date, datetime
 
 from flask import current_app
-from sqlalchemy import func
+from sqlalchemy import bindparam, func
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import selectinload
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
@@ -82,6 +84,168 @@ def infer_category(dish):
 
 def infer_image_path(category, dish):
     return IMAGE_FALLBACKS.get(category, IMAGE_FALLBACKS["Mặc định"])
+
+
+RESTAURANT_ORDER_STATUS_MAP = {
+    "pending": ("Chờ xác nhận", "is-pending", "pending"),
+    "pending_payment": ("Chờ xác nhận", "is-pending", "pending"),
+    "preparing": ("Đang chuẩn bị", "is-preparing", "preparing"),
+    "ready_for_delivery": ("Chờ giao hàng", "is-warning", "shipping"),
+    "waiting_delivery": ("Chờ giao hàng", "is-warning", "shipping"),
+    "shipping": ("Đang giao hàng", "is-shipping", "shipping"),
+    "completed": ("Hoàn thành", "is-success", "done"),
+    "delivered": ("Hoàn thành", "is-success", "done"),
+    "done": ("Hoàn thành", "is-success", "done"),
+    "cancelled": ("Đã hủy", "is-muted", "cancelled"),
+    "canceled": ("Đã hủy", "is-muted", "cancelled"),
+}
+
+RESTAURANT_ORDER_STATUS_FILTERS = {
+    "all": None,
+    "pending": {"pending", "pending_payment"},
+    "preparing": {"preparing"},
+    "waiting_shipping": {"ready_for_delivery", "waiting_delivery"},
+    "shipping": {"shipping"},
+    "completed": {"completed", "delivered", "done"},
+    "cancelled": {"cancelled", "canceled"},
+}
+
+
+def _normalize_restaurant_order_status(order):
+    raw_status = (order.status or "").strip().lower()
+    status_label, status_class, status_key = RESTAURANT_ORDER_STATUS_MAP.get(
+        raw_status,
+        (order.status or "Chờ xác nhận", "is-info", "pending"),
+    )
+    return {
+        "raw_status": raw_status,
+        "label": status_label,
+        "class": status_class,
+        "key": status_key,
+    }
+
+
+def _format_order_code(order_id):
+    return str(order_id) if order_id is not None else ""
+
+
+def _format_money_vn(value):
+    return "{:,}".format(max(0, int(value or 0))).replace(",", ".")
+
+
+def _format_order_datetime(value):
+    if not value:
+        return ""
+    return format_vietnam_date(value, "%d/%m/%Y %H:%M")
+
+
+def _format_date_input(value):
+    if not value:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)
+
+
+def _build_order_item_preview(order_item, note_map=None):
+    dish_name = order_item.dish.dish_name if order_item.dish else "Món ăn"
+    quantity = max(1, int(order_item.quantity or 1))
+    line_total = max(0, int((order_item.price or 0) * quantity))
+    return {
+        "name": dish_name,
+        "quantity": quantity,
+        "price": int(order_item.price or 0),
+        "line_total": line_total,
+        "note": (note_map or {}).get(order_item.order_item_id, getattr(order_item, "note", "") or ""),
+    }
+
+
+def _build_restaurant_order_view(order, note_map=None):
+    status_info = _normalize_restaurant_order_status(order)
+    items = [_build_order_item_preview(item, note_map=note_map) for item in (order.items or [])]
+    payment_method = order.payment.payment_method if order.payment else ""
+    payment_method_label = {
+        "cash": "Tiền mặt",
+        "momo": "MoMo",
+    }.get((payment_method or "").strip().lower(), payment_method or "Thanh toán")
+    payment_status = order.payment.status if order.payment else ""
+    subtotal_amount = sum(item["line_total"] for item in items)
+    delivery_fee_amount = max(0, int(order.delivery_fee or 0))
+    total_before_discount = subtotal_amount + delivery_fee_amount
+    total_amount = max(0, int(order.total_amount or 0))
+    discount_amount = max(0, total_before_discount - total_amount)
+    voucher = getattr(order, "voucher", None)
+    voucher_code = (voucher.voucher_code or "").strip() if voucher else ""
+    voucher_label = voucher_code or "Không áp dụng"
+    discount_summary = f"-{_format_money_vn(discount_amount)}đ" if discount_amount else "0đ"
+    customer_name = _safe_user_name(order.customer.user) if order.customer and order.customer.user else "Khách ẩn danh"
+    return {
+        "order": order,
+        "order_code": _format_order_code(order.order_id),
+        "order_date_text": _format_order_datetime(order.order_date),
+        "order_date_value": _format_date_input(order.order_date),
+        "customer_name": customer_name,
+        "delivery_address": order.delivery_address or "",
+        "subtotal_amount_text": _format_money_vn(subtotal_amount),
+        "delivery_fee_text": _format_money_vn(delivery_fee_amount),
+        "discount_amount_text": discount_summary,
+        "voucher_code": voucher_code,
+        "voucher_label": voucher_label,
+        "total_amount_text": _format_money_vn(total_amount),
+        "status_label": status_info["label"],
+        "status_class": status_info["class"],
+        "status_key": status_info["key"],
+        "status_raw": status_info["raw_status"],
+        "payment_method_label": payment_method_label,
+        "payment_status": payment_status or "",
+        "items": items,
+        "item_count": sum(item["quantity"] for item in items),
+        "detail_payload": {
+            "order_code": _format_order_code(order.order_id),
+            "order_id": order.order_id,
+            "order_date_text": _format_order_datetime(order.order_date),
+            "customer_name": customer_name,
+            "delivery_address": order.delivery_address or "",
+            "subtotal_amount_text": _format_money_vn(subtotal_amount),
+            "delivery_fee_text": _format_money_vn(delivery_fee_amount),
+            "discount_amount_text": discount_summary,
+            "voucher_code": voucher_code,
+            "voucher_label": voucher_label,
+            "status_label": status_info["label"],
+            "payment_method_label": payment_method_label,
+            "payment_status": payment_status or "",
+            "total_amount_text": _format_money_vn(total_amount),
+            "items": items,
+        },
+    }
+
+
+def _orderitems_note_map(order_ids):
+    if not order_ids:
+        return {}
+
+    try:
+        inspector = inspect(db.engine)
+        if not inspector.has_table("orderitems"):
+            return {}
+        columns = {column["name"] for column in inspector.get_columns("orderitems")}
+    except Exception:
+        return {}
+
+    if "note" not in columns:
+        return {}
+
+    try:
+        rows = db.session.execute(
+            text("SELECT order_item_id, note FROM orderitems WHERE order_id IN :order_ids").bindparams(
+                bindparam("order_ids", expanding=True)
+            ),
+            {"order_ids": list(order_ids)},
+        ).mappings().all()
+    except Exception:
+        return {}
+
+    return {row["order_item_id"]: row["note"] or "" for row in rows}
 
 
 def _get_restaurant_dish_sales_map(restaurant_id):
@@ -360,7 +524,7 @@ def _validate_voucher_form(form):
     if not voucher_code:
         errors["voucher_code"] = "Vui l?ng nh?p m? voucher."
     elif len(voucher_code) > 50:
-        errors["voucher_code"] = "M? voucher kh?ng ???c v??t qu? 50 k? t?."
+        errors["voucher_code"] = "M? voucher kh?ng ??c v?t qu? 50 k? t?."
 
     if not discount_value_raw:
         errors["discount_value"] = "Vui l?ng nh?p gi? tr? gi?m gi?."
@@ -377,7 +541,7 @@ def _validate_voucher_form(form):
     try:
         start_date = _parse_date_input(start_date_raw) if start_date_raw else vietnam_today()
     except ValueError:
-        errors["start_date"] = "Ng?y b?t ??u kh?ng h?p l?."
+        errors["start_date"] = "Ng?y b?t ?u kh?ng h?p l?."
 
     try:
         end_date = _parse_date_input(end_date_raw)
@@ -385,7 +549,7 @@ def _validate_voucher_form(form):
         errors["end_date"] = "Ng?y k?t th?c kh?ng h?p l?."
 
     if start_date and end_date and end_date < start_date:
-        errors["end_date"] = "Ng?y k?t th?c ph?i sau ho?c b?ng ng?y b?t ??u."
+        errors["end_date"] = "Ng?y k?t th?c ph?i sau ho?c b?ng ng?y b?t ?u."
 
     if errors:
         raise ValueError(errors)
@@ -600,7 +764,21 @@ def build_voucher_section_context(
     }
 
 
-def build_section_context(user_id, section_name, edit_voucher_id=None, form_values=None, form_errors=None, query=""):
+def build_section_context(
+    user_id,
+    section_name,
+    edit_voucher_id=None,
+    form_values=None,
+    form_errors=None,
+    query="",
+    order_status="all",
+    sort="desc",
+    date_from="",
+    date_to="",
+    focus_order_id=None,
+    page=1,
+    per_page=10,
+):
     restaurant = get_restaurant_by_user_id(user_id)
     if not restaurant:
         return {
@@ -657,29 +835,131 @@ def build_section_context(user_id, section_name, edit_voucher_id=None, form_valu
     if section_name == "orders":
         orders = (
             Order.query.filter_by(restaurant_id=restaurant.restaurant_id)
-            .order_by(Order.order_date.desc())
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.dish),
+                selectinload(Order.customer).selectinload(Customer.user),
+                selectinload(Order.payment),
+                selectinload(Order.voucher),
+            )
+            .order_by(Order.order_date.desc(), Order.order_id.desc())
             .all()
         )
-        items = []
+        note_map = _orderitems_note_map([order.order_id for order in orders])
+
+        search_term = _clean(query).lower()
+        status_filter = (order_status or "all").strip().lower()
+        valid_statuses = RESTAURANT_ORDER_STATUS_FILTERS.get(status_filter)
+        start_date = None
+        end_date = None
+        if _clean(date_from):
+            try:
+                start_date = date.fromisoformat(_clean(date_from))
+            except ValueError:
+                start_date = None
+        if _clean(date_to):
+            try:
+                end_date = date.fromisoformat(_clean(date_to))
+            except ValueError:
+                end_date = None
+
+        filtered_items = []
         for order in orders:
-            items.append(
-                {
-                    "order": order,
-                    "customer_name": _safe_user_name(order.customer.user) if order.customer and order.customer.user else "Khách ẩn danh",
-                }
-            )
+            order_view = _build_restaurant_order_view(order, note_map=note_map)
+            if search_term:
+                searchable = " ".join(
+                    [
+                        order_view["order_code"],
+                        order_view["customer_name"],
+                        order_view["delivery_address"],
+                        str(order.order_id or ""),
+                    ]
+                ).lower()
+                if search_term not in searchable:
+                    continue
+
+            if valid_statuses is not None and order_view["status_raw"] not in valid_statuses:
+                continue
+
+            order_date_only = order.order_date.date() if order.order_date else None
+            if start_date and order_date_only and order_date_only < start_date:
+                continue
+            if end_date and order_date_only and order_date_only > end_date:
+                continue
+
+            filtered_items.append(order_view)
+
+        sort_direction = (sort or "desc").strip().lower()
+        filtered_items.sort(
+            key=lambda item: (
+                item["order"].order_date or datetime.min,
+                item["order"].order_id or 0,
+            ),
+            reverse=sort_direction != "asc",
+        )
+
+        total_items = len(filtered_items)
+        total_pages = max(1, (total_items + per_page - 1) // per_page) if per_page else 1
+        current_page = max(1, min(int(page or 1), total_pages))
+        start = (current_page - 1) * per_page if per_page else 0
+        end = start + per_page if per_page else total_items
+        items = filtered_items[start:end]
+
         stats = {
-            "total_orders": len(items),
-            "completed_orders": sum(1 for item in items if (item["order"].status or "").lower() in {"completed", "delivered", "done"}),
-            "pending_orders": sum(1 for item in items if (item["order"].status or "").lower() in {"pending", "pending_payment", "chờ xác nhận", "chờ thanh toán"}),
+            "total_orders": total_items,
+            "completed_orders": sum(1 for item in filtered_items if item["status_key"] == "done"),
+            "pending_orders": sum(1 for item in filtered_items if item["status_key"] == "pending"),
+            "preparing_orders": sum(1 for item in filtered_items if item["status_key"] == "preparing"),
+            "cancelled_orders": sum(1 for item in filtered_items if item["status_key"] == "cancelled"),
         }
+
+        tab_counts = {
+            "all": total_items,
+            "pending": sum(1 for item in filtered_items if item["status_key"] == "pending"),
+            "preparing": sum(1 for item in filtered_items if item["status_key"] == "preparing"),
+            "waiting_shipping": sum(
+                1
+                for item in filtered_items
+                if item["status_key"] == "shipping" and item["status_raw"] in {"ready_for_delivery", "waiting_delivery"}
+            ),
+            "shipping": sum(1 for item in filtered_items if item["status_key"] == "shipping" and item["status_raw"] == "shipping"),
+            "completed": sum(1 for item in filtered_items if item["status_key"] == "done"),
+            "cancelled": sum(1 for item in filtered_items if item["status_key"] == "cancelled"),
+        }
+
         return {
             "restaurant": restaurant,
             "section_name": section_name,
-            "section_title": "Quản lý đơn hàng",
-            "section_subtitle": "Theo dõi các đơn hàng mới nhất của nhà hàng.",
+            "section_title": "Quản lý đơn hàng mới",
+            "section_subtitle": "Quản lý danh sách đơn hàng mới của nhà hàng.",
             "items": items,
             "stats": stats,
+            "order_filters": {
+                "q": query,
+                "status": status_filter,
+                "sort": sort_direction,
+                "date_from": _clean(date_from),
+                "date_to": _clean(date_to),
+                "focus_order_id": focus_order_id,
+            },
+            "order_status_tabs": [
+                {"key": "all", "label": "Tất cả", "count": tab_counts["all"]},
+                {"key": "pending", "label": "Chờ xác nhận", "count": tab_counts["pending"]},
+                {"key": "preparing", "label": "Đang chuẩn bị", "count": tab_counts["preparing"]},
+                {"key": "waiting_shipping", "label": "Chờ giao hàng", "count": tab_counts["waiting_shipping"]},
+                {"key": "shipping", "label": "Đang giao hàng", "count": tab_counts["shipping"]},
+                {"key": "completed", "label": "Hoàn thành", "count": tab_counts["completed"]},
+            ],
+            "shown_count": len(items),
+            "pagination": {
+                "page": current_page,
+                "per_page": per_page,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "has_prev": current_page > 1,
+                "has_next": current_page < total_pages,
+                "start_item": start + 1 if total_items else 0,
+                "end_item": start + len(items) if total_items else 0,
+            },
         }
 
     if section_name == "vouchers":
@@ -776,11 +1056,14 @@ def save_voucher_for_restaurant(user_id, form):
             .first()
         )
     else:
-        voucher = Voucher(created_by=restaurant.restaurant_id, voucher_scope="restaurant")
-        db.session.add(voucher)
         duplicate = (
             Voucher.query.filter(db.func.upper(Voucher.voucher_code) == data["voucher_code"]).first()
         )
+        if duplicate:
+            raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
+
+        voucher = Voucher(created_by=restaurant.restaurant_id, voucher_scope="restaurant")
+        db.session.add(voucher)
 
     if duplicate:
         raise ValueError({"voucher_code": "Mã voucher đã tồn tại."})
@@ -794,9 +1077,7 @@ def save_voucher_for_restaurant(user_id, form):
     voucher.voucher_scope = "restaurant"
     voucher.created_by = restaurant.restaurant_id
 
-    voucher.voucher_code = data["voucher_code"]
-    voucher.discount_type = "amount"
-    voucher.discount_value = data["discount_value"]
+    db.session.commit()
     return voucher, action
 
 
@@ -818,6 +1099,60 @@ def toggle_voucher_status_for_restaurant(user_id, voucher_id):
     voucher.status = not bool(voucher.status)
     db.session.commit()
     return voucher
+
+
+def get_order_for_restaurant(user_id, order_id):
+    restaurant = get_restaurant_by_user_id(user_id)
+    if not restaurant:
+        return None, None
+
+    try:
+        order = (
+            Order.query.filter_by(order_id=int(order_id), restaurant_id=restaurant.restaurant_id)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.dish),
+                selectinload(Order.customer).selectinload(Customer.user),
+                selectinload(Order.payment),
+                selectinload(Order.voucher),
+            )
+            .one_or_none()
+        )
+    except (TypeError, ValueError):
+        order = None
+
+    return restaurant, order
+
+
+def confirm_order_for_restaurant(user_id, order_id):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found"
+
+    current_status = (order.status or "").strip().lower()
+    if current_status in {"cancelled", "canceled"}:
+        return order, "cancelled"
+    if current_status in {"completed", "delivered", "done"}:
+        return order, "completed"
+
+    order.status = "preparing"
+    db.session.commit()
+    return order, "confirmed"
+
+
+def cancel_order_for_restaurant(user_id, order_id, reason=""):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found"
+
+    current_status = (order.status or "").strip().lower()
+    if current_status in {"cancelled", "canceled"}:
+        return order, "already_cancelled"
+
+    order.status = "cancelled"
+    if order.payment and (order.payment.status or "").lower() != "paid":
+        order.payment.status = "cancelled"
+    db.session.commit()
+    return order, _clean(reason)
 
 
 def delete_voucher_for_restaurant(user_id, voucher_id):

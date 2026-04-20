@@ -1,0 +1,40 @@
+{% set recommendation_items = recommendations if recommendations is defined else (checkout.get('recommendations', []) if checkout else []) %}
+{% set recommendation_title = checkout.get('recommendation_title', 'Gợi ý món thêm') if checkout else 'Gợi ý món thêm' %}
+{% set recommendation_hint = checkout.get('recommendation_hint', 'Gợi ý món ăn theo giỏ hiện tại.') if checkout else 'Gợi ý món ăn theo giỏ hiện tại.' %}
+
+<section class="checkout-recommendations{% if not recommendation_items %} checkout-recommendations--empty{% endif %}">
+    <div class="checkout-recommendations__head">
+        <div>
+            <h3>{{ recommendation_title }}</h3>
+            <p>{{ recommendation_hint }}</p>
+        </div>
+    </div>
+
+    {% if recommendation_items %}
+    <div class="checkout-recommendations__list">
+        {% for item in recommendation_items %}
+        <article class="checkout-recommendation-card">
+            <div class="checkout-recommendation-card__media">
+                {% if item.image_url or item.image_path %}
+                <img src="{{ item.image_url or url_for('static', filename=item.image_path) }}" alt="{{ item.name }}">
+                {% else %}
+                <span>🍽</span>
+                {% endif %}
+            </div>
+            <div class="checkout-recommendation-card__body">
+                <strong>{{ item.name }}</strong>
+                <small>{{ item.reason }}</small>
+                <div class="checkout-recommendation-card__meta">
+                    <span>{{ item.price_text }}</span>
+                    <button type="button" class="checkout-recommendation-card__add" data-recommendation-add="{{ item.dish_id }}">+</button>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="checkout-recommendations__empty">
+        Chưa có gợi ý phù hợp ở thời điểm này.
+    </div>
+    {% endif %}
+</section>
