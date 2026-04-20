@@ -18,6 +18,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.checkout_service import build_checkout_context, create_order_from_snapshot, format_payment_method_label, format_voucher_summary_label, validate_voucher_for_checkout
+from app.services.notification_service import build_order_created_notification, emit_structured_notification
 from app.services.auth_service import (
     complete_customer_profile,
     complete_restaurant_profile,
@@ -795,6 +796,13 @@ def checkout():
                 order_status="pending",
                 payment_status="pending",
             )
+            emit_structured_notification(
+                build_order_created_notification(
+                    order,
+                    customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                    payment_method_label=format_payment_method_label("cash"),
+                )
+            )
             session.pop("pending_checkout", None)
             flash("Đặt hàng thành công.", "success")
             return redirect(url_for("auth.checkout_success", order_id=order.order_id))
@@ -823,6 +831,13 @@ def checkout():
                 "voucher_id": snapshot.get("voucher_id"),
                 "discount_value": snapshot.get("discount_value", 0),
             },
+        )
+        emit_structured_notification(
+            build_order_created_notification(
+                order,
+                customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                payment_method_label=format_payment_method_label("momo"),
+            )
         )
         pending_checkout = _build_session_checkout_payload(checkout_data, form_values=form_values, payment_method="momo")
         pending_checkout["order_id"] = order.order_id

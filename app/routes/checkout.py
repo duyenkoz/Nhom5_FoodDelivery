@@ -28,6 +28,7 @@ from app.services.checkout_service import (
 )
 from app.services.checkout_recommendation_service import get_checkout_recommendations
 from app.services.momo_service import create_momo_payment
+from app.services.notification_service import build_order_created_notification, emit_structured_notification
 from app.services.public_restaurant_service import clear_restaurant_cart
 from app.services.restaurant_service import infer_category, infer_image_path
 
@@ -248,6 +249,13 @@ def checkout():
                 order_status="pending",
                 payment_status="pending",
             )
+            emit_structured_notification(
+                build_order_created_notification(
+                    order,
+                    customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                    payment_method_label=format_payment_method_label("cash"),
+                )
+            )
             session.pop("pending_checkout", None)
             if _wants_json_response():
                 return jsonify(
@@ -284,6 +292,13 @@ def checkout():
                 "voucher_id": snapshot.get("voucher_id"),
                 "discount_value": snapshot.get("discount_value", 0),
             },
+        )
+        emit_structured_notification(
+            build_order_created_notification(
+                order,
+                customer_name=snapshot.get("form_values", {}).get("customer_name", ""),
+                payment_method_label=format_payment_method_label("momo"),
+            )
         )
         pending_checkout = _build_session_checkout_payload(checkout_data, form_values=form_values, payment_method="momo")
         pending_checkout["order_id"] = order.order_id
