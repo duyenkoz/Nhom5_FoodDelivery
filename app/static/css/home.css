@@ -511,7 +511,8 @@
     content: "▾";
     flex: 0 0 auto;
     color: #b76a00;
-    font-size: 1.05rem;
+    font-size: 1.35rem;
+    font-weight: 900;
     transition: transform 0.18s ease;
 }
 
@@ -637,7 +638,7 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     gap: 12px;
-    align-items: end;
+    align-items: center;
     margin-top: 16px;
 }
 
@@ -666,11 +667,17 @@
 }
 
 .home-search-range__arrow {
-    align-self: center;
+    align-self: start;
+    margin-top: 34px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: #7d4a00;
-    font-size: 1.2rem;
+    font-size: 1.45rem;
     font-weight: 800;
-    padding-bottom: 6px;
+    line-height: 1;
+    transform: none;
 }
 
 .home-search-filter-card__hint {
