@@ -10,6 +10,9 @@
 {% set page_data = records|default({}) %}
 {% set page_items = page_data.get('items', []) %}
 {% set page_info = page_data if page_data else {'page': 1, 'total_pages': 1, 'total_items': 0, 'has_prev': False, 'has_next': False} %}
+{% set admin_voucher_form_values = admin_voucher_form_values|default({}) %}
+{% set admin_voucher_form_errors = admin_voucher_form_errors|default({}) %}
+{% set open_admin_voucher_modal = admin_voucher_form_errors %}
 
 <div class="admin-page">
     <aside class="admin-sidebar">
@@ -172,10 +175,13 @@
                     <h2>Quản lý voucher</h2>
                     <p>Theo dõi voucher hệ thống và voucher của nhà hàng.</p>
                 </div>
-                <form method="get" action="{{ url_for('admin.vouchers') }}" data-live-search-form data-live-search-target="#admin-vouchers-results" autocomplete="off">
-                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm mã voucher, người tạo, loại giảm" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
-                </form>
+                <div class="admin-voucher-controls">
+                    <form method="get" action="{{ url_for('admin.vouchers') }}" data-live-search-form data-live-search-target="#admin-vouchers-results" autocomplete="off">
+                        <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm mã voucher, người tạo, loại giảm" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                        <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                    </form>
+                    <button type="button" class="admin-btn admin-btn--primary" data-open-admin-voucher-modal>+ Tạo voucher</button>
+                </div>
             </div>
             <div id="admin-vouchers-results">
             <div class="admin-table">
@@ -222,6 +228,80 @@
             {% endif %}
             </div>
         </section>
+        <div class="admin-modal {% if open_admin_voucher_modal %}is-open{% endif %}" id="adminVoucherModal" aria-hidden="{% if open_admin_voucher_modal %}false{% else %}true{% endif %}">
+            <div class="admin-modal__backdrop" data-close-admin-voucher-modal></div>
+            <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="adminVoucherModalTitle">
+                <div class="admin-modal__header">
+                    <div>
+                        <h2 id="adminVoucherModalTitle">Tạo voucher hệ thống</h2>
+                        <p>Voucher này áp dụng cho toàn bộ hệ thống và do admin tạo.</p>
+                    </div>
+                    <button type="button" class="admin-modal__close" data-close-admin-voucher-modal aria-label="Đóng">&times;</button>
+                </div>
+
+                <form method="post" action="{{ url_for('admin.create_voucher') }}" class="admin-form">
+                    <input type="hidden" name="q" value="{{ search_query }}">
+
+                    <div class="admin-form__field">
+                        <label for="voucher_code">Mã voucher</label>
+                        <input type="text" id="voucher_code" name="voucher_code" maxlength="50" value="{{ admin_voucher_form_values.get('voucher_code', '') }}" class="admin-input {% if admin_voucher_form_errors.get('voucher_code') %}is-invalid{% endif %}" placeholder="VD: SYSTEM10">
+                        {% if admin_voucher_form_errors.get('voucher_code') %}
+                        <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('voucher_code') }}</small>
+                        {% else %}
+                        <small class="admin-form__note">Mã nên viết liền, không có khoảng trắng.</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="admin-form__grid">
+                        <div class="admin-form__field">
+                            <label for="discount_value">Giá trị giảm</label>
+                            <input type="number" id="discount_value" name="discount_value" min="1" step="1" value="{{ admin_voucher_form_values.get('discount_value', '') }}" class="admin-input {% if admin_voucher_form_errors.get('discount_value') %}is-invalid{% endif %}" placeholder="10000">
+                            {% if admin_voucher_form_errors.get('discount_value') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('discount_value') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Nhập số tiền giảm cố định, ví dụ 10000.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="admin-form__field admin-form__field--switch">
+                            <label>Trạng thái</label>
+                            <label class="admin-switch">
+                                <input type="checkbox" name="status" {% if admin_voucher_form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
+                                <span class="admin-switch__track" aria-hidden="true">
+                                    <span class="admin-switch__thumb"></span>
+                                </span>
+                            </label>
+                            <small class="admin-form__note">Bật để voucher sẵn sàng sử dụng.</small>
+                        </div>
+
+                        <div class="admin-form__field">
+                            <label for="start_date">Ngày bắt đầu</label>
+                            <input type="date" id="start_date" name="start_date" value="{{ admin_voucher_form_values.get('start_date', '') }}" class="admin-input {% if admin_voucher_form_errors.get('start_date') %}is-invalid{% endif %}">
+                            {% if admin_voucher_form_errors.get('start_date') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('start_date') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Mặc định là hôm nay nếu để trống.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="admin-form__field">
+                            <label for="end_date">Ngày kết thúc</label>
+                            <input type="date" id="end_date" name="end_date" value="{{ admin_voucher_form_values.get('end_date', '') }}" class="admin-input {% if admin_voucher_form_errors.get('end_date') %}is-invalid{% endif %}">
+                            {% if admin_voucher_form_errors.get('end_date') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('end_date') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Để trống nếu không giới hạn thời gian.</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="admin-form__actions">
+                        <button type="button" class="admin-btn admin-btn--ghost" data-close-admin-voucher-modal>Hủy</button>
+                        <button type="submit" class="admin-btn admin-btn--primary">Tạo voucher</button>
+                    </div>
+                </form>
+            </div>
+        </div>
         {% elif section_name == 'reviews' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
@@ -566,5 +646,34 @@
         {% endif %}
     </main>
 </div>
+<script>
+(function () {
+    const modal = document.getElementById("adminVoucherModal");
+    const openButtons = document.querySelectorAll("[data-open-admin-voucher-modal]");
+    const closeButtons = document.querySelectorAll("[data-close-admin-voucher-modal]");
+
+    function openModal() {
+        if (!modal) return;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+    }
+
+    openButtons.forEach((button) => button.addEventListener("click", openModal));
+    closeButtons.forEach((button) => button.addEventListener("click", closeModal));
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal || event.target.closest("[data-close-admin-voucher-modal]")) {
+                closeModal();
+            }
+        });
+    }
+})();
+</script>
 <script src="{{ url_for('static', filename='js/live_search.js') }}"></script>
 {% endblock %}
