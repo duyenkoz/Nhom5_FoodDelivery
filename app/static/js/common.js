@@ -23,6 +23,11 @@
         return Boolean(window.jQuery && typeof window.jQuery.toast === "function");
     }
 
+    function shouldSuppressFlashedMessages() {
+        const path = window.location.pathname || "";
+        return path === "/checkout/momo" || path.startsWith("/checkout/success/");
+    }
+
     function buildToastOptions(type, message, options) {
         const normalizedType = normalizeType(type);
         const resolvedOptions = options || {};
@@ -73,26 +78,28 @@
     }
 
     function showFlashedMessages() {
-        const flashScript = document.getElementById("app-flash-messages");
-        if (!flashScript) {
+        if (shouldSuppressFlashedMessages()) {
             return;
         }
 
-        let flashedMessages = [];
-
-        try {
-            flashedMessages = JSON.parse(flashScript.textContent || "[]");
-        } catch (error) {
-            flashedMessages = [];
+        const container = document.getElementById("app-flash-messages");
+        if (!container) {
+            return;
         }
 
-        flashedMessages.forEach((item) => {
-            if (!Array.isArray(item) || item.length < 2) {
+        let messages;
+        try {
+            messages = JSON.parse(container.textContent || "[]");
+        } catch (_error) {
+            return;
+        }
+
+        messages.forEach((entry) => {
+            if (!Array.isArray(entry) || entry.length < 2) {
                 return;
             }
 
-            const category = item[0];
-            const message = item[1];
+            const [category, message] = entry;
             show(category, message);
         });
     }
@@ -132,7 +139,7 @@
     window.showWarningToast = warning;
 
     document.addEventListener("DOMContentLoaded", () => {
-        showFlashedMessages();
         initScrollTopButton();
+        showFlashedMessages();
     });
 })();

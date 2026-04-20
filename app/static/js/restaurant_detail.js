@@ -75,6 +75,7 @@
         let activeCategory = categoryTabs.length ? categoryTabs[0].dataset.categoryTab : "";
         let modalDishId = null;
         let modalQuantity = 1;
+        let modalMode = "add";
         let pendingZeroQuantitySubmit = null;
 
         function setSimilarOpen(isOpen) {
@@ -245,7 +246,7 @@
             submitButton.textContent = `Thêm vào giỏ - ${formatPrice((dish.price || 0) * modalQuantity)}`;
         }
 
-        function openDishModal(dishId) {
+        function openDishModal(dishId, mode = "add") {
             if (!modal) {
                 return;
             }
@@ -256,6 +257,7 @@
             }
 
             modalDishId = Number(dishId);
+            modalMode = mode === "edit" ? "edit" : "add";
             pendingZeroQuantitySubmit = null;
             closeZeroQuantityConfirm();
             const cartItem = Array.isArray(cart.items) ? cart.items.find((item) => Number(item.dish_id) === modalDishId) : null;
@@ -291,6 +293,7 @@
             modal.hidden = true;
             document.body.classList.remove("is-modal-open");
             modalDishId = null;
+            modalMode = "add";
             pendingZeroQuantitySubmit = null;
             closeZeroQuantityConfirm();
         }
@@ -409,7 +412,7 @@
                 }
 
                 if (editButton) {
-                    openDishModal(Number(editButton.dataset.editCartItem));
+                    openDishModal(Number(editButton.dataset.editCartItem), "edit");
                     return;
                 }
 
@@ -499,7 +502,11 @@
                         return;
                     }
 
-                    addDishToCart(modalDishId, modalQuantity, note)
+                    const action = modalMode === "edit"
+                        ? updateDishQuantity(modalDishId, modalQuantity, note)
+                        : addDishToCart(modalDishId, modalQuantity, note);
+
+                    action
                         .then(() => {
                             closeDishModal();
                         })

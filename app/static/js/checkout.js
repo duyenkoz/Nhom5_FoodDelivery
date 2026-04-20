@@ -11,6 +11,7 @@
     const voucherList = document.getElementById("voucherList");
     const saveVoucherSelectionBtn = document.getElementById("saveVoucherSelectionBtn");
     const checkoutItemsList = document.getElementById("checkoutItemsList");
+    const checkoutRecommendations = document.getElementById("checkoutRecommendations");
     const checkoutItemsJson = document.getElementById("checkout_items_json");
     const checkoutForm = document.getElementById("checkoutForm");
     const checkoutEmptyModal = document.getElementById("checkoutEmptyModal");
@@ -32,6 +33,7 @@
     const deliveryFeeTip = document.querySelector("[data-delivery-fee-tip]");
     const voucherSummaryLabel = document.querySelector("[data-voucher-summary-label]");
     const checkoutQuoteUrl = pageData.checkout_quote_url || "";
+    const checkoutRecommendationsUrl = pageData.checkout_recommendations_url || "";
     const restaurantDetailUrl = pageData.restaurant_detail_url || "";
     const checkoutCartUpdateUrlTemplate = pageData.checkout_cart_update_url_template || "";
 
@@ -60,6 +62,19 @@
         return (value == null ? "" : String(value)).trim();
     }
 
+    function getPaymentMethodValue() {
+        return (checkoutForm?.querySelector("[name='payment_method']") || {}).value || "cash";
+    }
+
+    function escapeHtml(value) {
+        return safeText(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     function resolveImageUrl(imageValue) {
         const value = safeText(imageValue);
         if (!value) {
@@ -74,6 +89,41 @@
     function serializeItem(item) {
         const { __key, ...rest } = item;
         return rest;
+    }
+
+    function renderCheckoutItem(item) {
+        const noteHtml = item.note ? `<small class="checkout-item__note">${escapeHtml(item.note)}</small>` : "";
+        const imageHtml = item.image_url || item.image_path
+            ? `<img src="${escapeHtml(item.image_url || resolveImageUrl(item.image_path))}" alt="${escapeHtml(item.name)}">`
+            : "";
+        return `
+            <article class="checkout-item" data-item-id="${escapeHtml(item.dish_id)}" data-item-key="${escapeHtml(item.__key)}">
+                <div class="checkout-item__thumb">
+                    ${imageHtml}
+                </div>
+                <div class="checkout-item__body">
+                    <div class="checkout-item__qty">${escapeHtml(item.quantity)}x</div>
+                    <div class="checkout-item__meta">
+                        <strong>${escapeHtml(item.name)}</strong>
+                        ${noteHtml}
+                        <button type="button" class="checkout-item__edit" data-edit-item>Chỉnh sửa món</button>
+                    </div>
+                </div>
+                <div class="checkout-item__side">
+                    <button type="button" class="checkout-item__remove" data-remove-item aria-label="Xóa món">&times;</button>
+                    <div class="checkout-item__price">${formatMoney(item.line_total || 0)}</div>
+                </div>
+            </article>
+        `;
+    }
+
+    function renderCheckoutItems(items) {
+        if (!checkoutItemsList) return;
+        if (!Array.isArray(items) || !items.length) {
+            renderEmptyCheckoutState();
+            return;
+        }
+        checkoutItemsList.innerHTML = items.map(renderCheckoutItem).join("");
     }
 
     function normalizeItem(item, index) {
@@ -205,9 +255,7 @@
         checkoutItems = nextItems;
         summary.dataset.subtotal = String(nextItems.reduce((sum, item) => sum + (Number(item.line_total) || 0), 0));
         checkoutItemsJson.value = JSON.stringify(nextItems.map(serializeItem));
-        if (!nextItems.length) {
-            renderEmptyCheckoutState();
-        }
+        renderCheckoutItems(nextItems);
     }
 
     function updateRowFromItem(row, item) {
@@ -346,6 +394,32 @@
             updateVoucherSummaryLabel();
             refreshTotals();
             await syncCheckoutPayload();
+        } catch (error) {
+            return;
+        }
+    }
+
+    async function refreshRecommendations() {
+        if (!checkoutRecommendations || !checkoutRecommendationsUrl) return;
+
+        const url = new URL(checkoutRecommendationsUrl, window.location.origin);
+        if (pageData.restaurant_id) {
+            url.searchParams.set("restaurant_id", pageData.restaurant_id);
+        }
+        if (deliveryAddressInput && deliveryAddressInput.value.trim()) {
+            url.searchParams.set("delivery_address", deliveryAddressInput.value.trim());
+        }
+        if (selectedVoucher.code) {
+            url.searchParams.set("voucher_code", selectedVoucher.code);
+        }
+        url.searchParams.set("payment_method", getPaymentMethodValue());
+
+        try {
+            const result = await fetchJson(url.toString());
+            if (!result.response.ok || !result.data || !result.data.ok) {
+                return;
+            }
+            checkoutRecommendations.innerHTML = result.data.html || "";
         } catch (error) {
             return;
         }
@@ -503,6 +577,7 @@
                 refreshTotals();
                 syncCheckoutPayload();
                 queueQuoteRefresh();
+                refreshRecommendations();
                 if (!Array.isArray(cart.items) || !cart.items.length || cart.is_empty) {
                     openEmptyCartModal();
                 }
@@ -510,6 +585,30 @@
             .catch((error) => {
                 voucherModalMessage.textContent = error.message || "Không thể xoá món khỏi giỏ hàng.";
                 voucherModalMessage.classList.add("is-error");
+            });
+    });
+
+    checkoutRecommendations?.addEventListener("click", (event) => {
+        const addBtn = event.target.closest("[data-recommendation-add]");
+        if (!addBtn) return;
+
+        const dishId = Number(addBtn.dataset.recommendationAdd || 0);
+        if (!dishId) return;
+        addBtn.disabled = true;
+        updateCartItemOnServer(dishId, 1, "")
+            .then((cart) => {
+                applyCartState(cart);
+                refreshTotals();
+                syncCheckoutPayload();
+                queueQuoteRefresh();
+                refreshRecommendations();
+            })
+            .catch((error) => {
+                voucherModalMessage.textContent = error.message || "Không thể thêm món gợi ý.";
+                voucherModalMessage.classList.add("is-error");
+            })
+            .finally(() => {
+                addBtn.disabled = false;
             });
     });
 
@@ -559,6 +658,7 @@
     refreshTotals();
     syncCheckoutPayload();
     queueQuoteRefresh();
+    refreshRecommendations();
     if (!checkoutItems.length) {
         renderEmptyCheckoutState();
     }
