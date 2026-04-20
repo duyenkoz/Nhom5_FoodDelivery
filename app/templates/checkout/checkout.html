@@ -175,38 +175,35 @@
 <div class="item-edit-modal" id="itemEditModal" aria-hidden="true">
     <div class="item-edit-modal__backdrop" data-close-item-modal></div>
     <div class="item-edit-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="itemEditModalTitle">
+        <button type="button" class="item-edit-modal__close" data-close-item-modal aria-label="Đóng">×</button>
+        <div class="item-edit-modal__media">
+            <img id="itemEditImage" alt="">
+        </div>
         <div class="item-edit-modal__header">
             <div>
                 <h3 id="itemEditModalTitle">Chỉnh sửa món</h3>
                 <p id="itemEditModalSubtitle">Cập nhật số lượng và ghi chú cho món ăn này.</p>
             </div>
-            <button type="button" class="item-edit-modal__close" data-close-item-modal aria-label="Đóng">×</button>
         </div>
 
         <div class="item-edit-modal__body">
-            <div class="item-edit-modal__summary">
-                <img id="itemEditImage" alt="">
-                <div>
-                    <strong id="itemEditName"></strong>
-                    <span id="itemEditPrice"></span>
-                </div>
+            <div class="item-edit-modal__title-row">
+                <h3 id="itemEditName"></h3>
+                <strong id="itemEditPrice"></strong>
             </div>
-
-            <div class="item-edit-modal__grid">
-                <label class="item-edit-modal__field">
-                    <span>Số lượng</span>
-                    <input type="number" min="1" step="1" id="itemEditQuantity">
-                </label>
-                <label class="item-edit-modal__field item-edit-modal__field--full">
-                    <span>Ghi chú</span>
-                    <textarea id="itemEditNote" rows="3" placeholder="VD: Đừng cho hành, thêm tương ớt..."></textarea>
-                </label>
-            </div>
+            <label class="item-edit-modal__note-field">
+                <span>Viết lời nhắn cho nhà hàng</span>
+                <textarea id="itemEditNote" rows="3" placeholder="Ví dụ: ít đá, không hành..."></textarea>
+            </label>
         </div>
 
         <div class="item-edit-modal__footer">
-            <button type="button" class="checkout-btn checkout-btn--soft" data-close-item-modal>Hủy</button>
-            <button type="button" class="checkout-btn checkout-btn--primary" id="saveItemEditBtn">Lưu thay đổi</button>
+            <div class="item-edit-modal__qty" data-edit-qty-control>
+                <button type="button" class="item-edit-modal__qty-btn" data-edit-qty-minus aria-label="Giảm số lượng">-</button>
+                <input type="number" min="1" step="1" id="itemEditQuantity">
+                <button type="button" class="item-edit-modal__qty-btn" data-edit-qty-plus aria-label="Tăng số lượng">+</button>
+            </div>
+            <button type="button" class="item-edit-modal__submit" id="saveItemEditBtn">Lưu thay đổi</button>
         </div>
     </div>
 </div>

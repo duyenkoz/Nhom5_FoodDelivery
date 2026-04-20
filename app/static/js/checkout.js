@@ -28,6 +28,8 @@
     const itemEditQuantity = document.getElementById("itemEditQuantity");
     const itemEditNote = document.getElementById("itemEditNote");
     const itemEditSubtitle = document.getElementById("itemEditModalSubtitle");
+    const itemEditQtyMinus = document.querySelector("[data-edit-qty-minus]");
+    const itemEditQtyPlus = document.querySelector("[data-edit-qty-plus]");
     const saveItemEditBtn = document.getElementById("saveItemEditBtn");
     const deliveryAddressInput = document.getElementById("delivery_address");
     const deliveryFeeTip = document.querySelector("[data-delivery-fee-tip]");
@@ -226,6 +228,18 @@
         editingItemKey = null;
     }
 
+    function clampEditQuantity(value) {
+        return Math.max(1, Number(value) || 1);
+    }
+
+    function adjustEditQuantity(delta) {
+        if (!itemEditQuantity) return;
+        const currentValue = clampEditQuantity(itemEditQuantity.value);
+        itemEditQuantity.value = String(clampEditQuantity(currentValue + delta));
+        itemEditQuantity.focus();
+        itemEditQuantity.select?.();
+    }
+
     function getItemRowByKey(key) {
         if (!checkoutItemsList) return null;
         return checkoutItemsList.querySelector(`[data-item-key="${String(key)}"]`);
@@ -316,7 +330,7 @@
         if (editingItemKey == null) return;
         const item = checkoutItems.find((entry) => entry.__key === editingItemKey);
         if (!item) return;
-        const quantity = Math.max(1, Number(itemEditQuantity.value) || 1);
+        const quantity = clampEditQuantity(itemEditQuantity.value);
         const note = safeText(itemEditNote.value);
         const row = getItemRowByKey(item.__key);
         try {
@@ -548,6 +562,12 @@
         }
     });
     saveItemEditBtn?.addEventListener("click", saveItemEdit);
+    itemEditQtyMinus?.addEventListener("click", () => adjustEditQuantity(-1));
+    itemEditQtyPlus?.addEventListener("click", () => adjustEditQuantity(1));
+    itemEditQuantity?.addEventListener("input", () => {
+        if (!itemEditQuantity.value) return;
+        itemEditQuantity.value = String(clampEditQuantity(itemEditQuantity.value));
+    });
 
     checkoutItemsList?.addEventListener("click", (event) => {
         const editBtn = event.target.closest("[data-edit-item]");
