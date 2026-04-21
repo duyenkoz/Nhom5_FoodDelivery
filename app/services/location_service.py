@@ -398,6 +398,10 @@ def _matches_selected_area(text, selected_area):
     return any(alias in normalized_text for alias in _area_aliases(selected_area))
 
 
+def area_matches(text, selected_area):
+    return _matches_selected_area(text, selected_area)
+
+
 def resolve_address_for_area(address, selected_area, allow_seed_fallback=True):
     resolved = resolve_address(
         address,

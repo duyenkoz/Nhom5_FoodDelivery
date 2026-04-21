@@ -7,8 +7,14 @@ from app.extensions import db
 from app.models import Dish, Order, Restaurant
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
+from app.models.order_item import OrderItem
 from app.services.location_service import normalize_text
-from app.services.restaurant_service import build_dish_view_model, infer_image_path, infer_category
+from app.services.restaurant_service import (
+    EXCLUDED_ORDER_STATUSES,
+    build_dish_view_model,
+    infer_category,
+    infer_image_path,
+)
 
 
 CART_SESSION_KEY = "fivefood_carts"
@@ -65,12 +71,23 @@ def _active_dishes(restaurant):
     return [dish for dish in (restaurant.dishes or []) if getattr(dish, "status", False)]
 
 
+def _listed_dishes(restaurant):
+    return list(restaurant.dishes or [])
+
+
 def _dish_name_key(dish):
     return _slugify(_clean(dish.dish_name))
 
 
 def _dish_orders(dish):
-    return sum(int(item.quantity or 0) for item in (dish.order_items or []))
+    total_quantity = 0
+    for item in (dish.order_items or []):
+        order = getattr(item, "order", None)
+        status = (getattr(order, "status", "") or "").strip().lower()
+        if status in EXCLUDED_ORDER_STATUSES:
+            continue
+        total_quantity += int(item.quantity or 0)
+    return total_quantity
 
 
 def _fallback_image(dish):
@@ -144,7 +161,7 @@ def get_public_restaurant(restaurant_id):
     return (
         Restaurant.query.options(
             joinedload(Restaurant.user),
-            joinedload(Restaurant.dishes).joinedload(Dish.order_items),
+            joinedload(Restaurant.dishes).joinedload(Dish.order_items).joinedload(OrderItem.order),
         )
         .filter(Restaurant.restaurant_id == restaurant_id)
         .one_or_none()
@@ -175,6 +192,7 @@ def _dish_to_view(dish):
         "image_path": _normalize_image_path(image_path),
         "sold_count": _dish_orders(dish),
         "search_text": _dish_search_text(dish),
+        "is_available": bool(getattr(dish, "status", False)),
     }
 
 
@@ -566,7 +584,7 @@ def build_public_restaurant_context(restaurant_id):
     if not restaurant:
         return None
 
-    dishes = _active_dishes(restaurant)
+    dishes = _listed_dishes(restaurant)
     dish_views = [_dish_to_view(dish) for dish in dishes]
 
     categories = []
@@ -591,7 +609,7 @@ def build_public_restaurant_context(restaurant_id):
             }
         )
 
-    cover_image = _restaurant_cover_image(restaurant, dishes)
+    cover_image = _restaurant_cover_image(restaurant, _active_dishes(restaurant))
     return {
         "restaurant": restaurant,
         "restaurant_id": restaurant.restaurant_id,

@@ -131,9 +131,10 @@
                     <div class="restaurant-menu-grid">
                         {% for item in section["items"] %}
                         <article
-                            class="restaurant-menu-card"
+                            class="restaurant-menu-card {% if not item.is_available %}is-sold-out{% endif %}"
                             data-dish-card="true"
                             data-dish-id="{{ item.dish_id }}"
+                            data-dish-available="{{ 'true' if item.is_available else 'false' }}"
                             data-category-slug="{{ item.category_slug }}"
                             data-search-text="{{ item.search_text }}"
                             tabindex="0"
@@ -161,7 +162,13 @@
                                 </div>
                                 <div class="restaurant-menu-card__footer">
                                     <strong>{{ item.price_text }}</strong>
-                                    <button type="button" class="restaurant-menu-card__add" data-add-dish="{{ item.dish_id }}" aria-label="Thêm {{ item.name }} vào giỏ">+</button>
+                                    <button
+                                        type="button"
+                                        class="restaurant-menu-card__add {% if not item.is_available %}is-sold-out{% endif %}"
+                                        data-add-dish="{{ item.dish_id }}"
+                                        aria-label="{% if item.is_available %}Thêm {{ item.name }} vào giỏ{% else %}{{ item.name }} đang hết món{% endif %}"
+                                        {% if not item.is_available %}disabled aria-disabled="true"{% endif %}
+                                    >{% if item.is_available %}+{% else %}Hết món{% endif %}</button>
                                 </div>
                             </div>
                         </article>

@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from app.data.home import get_home_page_data
 from app.extensions import db
 from app.models import Restaurant, Review
-from app.services.location_service import format_distance_km, haversine_distance_km, location_sort_key, normalize_text
+from app.services.location_service import area_matches, format_distance_km, haversine_distance_km, location_sort_key, normalize_text
 
 
 HOME_PREVIEW_SIZE = 8
@@ -198,6 +198,17 @@ def _restaurant_distance(user_location, restaurant):
     )
 
 
+def _restaurant_matches_selected_area(restaurant, user_location=None):
+    selected_area = _clean((user_location or {}).get("filter_area") or (user_location or {}).get("area"))
+    if not selected_area:
+        return True
+
+    for candidate in (restaurant.area, restaurant.address):
+        if area_matches(candidate, selected_area):
+            return True
+    return False
+
+
 def _review_stats_by_restaurant():
     rows = (
         db.session.query(
@@ -240,13 +251,12 @@ def _display_rating(index, review_stats, active_dish_count):
 def _build_card(restaurant, index, distance_km=None, review_stats=None):
     preset = PRESENTATION_PRESETS[index % len(PRESENTATION_PRESETS)]
     featured_dish = _first_active_dish(restaurant)
-    image_value = featured_dish.image if featured_dish and featured_dish.image else restaurant.image
     rating, reviews = _display_rating(index, review_stats, len(_active_dishes(restaurant)))
 
     return {
         "name": _restaurant_title(restaurant),
         "href": f"/restaurants/{restaurant.restaurant_id}",
-        "image_path": _normalize_image_path(image_value),
+        "image_path": _normalize_image_path(restaurant.image),
         "rating": rating,
         "reviews": reviews,
         "distance": format_distance_km(distance_km),
@@ -271,6 +281,9 @@ def _load_restaurant_payloads(user_location=None):
 
     payloads = []
     for index, restaurant in enumerate(restaurants):
+        if not _restaurant_matches_selected_area(restaurant, user_location=user_location):
+            continue
+
         distance_km = _restaurant_distance(user_location, restaurant)
         review_stats = review_stats_map.get(restaurant.restaurant_id)
         payloads.append(

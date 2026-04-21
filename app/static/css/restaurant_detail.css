@@ -345,6 +345,19 @@
     outline: none;
 }
 
+.restaurant-menu-card.is-sold-out {
+    background: #f3f4f6;
+    border-color: #d6dbe4;
+    box-shadow: 0 2px 10px rgba(35, 48, 67, 0.04);
+}
+
+.restaurant-menu-card.is-sold-out:hover,
+.restaurant-menu-card.is-sold-out:focus-visible {
+    transform: none;
+    border-color: #d6dbe4;
+    box-shadow: 0 2px 10px rgba(35, 48, 67, 0.04);
+}
+
 .restaurant-menu-card[hidden],
 .restaurant-menu-section[hidden] {
     display: none;
@@ -364,10 +377,26 @@
     display: block;
 }
 
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__image {
+    filter: grayscale(1);
+    opacity: 0.72;
+}
+
 .restaurant-menu-card__body {
     display: grid;
     gap: 12px;
     padding: 18px 18px 20px;
+}
+
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__body h3,
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__footer strong {
+    color: #5b6472;
+}
+
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__body p,
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__meta,
+.restaurant-menu-card.is-sold-out .restaurant-menu-card__meta svg {
+    color: #8a94a6;
 }
 
 .restaurant-menu-card__body h3 {
@@ -429,6 +458,19 @@
     line-height: 1;
     font-weight: 500;
     box-shadow: 0 10px 20px rgba(255, 152, 0, 0.18);
+}
+
+.restaurant-menu-card__add.is-sold-out,
+.restaurant-menu-card__add:disabled {
+    width: auto;
+    min-width: 86px;
+    padding: 0 14px;
+    background: #d1d5db;
+    color: #5b6472;
+    box-shadow: none;
+    cursor: not-allowed;
+    font-size: 0.92rem;
+    font-weight: 700;
 }
 
 .restaurant-cart {
@@ -842,6 +884,21 @@
     font-weight: 800;
     font-family: "Segoe UI", Tahoma, Arial, sans-serif;
     box-shadow: 0 14px 24px rgba(255, 152, 0, 0.16);
+}
+
+.dish-modal__add:disabled,
+.dish-modal__add.is-sold-out {
+    background: #d1d5db;
+    color: #5b6472;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.qty-picker button:disabled,
+.dish-qty button:disabled,
+.dish-modal__note-field textarea:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 body.is-modal-open {
