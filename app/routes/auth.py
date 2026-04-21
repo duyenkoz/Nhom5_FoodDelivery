@@ -316,9 +316,9 @@ def _normalize_order_status(order):
     if lowered in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
         return {
             "bucket": "cancelled",
-            "label": "Đang chờ hoàn tiền",
+            "label": "Chờ hoàn tiền",
             "badge_class": "is-warning",
-            "stage": "Đang chờ hoàn tiền",
+            "stage": "Chờ hoàn tiền",
             "description": "Đơn đã hủy sau khi thanh toán và đang chờ hoàn tiền.",
             "step_key": "refund_pending",
         }

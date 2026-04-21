@@ -97,7 +97,10 @@
                                 {% endfor %}
                             </select>
                         </label>
-                        <button type="submit" class="restaurant-btn restaurant-btn--primary restaurant-order-toolbar__submit">Lọc</button>
+                        <div class="restaurant-order-toolbar__actions">
+                            <button type="submit" class="restaurant-btn restaurant-btn--primary restaurant-order-toolbar__submit">Lọc</button>
+                            <a href="{{ url_for('restaurant.orders') }}" class="restaurant-btn restaurant-btn--ghost restaurant-order-toolbar__reset">Xóa lọc</a>
+                        </div>
                     </div>
                     <label class="restaurant-order-search restaurant-order-toolbar__search">
                         <span class="restaurant-order-search__icon" aria-hidden="true">
@@ -190,6 +193,18 @@
                                             Hủy
                                         </button>
                                     </div>
+                                    {% elif item.status_key == 'cancelled' %}
+                                    <button
+                                        type="button"
+                                        class="restaurant-order-action restaurant-order-action--view-reason"
+                                        data-order-reason='{{ item.detail_payload | tojson }}'
+                                        data-order-id="{{ item.order.order_id }}"
+                                        aria-label="Xem lý do hủy đơn {{ item.order_code }}"
+                                    >
+                                        Xem lý do
+                                    </button>
+                                    {% elif item.status_key == 'refund_pending' %}
+                                    
                                     {% else %}
                                     <button type="button" class="restaurant-order-action restaurant-order-action--complete" disabled>Hoàn thành</button>
                                     {% endif %}
@@ -241,7 +256,7 @@
         <div class="restaurant-order-modal__header">
             <div>
                 <p class="restaurant-order-modal__eyebrow">Chi tiết đơn</p>
-                <h3 id="orderDetailTitle"></h3>
+                <h3 id="orderDetailTitle">Đơn hàng</h3>
             </div>
             <span class="restaurant-order-status restaurant-order-status--detail" data-order-detail-status></span>
         </div>
@@ -250,17 +265,54 @@
             <div><span>Ngày tạo</span><strong data-order-detail-date></strong></div>
             <div><span>Thanh toán</span><strong data-order-detail-payment></strong></div>
             <div><span>Trạng thái thanh toán</span><strong data-order-detail-payment-status></strong></div>
-            <div><span>Tổng tiền</span><strong data-order-detail-total></strong></div>
+            <div><span>Tổng tiền thanh toán</span><strong data-order-detail-total></strong></div>
         </div>
-        <div class="restaurant-order-modal__section">
-            <h4>Thông tin giao hàng</h4>
-            <p data-order-detail-customer></p>
-            <p data-order-detail-address></p>
+        <div class="restaurant-order-modal__content">
+            <div class="restaurant-order-modal__detail-grid">
+                <div class="restaurant-order-modal__section restaurant-order-modal__section--info">
+                    <h4>Thông tin đặt hàng</h4>
+                    <p data-order-detail-customer></p>
+                    <p data-order-detail-address></p>
+                </div>
+                <div class="restaurant-order-modal__section restaurant-order-modal__section--billing">
+                    <div class="restaurant-order-modal__billing">
+                        <h5>Chi tiết thanh toán</h5>
+                        <div class="restaurant-order-modal__billing-row">
+                            <span>Tổng tiền món</span>
+                            <strong data-order-detail-subtotal></strong>
+                        </div>
+                        <div class="restaurant-order-modal__billing-row">
+                            <span>Phí</span>
+                            <strong data-order-detail-fee></strong>
+                        </div>
+                        <div class="restaurant-order-modal__billing-row">
+                            <span>Giảm giá</span>
+                            <strong data-order-detail-discount></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="restaurant-order-modal__section restaurant-order-modal__section--items">
+                <h4>Món đã đặt</h4>
+                <div class="restaurant-order-modal__items-wrap">
+                    <div class="restaurant-order-modal__items" data-order-detail-items></div>
+                </div>
+            </div>
         </div>
-        <div class="restaurant-order-modal__section">
-            <h4>Món đã đặt</h4>
-            <div class="restaurant-order-modal__items" data-order-detail-items></div>
+    </div>
+</div>
+
+<div class="restaurant-order-modal" data-order-reason-modal hidden>
+    <div class="restaurant-order-modal__backdrop" data-close-order-reason="true"></div>
+    <div class="restaurant-order-modal__panel restaurant-order-modal__panel--compact" role="dialog" aria-modal="true" aria-labelledby="orderReasonTitle">
+        <button type="button" class="restaurant-order-modal__close" data-close-order-reason="true" aria-label="Đóng">&times;</button>
+        <p class="restaurant-order-modal__eyebrow">Đơn đã hủy</p>
+        <h3 id="orderReasonTitle">Lý do hủy</h3>
+        <div class="restaurant-order-reason__meta">
+            <span data-order-reason-code></span>
+            <span class="restaurant-order-status restaurant-order-status--detail" data-order-reason-status></span>
         </div>
+        <p class="restaurant-order-modal__caption" data-order-reason-text></p>
     </div>
 </div>
 
@@ -307,9 +359,46 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailCustomer = document.querySelector("[data-order-detail-customer]");
     const detailAddress = document.querySelector("[data-order-detail-address]");
     const detailItems = document.querySelector("[data-order-detail-items]");
+    const detailSubtotal = document.querySelector("[data-order-detail-subtotal]");
+    const detailFee = document.querySelector("[data-order-detail-fee]");
+    const detailDiscount = document.querySelector("[data-order-detail-discount]");
+    const reasonModal = document.querySelector("[data-order-reason-modal]");
+    const reasonCode = document.querySelector("[data-order-reason-code]");
+    const reasonStatus = document.querySelector("[data-order-reason-status]");
+    const reasonText = document.querySelector("[data-order-reason-text]");
     const cancelForm = document.querySelector("[data-order-cancel-form]");
     const cancelCaption = document.querySelector("[data-order-cancel-caption]");
-    const focusId = document.querySelector(".restaurant-orders-page")?.dataset.orderFocusId || "";
+    const pageRoot = document.querySelector(".restaurant-orders-page");
+    const focusId = pageRoot?.dataset.orderFocusId || "";
+    const removeFocusFromCurrentUrl = () => {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("focus")) {
+            return;
+        }
+        url.searchParams.delete("focus");
+        const nextUrl = `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""}${url.hash}`;
+        window.history.replaceState({}, document.title, nextUrl);
+    };
+
+    const clearFocusState = () => {
+        pageRoot?.removeAttribute("data-order-focus-id");
+        pageRoot?.querySelectorAll('input[name="focus"]').forEach((input) => {
+            input.value = "";
+        });
+        pageRoot?.querySelectorAll('a[href*="focus="]').forEach((link) => {
+            const href = link.getAttribute("href");
+            if (!href || href === "#") {
+                return;
+            }
+            const url = new URL(href, window.location.origin);
+            if (!url.searchParams.has("focus")) {
+                return;
+            }
+            url.searchParams.delete("focus");
+            link.setAttribute("href", `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""}${url.hash}`);
+        });
+        removeFocusFromCurrentUrl();
+    };
 
     const openModal = (modal) => {
         if (!modal) return;
@@ -320,14 +409,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const closeModal = (modal) => {
         if (!modal) return;
         modal.hidden = true;
-        if (!document.querySelector("[data-order-detail-modal]:not([hidden]), [data-order-cancel-modal]:not([hidden])")) {
+        if (!document.querySelector("[data-order-detail-modal]:not([hidden]), [data-order-cancel-modal]:not([hidden]), [data-order-reason-modal]:not([hidden])")) {
             document.body.classList.remove("is-modal-open");
         }
     };
 
     const renderDetail = (payload) => {
         if (!payload) return;
-        detailTitle.textContent = payload.order_code || `Đơn #${payload.order_id || ""}`;
+        detailTitle.textContent = "Đơn hàng";
+        detailStatus.className = "restaurant-order-status restaurant-order-status--detail";
+        if (payload.status_class) {
+            detailStatus.classList.add(payload.status_class);
+        }
         detailStatus.textContent = payload.status_label || "";
         detailCode.textContent = payload.order_code || "";
         detailDate.textContent = payload.order_date_text || "";
@@ -336,6 +429,9 @@ document.addEventListener("DOMContentLoaded", () => {
         detailTotal.textContent = payload.total_amount_text ? `${payload.total_amount_text}đ` : "";
         detailCustomer.textContent = payload.customer_name || "";
         detailAddress.textContent = payload.delivery_address || "";
+        detailSubtotal.textContent = payload.subtotal_amount_text ? `${payload.subtotal_amount_text}đ` : "0đ";
+        detailFee.textContent = payload.delivery_fee_text ? `${payload.delivery_fee_text}đ` : "0đ";
+        detailDiscount.textContent = payload.discount_amount_text || "0đ";
         detailItems.innerHTML = "";
         (payload.items || []).forEach((item) => {
             const row = document.createElement("article");
@@ -369,11 +465,36 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
+    const renderReason = (payload) => {
+        if (!payload) return;
+        if (reasonCode) {
+            reasonCode.textContent = payload.order_code || "";
+        }
+        if (reasonStatus) {
+            reasonStatus.className = "restaurant-order-status restaurant-order-status--detail";
+            if (payload.status_class) {
+                reasonStatus.classList.add(payload.status_class);
+            }
+            reasonStatus.textContent = payload.status_label || "";
+        }
+        if (reasonText) {
+            reasonText.textContent = payload.cancel_reason || "Không có lý do cụ thể.";
+        }
+    };
+
     document.querySelectorAll("[data-order-detail]").forEach((button) => {
         button.addEventListener("click", () => {
             const payload = JSON.parse(button.dataset.orderDetail || "{}");
             renderDetail(payload);
             openModal(detailModal);
+        });
+    });
+
+    document.querySelectorAll("[data-order-reason]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const payload = JSON.parse(button.dataset.orderReason || "{}");
+            renderReason(payload);
+            openModal(reasonModal);
         });
     });
 
@@ -389,10 +510,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    document.querySelectorAll("[data-close-order-detail], [data-close-order-cancel]").forEach((button) => {
+    document.querySelectorAll("[data-close-order-detail], [data-close-order-cancel], [data-close-order-reason]").forEach((button) => {
         button.addEventListener("click", () => {
             closeModal(detailModal);
             closeModal(cancelModal);
+            closeModal(reasonModal);
         });
     });
 
@@ -400,6 +522,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "Escape") {
             closeModal(detailModal);
             closeModal(cancelModal);
+            closeModal(reasonModal);
         }
     });
 
@@ -409,6 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const payload = JSON.parse(focusedButton.dataset.orderDetail || "{}");
             renderDetail(payload);
             openModal(detailModal);
+            clearFocusState();
         }
     }
 });

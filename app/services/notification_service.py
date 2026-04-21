@@ -5,6 +5,7 @@ from sqlalchemy import inspect
 
 from app.extensions import db, socketio
 from app.models.notification import Notification
+from app.utils.time_utils import format_vietnam_datetime, to_vietnam_datetime
 
 
 def _clean(value):
@@ -27,6 +28,7 @@ def _payload_dict(notification):
 
 def serialize_notification(notification):
     payload = _payload_dict(notification)
+    created_at_vn = to_vietnam_datetime(notification.created_at)
     return {
         "notification_id": notification.notification_id,
         "type": notification.type or "",
@@ -35,8 +37,8 @@ def serialize_notification(notification):
         "link": notification.link or "",
         "payload": payload,
         "is_read": bool(notification.is_read),
-        "created_at": notification.created_at.isoformat() if notification.created_at else "",
-        "created_at_text": notification.created_at.strftime("%d/%m %H:%M") if notification.created_at else "",
+        "created_at": created_at_vn.isoformat() if created_at_vn else "",
+        "created_at_text": format_vietnam_datetime(notification.created_at, "%d/%m %H:%M"),
     }
 
 
@@ -108,15 +110,11 @@ def build_order_created_notification(order, customer_name="", payment_method_lab
     if not order or not order.restaurant_id:
         return None
 
-    message_parts = [f"{customer_name or 'Khách hàng'} vừa đặt hàng."]
-    if payment_method_label:
-        message_parts.append(payment_method_label)
-
     return {
         "user_id": order.restaurant_id,
         "type": "restaurant_new_order",
         "title": f"Đơn mới #{order.order_id}",
-        "message": " ".join(message_parts).strip(),
+        "message": f"{customer_name or 'Khách hàng'} vừa đặt hàng.",
         "link": url_for("restaurant.orders", focus=order.order_id),
         "payload": {
             "order_id": order.order_id,
@@ -126,19 +124,32 @@ def build_order_created_notification(order, customer_name="", payment_method_lab
     }
 
 
-def build_order_cancelled_notification(order, cancel_reason="", restaurant_name=""):
+def build_order_confirmed_notification(order, restaurant_name=""):
     if not order or not order.customer_id:
         return None
 
-    message_parts = [f"{restaurant_name or 'Nhà hàng'} đã hủy đơn của bạn."]
-    if cancel_reason:
-        message_parts.append(cancel_reason)
+    return {
+        "user_id": order.customer_id,
+        "type": "customer_order_confirmed",
+        "title": f"Đơn #{order.order_id} đã được xác nhận",
+        "message": f"{restaurant_name or 'Nhà hàng'} đã xác nhận đơn của bạn.",
+        "link": url_for("auth.order_detail", order_id=order.order_id),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_name": restaurant_name,
+        },
+    }
+
+
+def build_order_cancelled_notification(order, cancel_reason="", restaurant_name=""):
+    if not order or not order.customer_id:
+        return None
 
     return {
         "user_id": order.customer_id,
         "type": "customer_order_cancelled",
         "title": f"Đơn #{order.order_id} đã bị hủy",
-        "message": " ".join(message_parts).strip(),
+        "message": f"{restaurant_name or 'Nhà hàng'} đã hủy đơn của bạn.",
         "link": url_for("auth.order_detail", order_id=order.order_id),
         "payload": {
             "order_id": order.order_id,

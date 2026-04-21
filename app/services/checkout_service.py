@@ -169,7 +169,7 @@ def format_order_status_label(status):
     if normalized in {"completed", "delivered", "done", "đã giao", "giao thành công"}:
         return "Đã giao"
     if normalized in {"refund_pending", "pending_refund", "đang chờ hoàn tiền"}:
-        return "Đang chờ hoàn tiền"
+        return "Chờ hoàn tiền"
     if normalized in {"pending_payment", "chờ thanh toán"}:
         return "Chờ thanh toán"
     if normalized in {"pending", "chờ xác nhận", "đợi nhà hàng xác nhận"}:

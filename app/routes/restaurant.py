@@ -13,7 +13,11 @@ from app.services.restaurant_service import (
     toggle_dish_status_for_restaurant,
     toggle_voucher_status_for_restaurant,
 )
-from app.services.notification_service import build_order_cancelled_notification, emit_structured_notification
+from app.services.notification_service import (
+    build_order_cancelled_notification,
+    build_order_confirmed_notification,
+    emit_structured_notification,
+)
 
 bp = Blueprint("restaurant", __name__, url_prefix="/restaurant")
 
@@ -139,9 +143,14 @@ def confirm_order(order_id):
         flash("Không tìm thấy đơn hàng để xác nhận.", "error")
     elif status == "cancelled":
         flash("Đơn hàng này đã bị hủy trước đó.", "warning")
+    elif status == "refund_pending":
+        flash("Đơn hàng này đang ở trạng thái Chờ hoàn tiền.", "warning")
     elif status == "completed":
         flash("Đơn hàng đã ở trạng thái hoàn thành.", "warning")
     elif order:
+        restaurant_name = session.get("user_display_name") or session.get("username") or "Nhà hàng"
+        notification_data = build_order_confirmed_notification(order, restaurant_name=restaurant_name)
+        emit_structured_notification(notification_data)
         flash(f"Đã chuyển đơn #{order.order_id} sang trạng thái Đang chuẩn bị.", "success")
     else:
         flash("Không thể xác nhận đơn hàng lúc này.", "error")
@@ -166,14 +175,21 @@ def cancel_order(order_id):
         return redirect(url_for("home.index"))
 
     reason = (request.form.get("reason") or request.args.get("reason") or "").strip()
-    order, resolved_reason = cancel_order_for_restaurant(session.get("user_id"), order_id, reason=reason)
+    order, status, resolved_reason = cancel_order_for_restaurant(session.get("user_id"), order_id, reason=reason)
     if not order:
         flash("Không tìm thấy đơn hàng để hủy.", "error")
+    elif status == "already_cancelled":
+        flash(f"Đơn #{order.order_id} đã bị hủy trước đó.", "warning")
+    elif status == "already_refund_pending":
+        flash(f"Đơn #{order.order_id} đang ở trạng thái Chờ hoàn tiền.", "warning")
     else:
         restaurant_name = session.get("user_display_name") or session.get("username") or "Nhà hàng"
         notification_data = build_order_cancelled_notification(order, cancel_reason=resolved_reason, restaurant_name=restaurant_name)
         emit_structured_notification(notification_data)
-        flash(f"Đã hủy đơn #{order.order_id}.", "success")
+        if status in {"refund_pending", "pending_refund"}:
+            flash(f"Đã chuyển đơn #{order.order_id} sang trạng thái Chờ hoàn tiền.", "success")
+        else:
+            flash(f"Đã hủy đơn #{order.order_id}.", "success")
 
     return redirect(
         url_for(
