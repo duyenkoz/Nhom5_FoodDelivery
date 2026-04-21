@@ -104,6 +104,9 @@
                         <div>
                             <strong>{{ order.delivery_address or 'Chưa có địa chỉ giao hàng' }}</strong>
                             <span>{{ customer_name or 'Khách hàng' }}{% if customer_phone %} · {{ customer_phone }}{% endif %}</span>
+                            {% if order.note %}
+                            <small class="order-detail-address__note">Ghi chú giao hàng: {{ order.note }}</small>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -163,6 +166,9 @@
                     <small>{{ customer_phone }}</small>
                     {% endif %}
                     <p>{{ order.delivery_address or 'Chưa có địa chỉ giao hàng' }}</p>
+                    {% if order.note %}
+                    <small class="order-detail-address__note">Ghi chú giao hàng: {{ order.note }}</small>
+                    {% endif %}
                 </div>
 
                 <div class="order-detail-address">
@@ -234,7 +240,9 @@
             <div class="order-detail-summary__card">
                 <h3>Trạng thái</h3>
                 <p>{{ status_info.description }}</p>
-                <small>{% if status_info.step_key == 'payment' %}Đang chờ thanh toán trước khi tạo đơn chính thức.{% elif status_info.step_key == 'shipping' %}Shipper đang giao đơn đến khách hàng.{% elif status_info.step_key == 'preparing' %}Nhà hàng đang xử lý và chuẩn bị món.{% else %}Đơn đang ở trạng thái {{ status_info.stage }}.{% endif %}</small>
+                {% if status_info.step_key in ['cancelled', 'refund_pending'] and cancel_reason %}
+                <p class="order-detail-summary__reason"><strong>Lý do hủy:</strong><span>{{ cancel_reason }}</span></p>
+                {% endif %}
             </div>
 
         </aside>

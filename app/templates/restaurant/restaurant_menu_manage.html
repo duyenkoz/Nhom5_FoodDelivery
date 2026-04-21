@@ -345,10 +345,19 @@ function openMenuModal() {
     menuModal.setAttribute("aria-hidden", "false");
 }
 
+function clearEditQueryParam() {
+    if (!window.history || !window.history.replaceState) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function closeMenuModal() {
     if (!menuModal) return;
     menuModal.classList.remove("is-open");
     menuModal.setAttribute("aria-hidden", "true");
+    clearEditQueryParam();
 }
 
 function openDeleteDishModal(action, dishName) {

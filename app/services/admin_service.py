@@ -28,6 +28,17 @@ def _clean(value):
     return value.strip() if isinstance(value, str) else ""
 
 
+SECTION_PAGE_SIZES = {
+    "accounts": 6,
+    "vouchers": 7,
+    "reviews": 5,
+    "review_reports": 5,
+    "complaints": 5,
+    "disputes": 4,
+    "shipping_fees": 6,
+}
+
+
 def _safe_name(user):
     if not user:
         return "Chưa rõ"
@@ -78,6 +89,10 @@ def _paginate(items, page=1, per_page=10):
         "has_next": current_page < total_pages,
         "items": items[start:end],
     }
+
+
+def _page_size_for(section_name, default=10):
+    return SECTION_PAGE_SIZES.get(section_name, default)
 
 
 def _build_account_item(user):
@@ -465,8 +480,93 @@ def _build_restaurant_fees(query="", page=1, per_page=10):
     }
 
 
+def _build_shipping_rules():
+    rules = build_shipping_rules_form_values()
+    settings = get_shipping_fee_settings()
+    return {
+        "records": _paginate([], page=1, per_page=1),
+        "stats": {
+            "floor_fee": settings.get("floor_fee", 0),
+            "rules_count": len(rules),
+        },
+        "shipping_rules": rules,
+        "section_title": "Phí ship theo khoảng cách",
+        "section_subtitle": "Cập nhật công thức tính phí ship dựa trên khoảng cách giữa nhà hàng và địa chỉ giao hàng của khách. Áp dụng cho tất cả đơn hàng có địa chỉ giao hàng nằm trong phạm vi áp dụng.",
+    }
+
+def _build_hero_stats(section_name, dashboard_stats, context):
+    if section_name == "dashboard":
+        return [
+            {"label": "Tài khoản", "value": dashboard_stats["users"]},
+            {"label": "Nhà hàng", "value": dashboard_stats["restaurants"]},
+            {"label": "Voucher", "value": dashboard_stats["vouchers"]},
+            {"label": "Đánh giá", "value": dashboard_stats["reviews"]},
+            {"label": "Báo cáo chờ xử lý", "value": dashboard_stats["pending_review_reports"]},
+        ]
+
+    stats = context.get("stats", {})
+    if section_name == "accounts":
+        return [
+            {"label": "Tổng tài khoản", "value": stats.get("total", 0)},
+            {"label": "Khách hàng", "value": stats.get("customers", 0)},
+            {"label": "Nhà hàng", "value": stats.get("restaurants", 0)},
+            {"label": "Quản trị viên", "value": stats.get("admins", 0)},
+        ]
+
+    if section_name == "vouchers":
+        return [
+            {"label": "Tổng voucher", "value": stats.get("total", 0)},
+            {"label": "Đang bật", "value": stats.get("active", 0)},
+            {"label": "Hệ thống", "value": stats.get("system", 0)},
+            {"label": "Nhà hàng", "value": stats.get("restaurant", 0)},
+        ]
+
+    if section_name == "reviews":
+        return [
+            {"label": "Tổng đánh giá", "value": stats.get("total", 0)},
+            {"label": "Tích cực", "value": stats.get("positive", 0)},
+            {"label": "Tiêu cực", "value": stats.get("negative", 0)},
+        ]
+
+    if section_name == "review_reports":
+        return [
+            {"label": "Báo cáo chờ xử lý", "value": stats.get("total", 0)},
+            {"label": "Mức cao", "value": stats.get("high", 0)},
+        ]
+
+    if section_name == "complaints":
+        return [
+            {"label": "Khiếu nại", "value": stats.get("total", 0)},
+            {"label": "Mức cao", "value": stats.get("high", 0)},
+        ]
+
+    if section_name == "disputes":
+        return [
+            {"label": "Tranh chấp / hủy đơn", "value": stats.get("total", 0)},
+            {"label": "Đơn hủy", "value": stats.get("cancelled", 0)},
+            {"label": "Đơn tranh chấp", "value": stats.get("disputed", 0)},
+        ]
+
+    if section_name == "shipping_rules":
+        return [
+            {"label": "Phí sàn hệ thống", "value": stats.get("floor_fee", 0), "suffix": "đ"},
+            {"label": "Mức phí ship", "value": stats.get("rules_count", 0)},
+        ]
+
+    if section_name == "shipping_fees":
+        return [
+            {"label": "Tổng nhà hàng", "value": stats.get("total", 0)},
+            {"label": "Đã cấu hình", "value": stats.get("configured", 0)},
+            {"label": "Chưa cấu hình", "value": stats.get("unconfigured", 0)},
+            {"label": "Phí trung bình", "value": stats.get("average_fee", 0), "suffix": "đ"},
+        ]
+
+    return []
+
+
 def build_admin_context(section_name="dashboard", query="", role_filter="all", page=1, per_page=10):
     section_name = section_name or "dashboard"
+    page_size = _page_size_for(section_name, per_page)
     pending_review_reports = Review.query.filter(Review.report_status == "pending").count()
     dashboard_stats = {
         "users": User.query.count(),
@@ -481,23 +581,21 @@ def build_admin_context(section_name="dashboard", query="", role_filter="all", p
     }
 
     if section_name == "accounts":
-        context = _build_accounts(role_filter=role_filter, query=query, page=page, per_page=per_page)
+        context = _build_accounts(role_filter=role_filter, query=query, page=page, per_page=page_size)
     elif section_name == "vouchers":
-        context = _build_vouchers(query=query, page=page, per_page=per_page)
+        context = _build_vouchers(query=query, page=page, per_page=page_size)
     elif section_name == "reviews":
-        context = _build_reviews(query=query, page=page, per_page=per_page)
+        context = _build_reviews(query=query, page=page, per_page=page_size)
     elif section_name == "complaints":
-        context = _build_complaints(query=query, page=page, per_page=per_page)
+        context = _build_complaints(query=query, page=page, per_page=page_size)
     elif section_name == "review_reports":
-        context = _build_review_reports(query=query, page=page, per_page=per_page)
+        context = _build_review_reports(query=query, page=page, per_page=page_size)
     elif section_name == "disputes":
-        context = _build_disputes(query=query, page=page, per_page=per_page)
-    elif section_name == "shipping":
-        restaurant_fee_context = _build_restaurant_fees(query=query, page=page, per_page=per_page)
-        context = {
-            **restaurant_fee_context,
-            "shipping_rules": build_shipping_rules_form_values(),
-        }
+        context = _build_disputes(query=query, page=page, per_page=page_size)
+    elif section_name == "shipping_fees":
+        context = _build_restaurant_fees(query=query, page=page, per_page=page_size)
+    elif section_name == "shipping_rules":
+        context = _build_shipping_rules()
     else:
         context = {
             "records": _paginate([], page=page, per_page=per_page),
@@ -510,6 +608,7 @@ def build_admin_context(section_name="dashboard", query="", role_filter="all", p
     return {
         "section_name": section_name,
         "dashboard_stats": dashboard_stats,
+        "hero_stats": _build_hero_stats(section_name, dashboard_stats, context),
         "role_filter": role_filter,
         **context,
     }

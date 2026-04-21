@@ -1888,6 +1888,33 @@
     color: #64748b;
 }
 
+.order-detail-summary__reason {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: #fff7ed;
+    border: 1px solid rgba(249, 115, 22, 0.16);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px;
+    color: #334155;
+}
+
+.order-detail-summary__reason strong {
+    display: inline;
+    color: #111827;
+    font-size: 0.98rem;
+    margin: 0;
+    font-weight: 700;
+}
+
+.order-detail-summary__reason span {
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .order-detail-card__total {
     color: #0f234f;
     font-size: 1.3rem;
@@ -1943,6 +1970,15 @@
     display: block;
     margin-top: 4px;
     color: #64748b;
+}
+
+.order-detail-address__note {
+    display: block;
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 1.03rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .order-detail-timer__button {

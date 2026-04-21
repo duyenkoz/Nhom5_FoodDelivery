@@ -107,32 +107,49 @@ def disputes():
     return _render_admin("disputes")
 
 
+@bp.route("/shipping-rules", methods=["GET", "POST"])
+def shipping_rules():
+    if not _require_admin():
+        return _login_redirect()
+
+    if request.method == "POST":
+        existing_floor_fee = get_shipping_fee_settings().get("floor_fee", 0)
+        min_km_values = request.form.getlist("min_km")
+        max_km_values = request.form.getlist("max_km")
+        fee_values = request.form.getlist("fee")
+        rules = []
+        for min_km, max_km, fee in zip(min_km_values, max_km_values, fee_values):
+            rules.append(
+                {
+                    "min_km": min_km,
+                    "max_km": max_km,
+                    "fee": fee,
+                }
+            )
+        save_shipping_fee_settings({"floor_fee": existing_floor_fee, "rules": rules})
+        flash("Đã cập nhật phí ship theo khoảng cách.", "success")
+        return redirect(url_for("admin.shipping_rules"))
+
+    return _render_admin("shipping_rules")
+
+
 @bp.route("/shipping-fees", methods=["GET", "POST"])
 def shipping_fees():
     if not _require_admin():
         return _login_redirect()
 
+    def _shipping_fees_redirect():
+        return redirect(
+            url_for(
+                "admin.shipping_fees",
+                q=request.args.get("q", ""),
+                page=request.args.get("page", 1),
+                role=request.args.get("role", "all"),
+            )
+        )
+
     if request.method == "POST":
         form_type = (request.form.get("form_type") or "").strip()
-
-        if form_type == "shipping_rules":
-            existing_floor_fee = get_shipping_fee_settings().get("floor_fee", 0)
-            min_km_values = request.form.getlist("min_km")
-            max_km_values = request.form.getlist("max_km")
-            fee_values = request.form.getlist("fee")
-            rules = []
-            for min_km, max_km, fee in zip(min_km_values, max_km_values, fee_values):
-                rules.append(
-                    {
-                        "min_km": min_km,
-                        "max_km": max_km,
-                        "fee": fee,
-                    }
-                )
-            save_shipping_fee_settings({"floor_fee": existing_floor_fee, "rules": rules})
-            flash("Đã cập nhật phí ship theo khoảng cách.", "success")
-            return redirect(url_for("admin.shipping_fees"))
-
         if form_type == "bulk_apply_area":
             area = (request.form.get("area") or "").strip()
             fee_value = request.form.get("platform_fee", 0)
@@ -148,12 +165,18 @@ def shipping_fees():
             restaurants = Restaurant.query.filter(Restaurant.area == area).all()
             updated_count = 0
             for restaurant in restaurants:
+                current_fee = restaurant.platform_fee or 0
+                if current_fee == normalized_fee:
+                    continue
                 restaurant.platform_fee = normalized_fee
                 updated_count += 1
 
             db.session.commit()
-            flash(f"Đã áp dụng phí sàn {normalized_fee:,}đ cho {updated_count} nhà hàng ở khu vực {area}.", "success")
-            return redirect(url_for("admin.shipping_fees", q=request.args.get("q", ""), page=request.args.get("page", 1), role=request.args.get("role", "all")))
+            if updated_count:
+                flash(f"Đã áp dụng phí sàn {normalized_fee:,}đ cho {updated_count} nhà hàng ở khu vực {area}.", "success")
+            else:
+                flash(f"Không có nhà hàng nào ở khu vực {area} cần thay đổi phí sàn.", "info")
+            return _shipping_fees_redirect()
 
         restaurant_ids = request.form.getlist("restaurant_id")
         fee_values = request.form.getlist("platform_fee")
@@ -164,16 +187,23 @@ def shipping_fees():
             if not restaurant:
                 continue
             try:
-                restaurant.platform_fee = max(0, int(fee_value))
+                next_fee = max(0, int(fee_value))
             except (TypeError, ValueError):
-                restaurant.platform_fee = 0
+                next_fee = 0
+            current_fee = restaurant.platform_fee or 0
+            if current_fee == next_fee:
+                continue
+            restaurant.platform_fee = next_fee
             updated_count += 1
 
         db.session.commit()
-        flash(f"Đã cập nhật phí sàn cho {updated_count} nhà hàng.", "success")
-        return redirect(url_for("admin.shipping_fees"))
+        if updated_count:
+            flash(f"Đã cập nhật phí sàn cho {updated_count} nhà hàng.", "success")
+        else:
+            flash("Không có nhà hàng nào thay đổi phí sàn.", "info")
+        return _shipping_fees_redirect()
 
-    return _render_admin("shipping")
+    return _render_admin("shipping_fees")
 
 
 @bp.route("/accounts/<int:user_id>/toggle-status", methods=["POST"])

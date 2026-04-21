@@ -214,6 +214,10 @@ def _complete_google_login(user, google_profile, remember=False):
     _clear_google_pending_session()
 
 
+def _is_user_locked(user):
+    return bool(user and not bool(user.status))
+
+
 def _google_profile_name(profile):
     name = (profile or {}).get("name") or ""
     if name.strip():
@@ -473,6 +477,8 @@ def login():
 
             if not user:
                 form_errors["identifier"] = "Email, số điện thoại hoặc tên đăng nhập không đúng. Vui lòng nhập lại."
+            elif _is_user_locked(user):
+                form_errors["identifier"] = "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên."
             elif not (user.password or "").strip():
                 form_errors["identifier"] = "Tài khoản này đăng nhập bằng Google. Vui lòng đăng nhập bằng Google."
             elif not verify_password(user.password, password):
@@ -634,6 +640,9 @@ def google_callback():
     if user and user.role != "customer":
         flash("Chỉ tài khoản khách hàng mới có thể đăng nhập bằng Google.", "warning")
         return redirect(url_for("auth.login"))
+    if _is_user_locked(user):
+        flash("Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.", "error")
+        return redirect(url_for("auth.login"))
 
     if not user:
         try:
@@ -656,6 +665,25 @@ def google_callback():
     if next_url:
         return redirect(next_url)
     return redirect(url_for("home.index"))
+
+
+@bp.before_app_request
+def enforce_locked_account_logout():
+    if session.get("auth_state") != "logged_in":
+        return None
+
+    user_id = session.get("user_id")
+    try:
+        user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        user = None
+
+    if user and not bool(user.status):
+        session.clear()
+        flash("Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.", "error")
+        return redirect(url_for("auth.login"))
+
+    return None
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -984,6 +1012,7 @@ def order_detail(order_id):
         payment_method_label=payment_method_label,
         applied_delivery_fee=applied_delivery_fee,
         delivery_fee_detail_text=delivery_fee_detail_text,
+        cancel_reason=(order.cancel_reason or "").strip(),
         shipper_name="Shipper" if status_info["step_key"] in {"preparing", "shipping", "delivered"} else "",
         payment_remaining_seconds=payment_remaining_seconds,
         shipping_remaining_seconds=shipping_remaining_seconds,

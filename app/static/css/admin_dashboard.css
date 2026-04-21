@@ -578,8 +578,16 @@
 }
 
 .admin-fee-input-cell {
-    display: grid;
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .admin-table--shipping-rules .admin-table__row {
@@ -603,6 +611,16 @@
 
 .admin-fee-input-cell small {
     color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.admin-fee-input-cell .admin-input {
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
 }
 .admin-bulk-apply__field label {
     font-weight: 700;
@@ -652,9 +670,17 @@
 
 .admin-pagination {
     display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.admin-pagination__links {
+    display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-top: 16px;
+    align-items: center;
 }
 
 .admin-pagination a {
@@ -669,6 +695,48 @@
     border-radius: 12px;
     background: #fff;
     font-weight: 700;
+}
+
+.admin-pagination__nav {
+    min-width: 72px !important;
+}
+
+.admin-pagination__ellipsis {
+    min-width: 24px;
+    text-align: center;
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.admin-pagination__select {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    color: #22324a;
+    font-weight: 600;
+}
+
+.admin-pagination__select span {
+    white-space: nowrap;
+}
+
+.admin-pagination__select select {
+    height: 40px;
+    min-width: 96px;
+    padding: 0 12px;
+    border: 1px solid #d6dce7;
+    border-radius: 12px;
+    background: #fff;
+    color: #22324a;
+    font: inherit;
+    font-weight: 700;
+    outline: none;
+}
+
+.admin-pagination__select select:focus {
+    border-color: #ff8c1a;
+    box-shadow: 0 0 0 3px rgba(255, 140, 26, 0.12);
 }
 
 .admin-pagination a.is-active {
@@ -707,6 +775,22 @@
 
     .admin-dashboard-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-pagination {
+        align-items: stretch;
+    }
+
+    .admin-pagination__select {
+        margin-left: 0;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .admin-pagination__select select {
+        flex: 1 1 auto;
     }
 }
 

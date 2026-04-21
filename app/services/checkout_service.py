@@ -878,6 +878,7 @@ def create_order_from_snapshot(
         total_amount=total_amount,
         delivery_fee=delivery_fee,
         delivery_address=delivery_address,
+        note=note,
         status=resolved_order_status,
         restaurant_id=restaurant.restaurant_id if restaurant else None,
     )
