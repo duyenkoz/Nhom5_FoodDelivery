@@ -203,6 +203,40 @@
             });
         }
 
+        function isDishAvailable(dish) {
+            return Boolean(dish && dish.is_available);
+        }
+
+        function syncModalAvailability(dish) {
+            if (!modal) {
+                return;
+            }
+
+            const isAvailable = isDishAvailable(dish);
+            const submitButton = modal.querySelector("[data-dish-modal-submit='true']");
+            const minusButton = modal.querySelector("[data-modal-qty-minus='true']");
+            const plusButton = modal.querySelector("[data-modal-qty-plus='true']");
+            const noteField = modal.querySelector("[data-dish-modal-note='true']");
+
+            if (submitButton) {
+                submitButton.disabled = !isAvailable;
+                submitButton.setAttribute("aria-disabled", isAvailable ? "false" : "true");
+                submitButton.classList.toggle("is-sold-out", !isAvailable);
+            }
+
+            if (minusButton) {
+                minusButton.disabled = !isAvailable;
+            }
+
+            if (plusButton) {
+                plusButton.disabled = !isAvailable;
+            }
+
+            if (noteField) {
+                noteField.disabled = !isAvailable;
+            }
+        }
+
         function applyFilters() {
             const query = normalizeText(searchInput ? searchInput.value : "");
             let visibleCount = 0;
@@ -243,6 +277,10 @@
             }
 
             qtyEl.textContent = String(modalQuantity);
+            if (!isDishAvailable(dish)) {
+                submitButton.textContent = "Hết món";
+                return;
+            }
             submitButton.textContent = `Thêm vào giỏ - ${formatPrice((dish.price || 0) * modalQuantity)}`;
         }
 
@@ -280,6 +318,7 @@
             noteEl.value = cartItem && cartItem.note ? cartItem.note : "";
             qtyEl.textContent = String(modalQuantity);
 
+            syncModalAvailability(dish);
             updateModalSubmitLabel();
             modal.hidden = false;
             document.body.classList.add("is-modal-open");
@@ -366,6 +405,9 @@
                 const addButton = event.target.closest("[data-add-dish]");
                 if (addButton) {
                     event.stopPropagation();
+                    if (!isDishAvailable(dishById.get(dishId))) {
+                        return;
+                    }
                     addDishToCart(dishId, 1, "").catch(() => {});
                     return;
                 }
@@ -493,6 +535,11 @@
             if (submitButton) {
                 submitButton.addEventListener("click", () => {
                     if (modalDishId == null) {
+                        return;
+                    }
+
+                    const dish = dishById.get(Number(modalDishId));
+                    if (!isDishAvailable(dish) || submitButton.disabled) {
                         return;
                     }
 

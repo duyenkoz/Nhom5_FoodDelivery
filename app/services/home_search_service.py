@@ -10,6 +10,7 @@ from app.models import Dish, Order, OrderItem, Review
 from app.models import Restaurant
 from app.services.home_service import get_home_page_context as get_legacy_home_page_context
 from app.services.location_service import (
+    area_matches,
     format_distance_km,
     haversine_distance_km,
     location_sort_key,
@@ -311,7 +312,6 @@ def _build_card(
     if featured_dish is None:
         featured_dish = _first_active_dish(restaurant)
 
-    image_value = featured_dish.image if featured_dish and featured_dish.image else restaurant.image
     display_rating = rating_text or preset["rating"]
     display_reviews = reviews_text or preset["reviews"]
     display_price = price_text if price_text is not None else (_format_price(featured_dish.price) if featured_dish else "Liên hệ")
@@ -319,7 +319,7 @@ def _build_card(
     return {
         "name": _restaurant_title(restaurant),
         "href": f"/restaurants/{restaurant.restaurant_id}",
-        "image_path": _normalize_image_path(image_value),
+        "image_path": _normalize_image_path(restaurant.image),
         "rating": display_rating,
         "reviews": display_reviews,
         "distance": format_distance_km(distance_km),
@@ -347,6 +347,17 @@ def _restaurant_distance(user_location, restaurant):
         restaurant.latitude,
         restaurant.longitude,
     )
+
+
+def _restaurant_matches_selected_area(restaurant, user_location=None):
+    selected_area = _clean((user_location or {}).get("filter_area") or (user_location or {}).get("area"))
+    if not selected_area:
+        return True
+
+    for candidate in (restaurant.area, restaurant.address):
+        if area_matches(candidate, selected_area):
+            return True
+    return False
 
 
 def _within_search_radius(distance_km):
@@ -470,6 +481,9 @@ def _load_restaurant_cards(query, user_location=None):
     normalized_query = _normalized(query)
 
     for index, restaurant in enumerate(restaurants):
+        if not _restaurant_matches_selected_area(restaurant, user_location=user_location):
+            continue
+
         distance_km = _restaurant_distance(user_location, restaurant)
         pairs.append((_build_card(restaurant, index, distance_km=distance_km), restaurant, distance_km))
 
@@ -507,6 +521,9 @@ def _build_search_cards(query, tab, user_location=None, filters=None):
     cards = []
     has_location = user_location is not None
     for index, restaurant in enumerate(restaurants):
+        if not _restaurant_matches_selected_area(restaurant, user_location=user_location):
+            continue
+
         distance_km = _restaurant_distance(user_location, restaurant)
         if has_location and not _within_search_radius(distance_km):
             continue

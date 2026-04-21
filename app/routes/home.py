@@ -36,18 +36,18 @@ def _get_user_location():
     area = _clean(request.args.get("area"))
     latitude = _parse_float(request.args.get("lat"))
     longitude = _parse_float(request.args.get("lon"))
-
+    query_location = None
     if address and latitude is not None and longitude is not None:
-        return {
+        query_location = {
             "address": address,
             "latitude": latitude,
             "longitude": longitude,
             "area": area,
+            "filter_area": area,
             "source": "query",
         }
 
     if user_id and session.get("user_role") == "customer":
-
         try:
             customer_id = int(user_id)
         except (TypeError, ValueError):
@@ -55,12 +55,19 @@ def _get_user_location():
 
         customer = db.session.get(Customer, customer_id) if customer_id is not None else None
         if customer:
+            customer_area = customer.area or ""
+            if query_location:
+                query_location["filter_area"] = customer_area or query_location.get("filter_area", "")
+                query_location["source"] = "query-with-customer-area"
+                return query_location
+
             if customer.latitude is not None and customer.longitude is not None:
                 return {
                     "address": customer.address or "",
                     "latitude": customer.latitude,
                     "longitude": customer.longitude,
-                    "area": customer.area or "",
+                    "area": customer_area,
+                    "filter_area": customer_area,
                     "source": "customer",
                 }
 
@@ -71,11 +78,12 @@ def _get_user_location():
                         "address": customer.address or resolved["display_name"],
                         "latitude": resolved["lat"],
                         "longitude": resolved["lon"],
-                        "area": customer.area or resolved.get("area", ""),
+                        "area": customer_area or resolved.get("area", ""),
+                        "filter_area": customer_area or resolved.get("area", ""),
                         "source": "customer-resolved",
                     }
 
-    return None
+    return query_location
 
 
 def _get_location_storage_key():
