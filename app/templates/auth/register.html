@@ -15,6 +15,21 @@
             <div class="auth-card shadow p-4">
                 <h3 class="text-center mb-4">Đăng ký tài khoản</h3>
                 <form id="registerForm" method="POST" novalidate>
+                    <div class="mb-3 register-role-block">
+                        <label class="form-label">Bạn là *</label>
+                        <div class="d-flex gap-3 register-role-options">
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input" name="role" value="KHACHHANG" checked id="roleCustomer">
+                                <label class="form-check-label" for="roleCustomer">Người mua</label>
+                            </div>
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input" name="role" value="NHAHANG" id="roleOwner">
+                                <label class="form-check-label" for="roleOwner">Người bán</label>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback text-danger" id="roleError">{{ form_errors.role }}</div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label" for="username">Tên đăng nhập *</label>
                         <div class="input-group">
@@ -142,36 +157,23 @@
                         <div class="invalid-feedback text-danger" id="confirmError">{{ form_errors.password_confirm }}</div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Bạn là *</label>
-                        <div class="d-flex gap-3">
-                            <div class="form-check">
-                                <input type="radio" class="form-check-input" name="role" value="KHACHHANG" checked id="roleCustomer">
-                                <label class="form-check-label" for="roleCustomer">Người mua</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="radio" class="form-check-input" name="role" value="NHAHANG" id="roleOwner">
-                                <label class="form-check-label" for="roleOwner">Người bán</label>
+                    <div class="register-footer">
+                        <div class="mb-3 form-check terms-check">
+                            <input type="checkbox" id="terms" class="form-check-input">
+                            <div class="terms-copy">
+                                <label class="form-check-label" for="terms">
+                                    Tôi đồng ý với các
+                                    <button type="button" class="legal-link" data-legal-open="terms">điều khoản</button>
+                                    và
+                                    <button type="button" class="legal-link" data-legal-open="services">dịch vụ</button>
+                                </label>
                             </div>
                         </div>
-                        <div class="invalid-feedback text-danger" id="roleError">{{ form_errors.role }}</div>
-                    </div>
 
-                    <div class="mb-3 form-check terms-check">
-                        <input type="checkbox" id="terms" class="form-check-input">
-                        <div class="terms-copy">
-                            <label class="form-check-label" for="terms">
-                                Tôi đồng ý với các
-                                <button type="button" class="legal-link" data-legal-open="terms">điều khoản</button>
-                                và
-                                <button type="button" class="legal-link" data-legal-open="services">dịch vụ</button>
-                            </label>
+                        <button class="btn btn-primary w-100" type="submit">Đăng ký</button>
+                        <div class="text-center register-login-link">
+                            Bạn đã có tài khoản? <a href="{{ url_for('auth.login') }}">Đăng nhập ngay</a>
                         </div>
-                    </div>
-
-                    <button class="btn btn-primary w-100" type="submit">Đăng ký</button>
-                    <div class="text-center mt-3">
-                        Bạn đã có tài khoản? <a href="{{ url_for('auth.login') }}">Đăng nhập ngay</a>
                     </div>
                 </form>
             </div>

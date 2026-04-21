@@ -320,6 +320,32 @@
     gap: 6px;
 }
 
+.auth-page--register .register-role-block {
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+}
+
+.auth-page--register .register-role-options {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+.auth-page--register .register-footer {
+    margin-top: 14px;
+    padding-top: 14px;
+    display: grid;
+    gap: 12px;
+}
+
+.auth-page--register .register-login-link {
+    margin-top: 0;
+    line-height: 1.45;
+}
+
+.auth-page--register .terms-check {
+    margin-bottom: 2px;
+}
+
 .auth-page .form-check-input {
     width: 16px;
     height: 16px;
@@ -511,5 +537,10 @@
 
     .auth-page .auth-modal__panel {
         padding: 18px 16px 16px;
+    }
+
+    .auth-page--register .register-footer {
+        margin-top: 12px;
+        padding-top: 12px;
     }
 }

@@ -255,10 +255,19 @@ function openVoucherModal() {
     voucherModal.setAttribute("aria-hidden", "false");
 }
 
+function clearEditQueryParam() {
+    if (!window.history || !window.history.replaceState) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function closeVoucherModal() {
     if (!voucherModal) return;
     voucherModal.classList.remove("is-open");
     voucherModal.setAttribute("aria-hidden", "true");
+    clearEditQueryParam();
 }
 
 openVoucherButtons.forEach((button) => button.addEventListener("click", openVoucherModal));

@@ -7,6 +7,66 @@
 {% endblock %}
 
 {% block content %}
+{% macro admin_page_url(endpoint, params, page_num) -%}
+{%- set query_string = params | urlencode -%}
+{{ url_for(endpoint) }}{% if query_string %}?{{ query_string }}&{% else %}?{% endif %}page={{ page_num }}
+{%- endmacro %}
+
+{% macro render_admin_pagination(endpoint, page_info, params, select_id) -%}
+{% if page_info.total_pages > 1 %}
+{% set total_pages = page_info.total_pages %}
+{% set current_page = page_info.page %}
+<div class="admin-pagination">
+    <div class="admin-pagination__links">
+        <a class="admin-pagination__nav {% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page - 1) }}" data-admin-pagination-jump>Trước</a>
+        {% if total_pages <= 7 %}
+            {% for page_num in range(1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% elif current_page <= 4 %}
+            {% for page_num in range(1, 5) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% elif current_page >= total_pages - 3 %}
+            {% for page_num in range(1, 3) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 3, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% else %}
+            {% for page_num in range(1, 3) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(current_page - 1, current_page + 2) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% endif %}
+        <a class="admin-pagination__nav {% if not page_info.has_next %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page + 1) }}" data-admin-pagination-jump>Sau</a>
+    </div>
+
+    <label class="admin-pagination__select" for="{{ select_id }}">
+        <span>Trang</span>
+        <select id="{{ select_id }}" data-admin-pagination-jump>
+            {% for page_num in range(1, total_pages + 1) %}
+            <option value="{{ admin_page_url(endpoint, params, page_num) }}" {% if page_num == current_page %}selected{% endif %}>{{ page_num }}</option>
+            {% endfor %}
+        </select>
+    </label>
+</div>
+{% endif %}
+{%- endmacro %}
+
 {% set page_data = records|default({}) %}
 {% set page_items = page_data.get('items', []) %}
 {% set page_info = page_data if page_data else {'page': 1, 'total_pages': 1, 'total_items': 0, 'has_prev': False, 'has_next': False} %}
@@ -30,7 +90,8 @@
             <a href="{{ url_for('admin.review_reports') }}" class="{% if section_name == 'review_reports' %}is-active{% endif %}">Báo cáo đánh giá</a>
             <a href="{{ url_for('admin.complaints') }}" class="{% if section_name == 'complaints' %}is-active{% endif %}">Khiếu nại</a>
             <a href="{{ url_for('admin.disputes') }}" class="{% if section_name == 'disputes' %}is-active{% endif %}">Tranh chấp / hủy đơn</a>
-            <a href="{{ url_for('admin.shipping_fees') }}" class="{% if section_name == 'shipping' %}is-active{% endif %}">Phí sàn nhà hàng</a>
+            <a href="{{ url_for('admin.shipping_rules') }}" class="{% if section_name == 'shipping_rules' %}is-active{% endif %}">Phí ship theo km</a>
+            <a href="{{ url_for('admin.shipping_fees') }}" class="{% if section_name == 'shipping_fees' %}is-active{% endif %}">Phí sàn nhà hàng</a>
         </nav>
 
         <div class="admin-card admin-sidebar__note">
@@ -47,28 +108,16 @@
                 <p>{{ section_subtitle|default('Tổng quan nhanh hệ thống, tài khoản và hoạt động gần đây.') }}</p>
             </div>
 
+            {% if hero_stats %}
             <div class="admin-hero__stats">
+                {% for stat in hero_stats or [] %}
                 <div class="admin-stat">
-                    <span>Tài khoản</span>
-                    <strong>{{ dashboard_stats.users }}</strong>
+                    <span>{{ stat.label }}</span>
+                    <strong>{{ stat.value }}{% if stat.suffix %}{{ stat.suffix }}{% endif %}</strong>
                 </div>
-                <div class="admin-stat">
-                    <span>Nhà hàng</span>
-                    <strong>{{ dashboard_stats.restaurants }}</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Voucher</span>
-                    <strong>{{ dashboard_stats.vouchers }}</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Đánh giá</span>
-                    <strong>{{ dashboard_stats.reviews }}</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Báo cáo chờ xử lý</span>
-                    <strong>{{ dashboard_stats.pending_review_reports }}</strong>
-                </div>
+                {% endfor %}
             </div>
+            {% endif %}
         </section>
 
         {% if section_name == 'dashboard' %}
@@ -157,15 +206,8 @@
                 <div class="admin-empty">Không tìm thấy tài khoản phù hợp.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.accounts', q=search_query, role=role_filter, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.accounts', q=search_query, role=role_filter, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.accounts', q=search_query, role=role_filter, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set accounts_pagination_params = {'q': search_query, 'role': role_filter} %}
+            {{ render_admin_pagination('admin.accounts', page_info, accounts_pagination_params, 'adminAccountsPageSelect') }}
             </div>
         </section>
         {% elif section_name == 'vouchers' %}
@@ -217,15 +259,8 @@
                 <div class="admin-empty">Không có voucher phù hợp.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.vouchers', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.vouchers', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.vouchers', q=search_query, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set vouchers_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.vouchers', page_info, vouchers_pagination_params, 'adminVouchersPageSelect') }}
             </div>
         </section>
         <div class="admin-modal {% if open_admin_voucher_modal %}is-open{% endif %}" id="adminVoucherModal" aria-hidden="{% if open_admin_voucher_modal %}false{% else %}true{% endif %}">
@@ -340,15 +375,8 @@
                 <div class="admin-empty">Chưa có đánh giá nào phù hợp.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.reviews', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.reviews', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.reviews', q=search_query, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set reviews_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.reviews', page_info, reviews_pagination_params, 'adminReviewsPageSelect') }}
             </div>
         </section>
         {% elif section_name == 'review_reports' %}
@@ -398,15 +426,8 @@
                 <div class="admin-empty">Chưa có báo cáo đánh giá nào đang chờ xử lý.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.review_reports', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.review_reports', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.review_reports', q=search_query, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set review_reports_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.review_reports', page_info, review_reports_pagination_params, 'adminReviewReportsPageSelect') }}
             </div>
         </section>
         {% elif section_name == 'complaints' %}
@@ -442,15 +463,8 @@
                 <div class="admin-empty">Chưa có khiếu nại nào để xử lý.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.complaints', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.complaints', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.complaints', q=search_query, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set complaints_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.complaints', page_info, complaints_pagination_params, 'adminComplaintsPageSelect') }}
             </div>
         </section>
         {% elif section_name == 'disputes' %}
@@ -492,82 +506,57 @@
                 <div class="admin-empty">Chưa có đơn tranh chấp hoặc hủy đơn.</div>
                 {% endif %}
             </div>
-            {% if page_info.total_pages > 1 %}
-            <div class="admin-pagination">
-                <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.disputes', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                {% for page_num in range(1, page_info.total_pages + 1) %}
-                <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.disputes', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                {% endfor %}
-                <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.disputes', q=search_query, page=page_info.page + 1) }}">Sau</a>
-            </div>
-            {% endif %}
+            {% set disputes_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.disputes', page_info, disputes_pagination_params, 'adminDisputesPageSelect') }}
             </div>
         </section>
-                                        {% elif section_name == 'shipping' %}
+                                        {% elif section_name == 'shipping_rules' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
                 <div>
                     <h2>Phí ship theo khoảng km</h2>
-                    <p>Thiết lập phí ship theo khoảng cách và phí sàn riêng cho từng nhà hàng trong cùng một màn hình.</p>
+                    <p>Cập nhật mức phí ship cho các khoảng cách giao hàng.</p>
                 </div>
             </div>
 
-            <section class="admin-card admin-panel" style="margin-bottom: 18px; padding: 18px;">
-                <form method="post" action="{{ url_for('admin.shipping_fees') }}" class="admin-shipping-form">
-                    <input type="hidden" name="form_type" value="shipping_rules">
-                    <div class="admin-panel__header">
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.05rem;">Phí ship theo khoảng km</h3>
-                            <p style="margin-top: 4px;">Cập nhật mức phí ship và phí sàn hệ thống cho các khoảng cách giao hàng.</p>
-                        </div>
+            <form method="post" action="{{ url_for('admin.shipping_rules') }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="shipping_rules">
+                <div class="admin-table admin-table--fees admin-table--shipping-rules">
+                    <div class="admin-table__head">
+                        <div>Km tối thiểu</div>
+                        <div>Km tối đa</div>
+                        <div>Phí ship</div>
+                        <div>Mô tả</div>
                     </div>
+                    {% for rule in shipping_rules or [] %}
+                    <div class="admin-table__row">
+                        <div><input class="admin-input" type="number" step="0.1" min="0" name="min_km" value="{{ rule.min_km }}"></div>
+                        <div><input class="admin-input" type="number" step="0.1" min="0" name="max_km" value="{{ rule.max_km if rule.max_km is not none else '' }}"></div>
+                        <div><input class="admin-input" type="number" step="1" min="0" name="fee" value="{{ rule.fee }}"></div>
+                        <div>{{ rule.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
 
-                    <div class="admin-table admin-table--fees admin-table--shipping-rules">
-                        <div class="admin-table__head">
-                            <div>Km tối thiểu</div>
-                            <div>Km tối đa</div>
-                            <div>Phí ship</div>
-                            <div>Mô tả</div>
-                        </div>
-                        {% for rule in shipping_rules or [] %}
-                        <div class="admin-table__row">
-                            <div><input class="admin-input" type="number" step="0.1" min="0" name="min_km" value="{{ rule.min_km }}"></div>
-                            <div><input class="admin-input" type="number" step="0.1" min="0" name="max_km" value="{{ rule.max_km if rule.max_km is not none else '' }}"></div>
-                            <div><input class="admin-input" type="number" step="1" min="0" name="fee" value="{{ rule.fee }}"></div>
-                            <div>{{ rule.label }}</div>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="admin-actions admin-actions--sticky">
-                        <button class="admin-btn admin-btn--primary" type="submit">Lưu phí ship</button>
-                    </div>
-                </form>
-            </section>
+                <div class="admin-actions admin-actions--sticky">
+                    <button class="admin-btn admin-btn--primary" type="submit">Lưu phí ship</button>
+                </div>
+            </form>
+        </section>
+        {% elif section_name == 'shipping_fees' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Phí sàn nhà hàng</h2>
+                    <p>Chỉnh phí sàn riêng cho từng nhà hàng. Checkout sẽ dùng đúng mức phí của nhà hàng đang thanh toán.</p>
+                </div>
+            </div>
 
             <div class="admin-toolbar admin-toolbar--stacked">
                 <form method="get" action="{{ url_for('admin.shipping_fees') }}" data-live-search-form data-live-search-target="#admin-restaurant-fee-results" autocomplete="off">
                     <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khu vực, địa chỉ hoặc phí" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
                 </form>
-                <div class="admin-fee-summary">
-                    <div class="admin-stat">
-                        <span>Nhà hàng</span>
-                        <strong>{{ stats.total or 0 }}</strong>
-                    </div>
-                    <div class="admin-stat">
-                        <span>Đã cấu hình</span>
-                        <strong>{{ stats.configured or 0 }}</strong>
-                    </div>
-                    <div class="admin-stat">
-                        <span>Chưa cấu hình</span>
-                        <strong>{{ stats.unconfigured or 0 }}</strong>
-                    </div>
-                    <div class="admin-stat">
-                        <span>Phí trung bình</span>
-                        <strong>{{ "{:,}".format(stats.average_fee or 0) }}đ</strong>
-                    </div>
-                </div>
             </div>
 
             <form method="post" action="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page) }}" class="admin-shipping-form">
@@ -628,15 +617,8 @@
                     {% endif %}
                 </div>
 
-                {% if page_info.total_pages > 1 %}
-                <div class="admin-pagination">
-                    <a class="{% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page - 1) }}">Trước</a>
-                    {% for page_num in range(1, page_info.total_pages + 1) %}
-                    <a class="{% if page_num == page_info.page %}is-active{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_num) }}">{{ page_num }}</a>
-                    {% endfor %}
-                    <a class="{% if not page_info.has_next %}is-disabled{% endif %}" href="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page + 1) }}">Sau</a>
-                </div>
-                {% endif %}
+                {% set shipping_fees_pagination_params = {'q': search_query} %}
+                {{ render_admin_pagination('admin.shipping_fees', page_info, shipping_fees_pagination_params, 'adminShippingFeesPageSelect') }}
 
                 <div class="admin-actions admin-actions--sticky">
                     <button class="admin-btn admin-btn--primary" type="submit">Lưu phí sàn</button>
@@ -648,9 +630,36 @@
 </div>
 <script>
 (function () {
+    const scrollKey = "admin-dashboard-scroll-y";
+    const scrollFlagKey = "admin-dashboard-scroll-pending";
+    const paginationControls = document.querySelectorAll("[data-admin-pagination-jump]");
     const modal = document.getElementById("adminVoucherModal");
     const openButtons = document.querySelectorAll("[data-open-admin-voucher-modal]");
     const closeButtons = document.querySelectorAll("[data-close-admin-voucher-modal]");
+
+    function rememberScrollPosition() {
+        try {
+            sessionStorage.setItem(scrollKey, String(window.scrollY || 0));
+            sessionStorage.setItem(scrollFlagKey, "1");
+        } catch (error) {
+            // Ignore storage errors.
+        }
+    }
+
+    function restoreScrollPosition() {
+        try {
+            if (sessionStorage.getItem(scrollFlagKey) !== "1") {
+                return;
+            }
+            sessionStorage.removeItem(scrollFlagKey);
+            const saved = Number(sessionStorage.getItem(scrollKey));
+            if (Number.isFinite(saved) && saved >= 0) {
+                window.scrollTo({ top: saved, behavior: "auto" });
+            }
+        } catch (error) {
+            // Ignore storage errors.
+        }
+    }
 
     function openModal() {
         if (!modal) return;
@@ -664,6 +673,20 @@
         modal.setAttribute("aria-hidden", "true");
     }
 
+    paginationControls.forEach((control) => {
+        if (control.tagName === "SELECT") {
+            control.addEventListener("change", () => {
+                rememberScrollPosition();
+                if (control.value) {
+                    window.location.href = control.value;
+                }
+            });
+            return;
+        }
+
+        control.addEventListener("click", rememberScrollPosition);
+    });
+
     openButtons.forEach((button) => button.addEventListener("click", openModal));
     closeButtons.forEach((button) => button.addEventListener("click", closeModal));
     if (modal) {
@@ -673,6 +696,8 @@
             }
         });
     }
+
+    window.addEventListener("pageshow", restoreScrollPosition);
 })();
 </script>
 <script src="{{ url_for('static', filename='js/live_search.js') }}"></script>
