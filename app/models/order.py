@@ -14,6 +14,7 @@ class Order(db.Model):
     delivery_fee = db.Column(db.Integer, nullable=True)
     delivery_address = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(50), nullable=True)
+    cancel_reason = db.Column(db.String(300), nullable=True)
     restaurant_id = db.Column(db.Integer, db.ForeignKey("restaurants.restaurant_id"), nullable=True)
 
     customer = db.relationship("Customer", back_populates="orders")

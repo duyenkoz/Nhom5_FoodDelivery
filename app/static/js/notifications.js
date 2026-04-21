@@ -25,6 +25,20 @@
         return link;
     }
 
+    function ensureEmptyState(wrapper) {
+        let empty = wrapper.querySelector(".site-header__notification-empty");
+        if (empty) {
+            empty.textContent = "Không có thông báo";
+            return empty;
+        }
+
+        empty = document.createElement("div");
+        empty.className = "site-header__notification-empty";
+        empty.textContent = "Không có thông báo";
+        wrapper.appendChild(empty);
+        return empty;
+    }
+
     function ensureNotificationList(wrapper) {
         let list = wrapper.querySelector("[data-notification-list]");
         if (list) {
@@ -70,6 +84,10 @@
         }
     }
 
+    function shouldShowToast(notification) {
+        return notification?.type !== "customer_order_confirmed";
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const userId = document.body.dataset.appUserId;
         if (!userId || !window.io) {
@@ -81,7 +99,10 @@
             return;
         }
 
-        const list = ensureNotificationList(notificationMenu);
+        let list = notificationMenu.querySelector("[data-notification-list]");
+        if (!list) {
+            ensureEmptyState(notificationMenu);
+        }
         let unreadCount = Number(document.querySelector("[data-notification-count]")?.textContent || 0);
         const socket = window.io({
             transports: ["websocket", "polling"],
@@ -93,12 +114,13 @@
                 return;
             }
 
+            list = ensureNotificationList(notificationMenu);
             const item = buildNotificationItem(notification);
             list.prepend(item);
             unreadCount += 1;
             updateCount(unreadCount);
 
-            if (window.AppToast && typeof window.AppToast.info === "function") {
+            if (shouldShowToast(notification) && window.AppToast && typeof window.AppToast.info === "function") {
                 window.AppToast.info(notification.title || "Thông báo mới");
             }
         });

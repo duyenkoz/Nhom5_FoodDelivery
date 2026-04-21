@@ -90,6 +90,8 @@ RESTAURANT_ORDER_STATUS_MAP = {
     "pending": ("Chờ xác nhận", "is-pending", "pending"),
     "pending_payment": ("Chờ xác nhận", "is-pending", "pending"),
     "preparing": ("Đang chuẩn bị", "is-preparing", "preparing"),
+    "refund_pending": ("Chờ hoàn tiền", "is-muted", "refund_pending"),
+    "pending_refund": ("Chờ hoàn tiền", "is-muted", "refund_pending"),
     "ready_for_delivery": ("Chờ giao hàng", "is-warning", "shipping"),
     "waiting_delivery": ("Chờ giao hàng", "is-warning", "shipping"),
     "shipping": ("Đang giao hàng", "is-shipping", "shipping"),
@@ -179,6 +181,7 @@ def _build_restaurant_order_view(order, note_map=None):
     voucher_label = voucher_code or "Không áp dụng"
     discount_summary = f"-{_format_money_vn(discount_amount)}đ" if discount_amount else "0đ"
     customer_name = _safe_user_name(order.customer.user) if order.customer and order.customer.user else "Khách ẩn danh"
+    cancel_reason = _clean(getattr(order, "cancel_reason", "") or "")
     return {
         "order": order,
         "order_code": _format_order_code(order.order_id),
@@ -196,6 +199,7 @@ def _build_restaurant_order_view(order, note_map=None):
         "status_class": status_info["class"],
         "status_key": status_info["key"],
         "status_raw": status_info["raw_status"],
+        "cancel_reason": cancel_reason,
         "payment_method_label": payment_method_label,
         "payment_status": payment_status or "",
         "items": items,
@@ -212,9 +216,12 @@ def _build_restaurant_order_view(order, note_map=None):
             "voucher_code": voucher_code,
             "voucher_label": voucher_label,
             "status_label": status_info["label"],
+            "status_class": status_info["class"],
+            "status_key": status_info["key"],
             "payment_method_label": payment_method_label,
             "payment_status": payment_status or "",
             "total_amount_text": _format_money_vn(total_amount),
+            "cancel_reason": cancel_reason,
             "items": items,
         },
     }
@@ -1131,6 +1138,8 @@ def confirm_order_for_restaurant(user_id, order_id):
     current_status = (order.status or "").strip().lower()
     if current_status in {"cancelled", "canceled"}:
         return order, "cancelled"
+    if current_status in {"refund_pending", "pending_refund"}:
+        return order, "refund_pending"
     if current_status in {"completed", "delivered", "done"}:
         return order, "completed"
 
@@ -1142,17 +1151,30 @@ def confirm_order_for_restaurant(user_id, order_id):
 def cancel_order_for_restaurant(user_id, order_id, reason=""):
     restaurant, order = get_order_for_restaurant(user_id, order_id)
     if not restaurant or not order:
-        return None, "not_found"
+        return None, "not_found", ""
 
     current_status = (order.status or "").strip().lower()
     if current_status in {"cancelled", "canceled"}:
-        return order, "already_cancelled"
+        return order, "already_cancelled", _clean(reason)
+    if current_status in {"refund_pending", "pending_refund"}:
+        return order, "already_refund_pending", _clean(reason)
 
-    order.status = "cancelled"
-    if order.payment and (order.payment.status or "").lower() != "paid":
-        order.payment.status = "cancelled"
+    resolved_reason = _clean(reason)
+    payment_method = (order.payment.payment_method if order.payment else "").strip().lower()
+    payment_status = (order.payment.status if order.payment else "").strip().lower()
+
+    if payment_method == "momo" and payment_status == "paid":
+        order.status = "refund_pending"
+        next_status = "refund_pending"
+    else:
+        order.status = "cancelled"
+        next_status = "cancelled"
+        if order.payment and payment_status != "paid":
+            order.payment.status = "cancelled"
+
+    order.cancel_reason = resolved_reason or order.cancel_reason or "Không có lý do cụ thể."
     db.session.commit()
-    return order, _clean(reason)
+    return order, next_status, resolved_reason
 
 
 def delete_voucher_for_restaurant(user_id, voucher_id):

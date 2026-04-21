@@ -601,7 +601,7 @@ a {
 .site-header__notification-menu {
     position: absolute;
     top: calc(100% + 10px);
-    right: 64px;
+    right: 0;
     width: min(360px, calc(100vw - 24px));
     padding: 10px;
     border: 1px solid #e5e7eb;
@@ -620,6 +620,7 @@ a {
 }
 
 .site-header__notification-title strong {
+    color: #f59e0b;
     font-size: 0.96rem;
     line-height: 1.25;
 }

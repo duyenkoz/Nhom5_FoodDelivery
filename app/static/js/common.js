@@ -126,6 +126,49 @@
         toggleVisibility();
     }
 
+    function initHeaderDropdowns() {
+        const dropdowns = Array.from(document.querySelectorAll(".site-header__notification-menu-wrap, .site-header__user-menu"));
+        if (!dropdowns.length) {
+            return;
+        }
+
+        const closeAll = () => {
+            dropdowns.forEach((dropdown) => {
+                if (dropdown.open) {
+                    dropdown.open = false;
+                }
+            });
+        };
+
+        dropdowns.forEach((dropdown) => {
+            dropdown.addEventListener("toggle", () => {
+                if (!dropdown.open) {
+                    return;
+                }
+
+                dropdowns.forEach((other) => {
+                    if (other !== dropdown && other.open) {
+                        other.open = false;
+                    }
+                });
+            });
+        });
+
+        document.addEventListener("click", (event) => {
+            if (event.target.closest(".site-header__notification-menu-wrap, .site-header__user-menu")) {
+                return;
+            }
+
+            closeAll();
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeAll();
+            }
+        });
+    }
+
     window.AppToast = {
         show,
         success,
@@ -140,6 +183,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         initScrollTopButton();
+        initHeaderDropdowns();
         showFlashedMessages();
     });
 })();

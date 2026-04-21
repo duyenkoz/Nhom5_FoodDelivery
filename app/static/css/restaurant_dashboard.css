@@ -1183,13 +1183,13 @@
 .restaurant-order-toolbar__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    gap: 10px;
 }
 
 .restaurant-order-toolbar__top {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 0.9fr) minmax(170px, 1fr) auto;
-    gap: 12px;
+    grid-template-columns: minmax(140px, 0.95fr) minmax(140px, 0.95fr) minmax(140px, 0.82fr) minmax(160px, 1fr) auto;
+    gap: 10px;
     align-items: end;
 }
 
@@ -1198,7 +1198,7 @@
 .restaurant-order-sort,
 .restaurant-order-status-filter {
     display: grid;
-    gap: 7px;
+    gap: 6px;
 }
 
 .restaurant-order-search span,
@@ -1206,9 +1206,10 @@
 .restaurant-order-sort span,
 .restaurant-order-status-filter span {
     color: #64748b;
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.02em;
+    line-height: 1.1;
 }
 
 .restaurant-order-search {
@@ -1221,10 +1222,10 @@
 .restaurant-order-sort select,
 .restaurant-order-status-filter select {
     width: 100%;
-    min-height: 46px;
-    padding: 0 14px 0 14px;
+    min-height: 42px;
+    padding: 0 12px 0 12px;
     border: 1px solid #dbe2ea;
-    border-radius: 12px;
+    border-radius: 11px;
     background: #fff;
     color: #1f2937;
     font: inherit;
@@ -1233,7 +1234,7 @@
 }
 
 .restaurant-order-search input {
-    padding-left: 44px;
+    padding-left: 42px;
 }
 
 .restaurant-order-search input:focus,
@@ -1246,8 +1247,8 @@
 
 .restaurant-order-search__icon {
     position: absolute;
-    left: 14px;
-    bottom: 11px;
+    left: 13px;
+    bottom: 10px;
     width: 18px;
     height: 18px;
     color: #94a3b8;
@@ -1260,10 +1261,23 @@
 }
 
 .restaurant-order-toolbar__submit {
-    min-width: 108px;
+    min-width: 104px;
     align-self: end;
-    height: 46px;
+    height: 42px;
     margin-top: 0;
+}
+
+.restaurant-order-toolbar__actions {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.restaurant-order-toolbar__reset {
+    min-width: 112px;
+    height: 42px;
+    align-self: end;
 }
 
 .restaurant-order-stats {
@@ -1468,6 +1482,11 @@
     color: #64748b;
 }
 
+.restaurant-order-status--detail.is-muted {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .restaurant-order-detail-btn {
     display: inline-flex;
     align-items: center;
@@ -1540,6 +1559,12 @@
     cursor: not-allowed;
 }
 
+.restaurant-order-action--view-reason {
+    background: #dbe2ea;
+    color: #475569;
+    box-shadow: none;
+}
+
 .restaurant-empty--orders {
     min-height: 260px;
     display: grid;
@@ -1576,7 +1601,7 @@ body.is-modal-open {
     position: relative;
     z-index: 1;
     width: min(860px, calc(100vw - 32px));
-    max-height: min(82vh, 920px);
+    max-height: min(98vh, 1200px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -1636,6 +1661,23 @@ body.is-modal-open {
     color: #64748b;
 }
 
+.restaurant-order-reason__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid #edf2f7;
+    border-radius: 14px;
+    background: #fafbfd;
+}
+
+.restaurant-order-reason__meta span:first-child {
+    color: #475569;
+    font-weight: 800;
+}
+
 .restaurant-order-modal__meta {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1672,11 +1714,49 @@ body.is-modal-open {
     background: #fff;
 }
 
-.restaurant-order-modal__section:last-child {
+.restaurant-order-modal__content {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-top: 14px;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.restaurant-order-modal__detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 6fr) minmax(0, 4fr);
+    gap: 14px;
+    min-height: 0;
+}
+
+.restaurant-order-modal__detail-grid > .restaurant-order-modal__section {
+    margin-top: 0;
+}
+
+.restaurant-order-modal__section--info,
+.restaurant-order-modal__section--billing {
+    min-height: 0;
+}
+
+.restaurant-order-modal__section--billing {
+    display: flex;
+}
+
+.restaurant-order-modal__section--billing .restaurant-order-modal__billing {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.restaurant-order-modal__section--items {
     display: flex;
     flex-direction: column;
     min-height: 0;
     flex: 1 1 auto;
+    gap: 14px;
 }
 
 .restaurant-order-modal__section h4 {
@@ -1691,6 +1771,12 @@ body.is-modal-open {
     line-height: 1.6;
 }
 
+.restaurant-order-modal__items-wrap {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+}
+
 .restaurant-order-modal__items {
     min-height: 0;
     overflow-y: auto;
@@ -1699,6 +1785,48 @@ body.is-modal-open {
     flex: 1 1 auto;
     display: grid;
     gap: 10px;
+}
+
+.restaurant-order-modal__billing {
+    padding: 14px 16px;
+    border: 1px solid #edf2f7;
+    border-radius: 14px;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.restaurant-order-modal__billing h5 {
+    margin: 0 0 10px;
+    color: #111827;
+    font-size: 0.95rem;
+    line-height: 1.35;
+}
+
+.restaurant-order-modal__billing-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 0;
+    color: #475569;
+    font-size: 0.92rem;
+}
+
+.restaurant-order-modal__billing-row strong {
+    color: #111827;
+    font-size: 0.98rem;
+}
+
+.restaurant-order-modal__billing-row--total {
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+    color: #111827;
+    font-weight: 800;
+}
+
+.restaurant-order-modal__billing-row--total strong {
+    font-size: 1rem;
 }
 
 .restaurant-order-modal__item {
@@ -1829,6 +1957,17 @@ body.is-modal-open {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
+    .restaurant-order-toolbar__actions {
+        width: 100%;
+    }
+
+    .restaurant-order-toolbar__submit,
+    .restaurant-order-toolbar__reset {
+        flex: 1 1 0;
+        width: 100%;
+        min-width: 0;
+    }
+
     .restaurant-order-modal__meta {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1884,6 +2023,16 @@ body.is-modal-open {
         width: 100%;
     }
 
+    .restaurant-order-toolbar__actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .restaurant-order-toolbar__reset {
+        width: 100%;
+    }
+
     .restaurant-order-stats {
         grid-template-columns: 1fr;
     }
@@ -1899,6 +2048,10 @@ body.is-modal-open {
 
     .restaurant-order-modal__header {
         flex-direction: column;
+    }
+
+    .restaurant-order-modal__detail-grid {
+        grid-template-columns: 1fr;
     }
 
     .restaurant-dropdown {
