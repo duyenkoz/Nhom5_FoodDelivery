@@ -12,6 +12,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.shipping_service import build_shipping_rules_form_values, get_shipping_fee_settings
+from app.services.system_setting_service import get_setting
 from app.utils.time_utils import format_vietnam_date, format_vietnam_datetime
 
 
@@ -36,6 +37,7 @@ SECTION_PAGE_SIZES = {
     "complaints": 5,
     "disputes": 4,
     "shipping_fees": 6,
+    "search_settings": 1,
 }
 
 
@@ -494,6 +496,19 @@ def _build_shipping_rules():
         "section_subtitle": "Cập nhật công thức tính phí ship dựa trên khoảng cách giữa nhà hàng và địa chỉ giao hàng của khách. Áp dụng cho tất cả đơn hàng có địa chỉ giao hàng nằm trong phạm vi áp dụng.",
     }
 
+def _build_search_settings():
+    search_radius_km = get_setting("SEARCH_RADIUS_KM", default=5)
+    return {
+        "records": _paginate([], page=1, per_page=1),
+        "stats": {
+            "search_radius_km": search_radius_km,
+        },
+        "search_radius_km": search_radius_km,
+        "section_title": "Cài đặt tìm kiếm",
+        "section_subtitle": "Thiết lập bán kính tìm kiếm nhà hàng áp dụng cho hệ thống.",
+    }
+
+
 def _build_hero_stats(section_name, dashboard_stats, context):
     if section_name == "dashboard":
         return [
@@ -561,6 +576,11 @@ def _build_hero_stats(section_name, dashboard_stats, context):
             {"label": "Phí trung bình", "value": stats.get("average_fee", 0), "suffix": "đ"},
         ]
 
+    if section_name == "search_settings":
+        return [
+            {"label": "Bán kính tìm kiếm", "value": stats.get("search_radius_km", 5), "suffix": "km"},
+        ]
+
     return []
 
 
@@ -596,6 +616,8 @@ def build_admin_context(section_name="dashboard", query="", role_filter="all", p
         context = _build_restaurant_fees(query=query, page=page, per_page=page_size)
     elif section_name == "shipping_rules":
         context = _build_shipping_rules()
+    elif section_name == "search_settings":
+        context = _build_search_settings()
     else:
         context = {
             "records": _paginate([], page=page, per_page=per_page),

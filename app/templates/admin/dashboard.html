@@ -90,6 +90,7 @@
             <a href="{{ url_for('admin.review_reports') }}" class="{% if section_name == 'review_reports' %}is-active{% endif %}">Báo cáo đánh giá</a>
             <a href="{{ url_for('admin.complaints') }}" class="{% if section_name == 'complaints' %}is-active{% endif %}">Khiếu nại</a>
             <a href="{{ url_for('admin.disputes') }}" class="{% if section_name == 'disputes' %}is-active{% endif %}">Tranh chấp / hủy đơn</a>
+            <a href="{{ url_for('admin.search_settings') }}" class="{% if section_name == 'search_settings' %}is-active{% endif %}">Cài đặt tìm kiếm</a>
             <a href="{{ url_for('admin.shipping_rules') }}" class="{% if section_name == 'shipping_rules' %}is-active{% endif %}">Phí ship theo km</a>
             <a href="{{ url_for('admin.shipping_fees') }}" class="{% if section_name == 'shipping_fees' %}is-active{% endif %}">Phí sàn nhà hàng</a>
         </nav>
@@ -103,7 +104,6 @@
     <main class="admin-main">
         <section class="admin-card admin-hero">
             <div>
-                <div class="admin-hero__kicker">Admin panel</div>
                 <h1>{{ section_title|default('Dashboard quản trị') }}</h1>
                 <p>{{ section_subtitle|default('Tổng quan nhanh hệ thống, tài khoản và hoạt động gần đây.') }}</p>
             </div>
@@ -510,7 +510,7 @@
             {{ render_admin_pagination('admin.disputes', page_info, disputes_pagination_params, 'adminDisputesPageSelect') }}
             </div>
         </section>
-                                        {% elif section_name == 'shipping_rules' %}
+        {% elif section_name == 'shipping_rules' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
                 <div>
@@ -540,6 +540,41 @@
 
                 <div class="admin-actions admin-actions--sticky">
                     <button class="admin-btn admin-btn--primary" type="submit">Lưu phí ship</button>
+                </div>
+            </form>
+        </section>
+        {% elif section_name == 'search_settings' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Cài đặt tìm kiếm</h2>
+                    <p>Cập nhật bán kính tìm kiếm nhà hàng áp dụng cho hệ thống.</p>
+                </div>
+            </div>
+
+            <form method="post" action="{{ url_for('admin.search_settings') }}" class="admin-form">
+                <div class="admin-form__field">
+                    <label for="search_radius_km">Bán kính tìm kiếm (km)</label>
+                    <input
+                        type="number"
+                        id="search_radius_km"
+                        name="search_radius_km"
+                        min="1"
+                        step="1"
+                        inputmode="numeric"
+                        value="{{ admin_search_radius_km_value if admin_search_radius_km_value is defined else search_radius_km }}"
+                        class="admin-input {% if admin_search_radius_km_error %}is-invalid{% endif %}"
+                        placeholder="5"
+                    >
+                    {% if admin_search_radius_km_error %}
+                    <small class="admin-form__note admin-form__note--error">{{ admin_search_radius_km_error }}</small>
+                    {% else %}
+                    <small class="admin-form__note">Chỉ nhập số nguyên lớn hơn 0 km.</small>
+                    {% endif %}
+                </div>
+
+                <div class="admin-form__actions">
+                    <button class="admin-btn admin-btn--primary" type="submit">Lưu cài đặt</button>
                 </div>
             </form>
         </section>
