@@ -10,6 +10,5 @@ class CartItem(db.Model):
     quantity = db.Column(db.Integer, nullable=True)
     price = db.Column(db.Integer, nullable=True)
     note = db.Column(db.String(255), nullable=True)
-
     cart = db.relationship("Cart", back_populates="items")
     dish = db.relationship("Dish", back_populates="cart_items")
