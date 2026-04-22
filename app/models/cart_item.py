@@ -9,6 +9,7 @@ class CartItem(db.Model):
     dish_id = db.Column(db.Integer, db.ForeignKey("dishes.dish_id"), nullable=True)
     quantity = db.Column(db.Integer, nullable=True)
     price = db.Column(db.Integer, nullable=True)
+    note = db.Column(db.String(255), nullable=True)
 
     cart = db.relationship("Cart", back_populates="items")
     dish = db.relationship("Dish", back_populates="cart_items")

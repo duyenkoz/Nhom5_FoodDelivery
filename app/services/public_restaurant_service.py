@@ -469,8 +469,15 @@ def add_to_restaurant_cart(session, restaurant_id, dish_id, quantity=1, note="")
             db.session.flush()
 
         cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, dish_id=dish.dish_id).one_or_none()
+        cleaned_note = _clean(note)
         if not cart_item:
-            cart_item = CartItem(cart_id=cart.cart_id, dish_id=dish.dish_id, quantity=0, price=int(dish.price or 0))
+            cart_item = CartItem(
+                cart_id=cart.cart_id,
+                dish_id=dish.dish_id,
+                quantity=0,
+                price=int(dish.price or 0),
+                note=cleaned_note or None,
+            )
             db.session.add(cart_item)
 
         current_quantity = int(cart_item.quantity or 0)
@@ -481,6 +488,10 @@ def add_to_restaurant_cart(session, restaurant_id, dish_id, quantity=1, note="")
         else:
             cart_item.quantity = next_quantity
             cart_item.price = int(dish.price or 0)
+            if cleaned_note:
+                cart_item.note = cleaned_note
+            elif not _clean(getattr(cart_item, "note", "")):
+                cart_item.note = None
 
         db.session.flush()
         cart.total_amount = sum(
@@ -528,6 +539,7 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
 
         cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, dish_id=dish.dish_id).one_or_none()
         next_quantity = int(cart_item.quantity or 0) if cart_item else 0
+        cleaned_note = _clean(note) if note is not None else None
         if quantity is not None:
             next_quantity = max(0, int(quantity))
 
@@ -536,11 +548,19 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
                 db.session.delete(cart_item)
         else:
             if not cart_item:
-                cart_item = CartItem(cart_id=cart.cart_id, dish_id=dish.dish_id, quantity=next_quantity, price=int(dish.price or 0))
+                cart_item = CartItem(
+                    cart_id=cart.cart_id,
+                    dish_id=dish.dish_id,
+                    quantity=next_quantity,
+                    price=int(dish.price or 0),
+                    note=cleaned_note or None,
+                )
                 db.session.add(cart_item)
             else:
                 cart_item.quantity = next_quantity
                 cart_item.price = int(dish.price or 0)
+                if cleaned_note is not None:
+                    cart_item.note = cleaned_note
 
         db.session.flush()
         if cart.items:

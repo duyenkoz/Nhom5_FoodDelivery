@@ -94,7 +94,18 @@
     }
 
     function renderCheckoutItem(item) {
-        const noteHtml = item.note ? `<small class="checkout-item__note">${escapeHtml(item.note)}</small>` : "";
+        const noteHtml = item.note ? `
+            <small class="checkout-item__note">
+                <span class="checkout-item__note-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                        <path d="M7 4.75h7.55L18.75 9v10.25A1.75 1.75 0 0 1 17 21H7a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                        <path d="M14.5 4.75V9h4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8.75 12.25h6.5M8.75 15.25h4.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <span class="checkout-item__note-text">${escapeHtml(item.note)}</span>
+            </small>
+        ` : "";
         const imageHtml = item.image_url || item.image_path
             ? `<img src="${escapeHtml(item.image_url || resolveImageUrl(item.image_path))}" alt="${escapeHtml(item.name)}">`
             : "";
@@ -294,7 +305,16 @@
                         metaEl.appendChild(targetNoteEl);
                     }
                 }
-                targetNoteEl.textContent = item.note;
+                targetNoteEl.innerHTML = `
+                    <span class="checkout-item__note-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                            <path d="M7 4.75h7.55L18.75 9v10.25A1.75 1.75 0 0 1 17 21H7a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                            <path d="M14.5 4.75V9h4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M8.75 12.25h6.5M8.75 15.25h4.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span class="checkout-item__note-text">${escapeHtml(item.note)}</span>
+                `;
             } else if (noteEl) {
                 noteEl.remove();
             }
@@ -614,8 +634,9 @@
 
         const dishId = Number(addBtn.dataset.recommendationAdd || 0);
         if (!dishId) return;
+        const existingItem = checkoutItems.find((entry) => Number(entry.dish_id) === dishId);
         addBtn.disabled = true;
-        updateCartItemOnServer(dishId, 1, "")
+        updateCartItemOnServer(dishId, 1, existingItem ? existingItem.note || "" : "")
             .then((cart) => {
                 applyCartState(cart);
                 refreshTotals();

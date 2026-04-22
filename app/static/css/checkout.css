@@ -376,11 +376,35 @@
 }
 
 .checkout-item__note {
-    display: block;
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 6px;
     margin-top: 6px;
     color: #64748b;
     font-size: 0.88rem;
     line-height: 1.4;
+    max-width: 100%;
+}
+
+.checkout-item__note-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    flex: 0 0 auto;
+    color: #f97316;
+}
+
+.checkout-item__note-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.checkout-item__note-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .checkout-item__edit {

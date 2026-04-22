@@ -149,7 +149,16 @@
                             <div class="checkout-item__meta">
                                 <strong>{{ item.name }}</strong>
                                 {% if item.note %}
-                                <small class="checkout-item__note">{{ item.note }}</small>
+                                <small class="checkout-item__note">
+                                    <span class="checkout-item__note-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                                            <path d="M7 4.75h7.55L18.75 9v10.25A1.75 1.75 0 0 1 17 21H7a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                            <path d="M14.5 4.75V9h4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M8.75 12.25h6.5M8.75 15.25h4.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                        </svg>
+                                    </span>
+                                    <span class="checkout-item__note-text">{{ item.note }}</span>
+                                </small>
                                 {% endif %}
                                 <button type="button" class="checkout-item__edit" data-edit-item>Chỉnh sửa món</button>
                             </div>

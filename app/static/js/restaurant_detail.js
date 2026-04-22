@@ -159,6 +159,18 @@
                 const imageSrc = /^(https?:)?\/\//.test(item.image_path)
                     ? item.image_path
                     : `/static/${item.image_path}`;
+                const noteHtml = item.note ? `
+                    <div class="restaurant-cart-item__note">
+                        <span class="restaurant-cart-item__note-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                                <path d="M7 4.75h7.55L18.75 9v10.25A1.75 1.75 0 0 1 17 21H7a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                <path d="M14.5 4.75V9h4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M8.75 12.25h6.5M8.75 15.25h4.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                        <span class="restaurant-cart-item__note-text">${escapeHtml(item.note)}</span>
+                    </div>
+                ` : "";
 
                 return `
                     <article class="restaurant-cart-item">
@@ -180,7 +192,7 @@
                                     </button>
                                 </div>
                             </div>
-                            ${item.note ? `<div class="restaurant-cart-item__note">${escapeHtml(item.note)}</div>` : ""}
+                            ${noteHtml}
                             <div class="restaurant-cart-item__meta">
                                 <strong>${escapeHtml(item.price_text)}</strong>
                                 <div class="qty-picker" data-cart-qty-picker="${item.dish_id}">

@@ -590,9 +590,34 @@
 }
 
 .restaurant-cart-item__note {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 6px;
     color: #7a8698;
     font-size: 0.9rem;
     line-height: 1.45;
+    max-width: 100%;
+}
+
+.restaurant-cart-item__note-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    flex: 0 0 auto;
+    color: #f97316;
+}
+
+.restaurant-cart-item__note-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.restaurant-cart-item__note-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .restaurant-cart-item__meta {

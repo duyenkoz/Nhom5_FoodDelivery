@@ -281,7 +281,9 @@ def _build_cart_items(cart):
         dish = cart_item.dish
         if not dish:
             continue
-        items.append(_build_item_view(dish, cart_item.quantity or 1, cart_item.price))
+        item_view = _build_item_view(dish, cart_item.quantity or 1, cart_item.price)
+        item_view["note"] = _clean(getattr(cart_item, "note", ""))
+        items.append(item_view)
     return items
 
 
