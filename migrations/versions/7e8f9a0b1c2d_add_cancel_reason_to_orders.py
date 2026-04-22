@@ -17,8 +17,16 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("orders", sa.Column("cancel_reason", sa.String(length=300), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("orders")}
+    if "cancel_reason" not in columns:
+        op.add_column("orders", sa.Column("cancel_reason", sa.String(length=300), nullable=True))
 
 
 def downgrade():
-    op.drop_column("orders", "cancel_reason")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("orders")}
+    if "cancel_reason" in columns:
+        op.drop_column("orders", "cancel_reason")
