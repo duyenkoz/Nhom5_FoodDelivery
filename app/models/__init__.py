@@ -10,3 +10,4 @@ from app.models.payment import Payment
 from app.models.review import Review
 from app.models.voucher import Voucher
 from app.models.notification import Notification
+from app.models.system_setting import SystemSetting
