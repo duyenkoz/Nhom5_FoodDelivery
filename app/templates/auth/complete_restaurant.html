@@ -1,0 +1,131 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ page_title|default('Hoàn thiện thông tin nhà hàng | Food Delivery') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+{% set page_heading = page_heading|default('Hoàn thiện thông tin nhà hàng') %}
+{% set page_subtitle = page_subtitle|default('Điền các thông tin cơ bản để hoàn tất hồ sơ nhà hàng.') %}
+{% set submit_label = submit_label|default('Hoàn tất') %}
+{% set restaurant_image_url = restaurant_image_url|default('') %}
+{% set existing_image_name = restaurant.image.rsplit('/', 1)[-1] if restaurant and restaurant.image else '' %}
+<div class="auth-page auth-page--restaurant">
+    <div class="container">
+        <div class="auth-card-wrap">
+            <div class="auth-card shadow p-4">
+                <div class="auth-page__heading-block">
+                    <h3 class="auth-page__heading">{{ page_heading }}</h3>
+                    <p class="auth-page__subtitle">{{ page_subtitle }}</p>
+                </div>
+
+                <form id="restaurantForm" method="POST" enctype="multipart/form-data" data-restaurant-image-url="{{ restaurant_image_url }}" data-restaurant-image-name="{{ existing_image_name or '' }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="tenNhaHang">Tên nhà hàng *</label>
+                        <input
+                            type="text"
+                            id="tenNhaHang"
+                            name="tenNhaHang"
+                            class="form-control{% if form_errors.tenNhaHang %} is-invalid{% endif %}"
+                            required
+                            maxlength="100"
+                            value="{{ form_values.get('tenNhaHang', '') }}"
+                        >
+                        <div class="invalid-feedback text-danger">{{ form_errors.tenNhaHang }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="khuVuc">Khu vực *</label>
+                        <select id="khuVuc" name="khuVuc" class="form-control{% if form_errors.khuVuc %} is-invalid{% endif %}" required>
+                            <option value="">-- Chọn khu vực --</option>
+                            <option value="Hồ Chí Minh" {% if form_values.get('khuVuc') == 'Hồ Chí Minh' %}selected{% endif %}>Hồ Chí Minh</option>
+                            <option value="Hà Nội" {% if form_values.get('khuVuc') == 'Hà Nội' %}selected{% endif %}>Hà Nội</option>
+                            <option value="Đà Nẵng" {% if form_values.get('khuVuc') == 'Đà Nẵng' %}selected{% endif %}>Đà Nẵng</option>
+                            <option value="Cần Thơ" {% if form_values.get('khuVuc') == 'Cần Thơ' %}selected{% endif %}>Cần Thơ</option>
+                        </select>
+                        <div class="invalid-feedback text-danger">{{ form_errors.khuVuc }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="diaChi">Địa chỉ *</label>
+                        <div
+                            class="location-autocomplete-shell"
+                            data-location-autocomplete="true"
+                            data-location-mode="form"
+                            data-location-search-url="{{ url_for('location.search') }}"
+                            data-location-resolve-url="{{ url_for('location.resolve') }}"
+                            data-location-area-selector="#khuVuc"
+                            data-location-require-area="true"
+                            data-location-disable-until-area="true"
+                        >
+                            <div class="location-autocomplete">
+                                <input
+                                    type="text"
+                                    id="diaChi"
+                                    name="diaChi"
+                                    class="location-autocomplete__input form-control{% if form_errors.diaChi %} is-invalid{% endif %}"
+                                    required
+                                    maxlength="200"
+                                    value="{{ form_values.get('diaChi', '') }}"
+                                    autocomplete="off"
+                                    data-location-input="true"
+                                    aria-label="Địa chỉ"
+                                >
+                                <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.diaChi }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="anhNhaHang">Ảnh nhà hàng</label>
+                        <div class="image-preview" aria-live="polite">
+                            <img
+                                id="restaurantImagePreview"
+                                class="image-preview__img"
+                                alt="Xem trước ảnh nhà hàng"
+                                {% if restaurant_image_url %}
+                                src="{{ restaurant_image_url }}"
+                                style="display:block;"
+                                {% else %}
+                                style="display:none;"
+                                {% endif %}
+                            >
+                            <div class="image-preview__empty" id="restaurantImageEmpty" {% if restaurant_image_url %}style="display:none;"{% endif %}>
+                                <strong>{% if restaurant_image_url %}Ảnh hiện tại{% else %}Chưa có ảnh{% endif %}</strong>
+                                <span>{% if restaurant_image_url %}Chọn ảnh mới nếu muốn thay đổi{% else %}Chọn ảnh để xem trước{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="file-upload">
+                            <input
+                                type="file"
+                                id="anhNhaHang"
+                                name="anhNhaHang"
+                                class="file-upload__input"
+                                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                            >
+                            <label class="file-upload__button" for="anhNhaHang">Chọn ảnh</label>
+                            <span class="file-upload__name" id="anhNhaHangName">{{ existing_image_name or 'Chưa có file nào được chọn' }}</span>
+                        </div>
+                        <div class="invalid-feedback text-danger">{{ form_errors.anhNhaHang }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="moTa">Mô tả</label>
+                        <textarea
+                            id="moTa"
+                            name="moTa"
+                            class="form-control{% if form_errors.moTa %} is-invalid{% endif %}"
+                            rows="3"
+                            maxlength="500"
+                        >{{ form_values.get('moTa', '') }}</textarea>
+                        <div class="invalid-feedback text-danger">{{ form_errors.moTa }}</div>
+                    </div>
+                    <button class="btn btn-success w-100" type="submit">{{ submit_label }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/complete_restaurant.js') }}"></script>
+{% endblock %}

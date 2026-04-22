@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section_title|default('Dashboard quản trị') }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+{% macro admin_page_url(endpoint, params, page_num) -%}
+{%- set query_string = params | urlencode -%}
+{{ url_for(endpoint) }}{% if query_string %}?{{ query_string }}&{% else %}?{% endif %}page={{ page_num }}
+{%- endmacro %}
+
+{% macro render_admin_pagination(endpoint, page_info, params, select_id) -%}
+{% if page_info.total_pages > 1 %}
+{% set total_pages = page_info.total_pages %}
+{% set current_page = page_info.page %}
+<div class="admin-pagination">
+    <div class="admin-pagination__links">
+        <a class="admin-pagination__nav {% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page - 1) }}" data-admin-pagination-jump>Trước</a>
+        {% if total_pages <= 7 %}
+            {% for page_num in range(1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% elif current_page <= 4 %}
+            {% for page_num in range(1, 5) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% elif current_page >= total_pages - 3 %}
+            {% for page_num in range(1, 3) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 3, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% else %}
+            {% for page_num in range(1, 3) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(current_page - 1, current_page + 2) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+            <span class="admin-pagination__ellipsis">...</span>
+            {% for page_num in range(total_pages - 1, total_pages + 1) %}
+            <a class="admin-pagination__page {% if page_num == current_page %}is-active{% endif %}" href="{{ admin_page_url(endpoint, params, page_num) }}" data-admin-pagination-jump>{{ page_num }}</a>
+            {% endfor %}
+        {% endif %}
+        <a class="admin-pagination__nav {% if not page_info.has_next %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page + 1) }}" data-admin-pagination-jump>Sau</a>
+    </div>
+
+    <label class="admin-pagination__select" for="{{ select_id }}">
+        <span>Trang</span>
+        <select id="{{ select_id }}" data-admin-pagination-jump>
+            {% for page_num in range(1, total_pages + 1) %}
+            <option value="{{ admin_page_url(endpoint, params, page_num) }}" {% if page_num == current_page %}selected{% endif %}>{{ page_num }}</option>
+            {% endfor %}
+        </select>
+    </label>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% set page_data = records|default({}) %}
+{% set page_items = page_data.get('items', []) %}
+{% set page_info = page_data if page_data else {'page': 1, 'total_pages': 1, 'total_items': 0, 'has_prev': False, 'has_next': False} %}
+{% set admin_voucher_form_values = admin_voucher_form_values|default({}) %}
+{% set admin_voucher_form_errors = admin_voucher_form_errors|default({}) %}
+{% set open_admin_voucher_modal = admin_voucher_form_errors %}
+
+<div class="admin-page">
+    <aside class="admin-sidebar">
+        <div class="admin-card admin-profile">
+            <div class="admin-profile__label">Khu quản trị</div>
+            <h2>Admin</h2>
+            <p>Quản lý tài khoản, voucher, đánh giá và các tình huống cần hỗ trợ cho toàn hệ thống.</p>
+        </div>
+
+        <nav class="admin-card admin-sidebar__nav" aria-label="Admin navigation">
+            <a href="{{ url_for('admin.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Tổng quan</a>
+            <a href="{{ url_for('admin.accounts') }}" class="{% if section_name == 'accounts' %}is-active{% endif %}">Quản lý tài khoản</a>
+            <a href="{{ url_for('admin.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
+            <a href="{{ url_for('admin.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Đánh giá</a>
+            <a href="{{ url_for('admin.review_reports') }}" class="{% if section_name == 'review_reports' %}is-active{% endif %}">Báo cáo đánh giá</a>
+            <a href="{{ url_for('admin.complaints') }}" class="{% if section_name == 'complaints' %}is-active{% endif %}">Khiếu nại</a>
+            <a href="{{ url_for('admin.disputes') }}" class="{% if section_name == 'disputes' %}is-active{% endif %}">Tranh chấp / hủy đơn</a>
+            <a href="{{ url_for('admin.shipping_rules') }}" class="{% if section_name == 'shipping_rules' %}is-active{% endif %}">Phí ship theo km</a>
+            <a href="{{ url_for('admin.shipping_fees') }}" class="{% if section_name == 'shipping_fees' %}is-active{% endif %}">Phí sàn nhà hàng</a>
+        </nav>
+
+        <div class="admin-card admin-sidebar__note">
+            <h3>Ghi chú</h3>
+            <p>Đường vào admin mặc định là <code>/admin</code>. Nếu chưa đăng nhập, hệ thống sẽ đưa về trang đăng nhập rồi quay lại khu quản trị.</p>
+        </div>
+    </aside>
+
+    <main class="admin-main">
+        <section class="admin-card admin-hero">
+            <div>
+                <div class="admin-hero__kicker">Admin panel</div>
+                <h1>{{ section_title|default('Dashboard quản trị') }}</h1>
+                <p>{{ section_subtitle|default('Tổng quan nhanh hệ thống, tài khoản và hoạt động gần đây.') }}</p>
+            </div>
+
+            {% if hero_stats %}
+            <div class="admin-hero__stats">
+                {% for stat in hero_stats or [] %}
+                <div class="admin-stat">
+                    <span>{{ stat.label }}</span>
+                    <strong>{{ stat.value }}{% if stat.suffix %}{{ stat.suffix }}{% endif %}</strong>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        {% if section_name == 'dashboard' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Tổng quan nhanh</h2>
+                    <p>Xem số liệu chính và chuyển sang các khu quản lý bên trái.</p>
+                </div>
+            </div>
+            <div class="admin-dashboard-grid">
+                <div class="admin-stat">
+                    <span>Khách hàng</span>
+                    <strong>{{ dashboard_stats.customers }}</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Quản trị viên</span>
+                    <strong>{{ dashboard_stats.admins }}</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Đơn hàng</span>
+                    <strong>{{ dashboard_stats.orders }}</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Cần xử lý</span>
+                    <strong>{{ dashboard_stats.pending_cases }}</strong>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if section_name == 'accounts' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Quản lý tài khoản</h2>
+                    <p>Khoanh vùng khách hàng hoặc nhà hàng bằng bộ lọc bên dưới.</p>
+                </div>
+            </div>
+
+            <div class="admin-toolbar">
+                <form method="get" action="{{ url_for('admin.accounts') }}" data-live-search-form data-live-search-target="#admin-accounts-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo tên, username, email, SĐT" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <select name="role" class="admin-select">
+                        <option value="all" {% if role_filter == 'all' %}selected{% endif %}>Tất cả</option>
+                        <option value="customer" {% if role_filter == 'customer' %}selected{% endif %}>Khách hàng</option>
+                        <option value="restaurant" {% if role_filter == 'restaurant' %}selected{% endif %}>Nhà hàng</option>
+                        <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                    <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                </form>
+            </div>
+
+            <div id="admin-accounts-results">
+            <div class="admin-table">
+                <div class="admin-table__head">
+                    <div>Tài khoản</div>
+                    <div>Vai trò</div>
+                    <div>Thông tin</div>
+                    <div>Trạng thái</div>
+                    <div>Voucher</div>
+                    <div>Thao tác</div>
+                </div>
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set user = item.user %}
+                <div class="admin-table__row">
+                    <div class="admin-table__cell--strong">
+                        {{ item.name }}
+                        <div class="admin-list__meta">#{{ user.user_id }} | {{ user.username }}</div>
+                    </div>
+                    <div>{{ item.role_label }}</div>
+                    <div>{{ item.extra_info }}</div>
+                    <div>
+                        <span class="admin-badge {% if user.status %}is-active{% else %}is-off{% endif %}">{{ 'Đang hoạt động' if user.status else 'Bị khoá' }}</span>
+                    </div>
+                    <div>{{ item.created_vouchers }}</div>
+                    <div class="admin-actions">
+                        <form method="post" action="{{ url_for('admin.toggle_account_status', user_id=user.user_id, q=search_query, role=role_filter, page=page_info.page) }}">
+                            <button class="admin-btn admin-btn--ghost" type="submit">{{ 'Khoá' if user.status else 'Mở khoá' }}</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Không tìm thấy tài khoản phù hợp.</div>
+                {% endif %}
+            </div>
+            {% set accounts_pagination_params = {'q': search_query, 'role': role_filter} %}
+            {{ render_admin_pagination('admin.accounts', page_info, accounts_pagination_params, 'adminAccountsPageSelect') }}
+            </div>
+        </section>
+        {% elif section_name == 'vouchers' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Quản lý voucher</h2>
+                    <p>Theo dõi voucher hệ thống và voucher của nhà hàng.</p>
+                </div>
+                <div class="admin-voucher-controls">
+                    <form method="get" action="{{ url_for('admin.vouchers') }}" data-live-search-form data-live-search-target="#admin-vouchers-results" autocomplete="off">
+                        <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm mã voucher, người tạo, loại giảm" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                        <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                    </form>
+                    <button type="button" class="admin-btn admin-btn--primary" data-open-admin-voucher-modal>+ Tạo voucher</button>
+                </div>
+            </div>
+            <div id="admin-vouchers-results">
+            <div class="admin-table">
+                <div class="admin-table__head">
+                    <div>Mã</div>
+                    <div>Người tạo</div>
+                    <div>Giảm giá</div>
+                    <div>Phạm vi</div>
+                    <div>Hiệu lực</div>
+                    <div>Thao tác</div>
+                </div>
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set voucher = item.voucher %}
+                <div class="admin-table__row">
+                    <div class="admin-table__cell--strong">{{ item.code }}</div>
+                    <div>
+                        {{ item.creator_name }}
+                        <div class="admin-list__meta">{{ item.creator_role }}</div>
+                    </div>
+                    <div>{{ item.discount_text }}</div>
+                    <div>{{ item.scope_text }}</div>
+                    <div>{{ item.start_date }} - {{ item.end_date }}</div>
+                    <div class="admin-actions">
+                        <span class="admin-badge {% if voucher.status %}is-active{% else %}is-off{% endif %}">{{ item.status_text }}</span>
+                        <form method="post" action="{{ url_for('admin.toggle_voucher_status', voucher_id=voucher.voucher_id, q=search_query, page=page_info.page) }}">
+                            <button class="admin-btn admin-btn--ghost" type="submit">{{ 'Tắt' if voucher.status else 'Bật' }}</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Không có voucher phù hợp.</div>
+                {% endif %}
+            </div>
+            {% set vouchers_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.vouchers', page_info, vouchers_pagination_params, 'adminVouchersPageSelect') }}
+            </div>
+        </section>
+        <div class="admin-modal {% if open_admin_voucher_modal %}is-open{% endif %}" id="adminVoucherModal" aria-hidden="{% if open_admin_voucher_modal %}false{% else %}true{% endif %}">
+            <div class="admin-modal__backdrop" data-close-admin-voucher-modal></div>
+            <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="adminVoucherModalTitle">
+                <div class="admin-modal__header">
+                    <div>
+                        <h2 id="adminVoucherModalTitle">Tạo voucher hệ thống</h2>
+                        <p>Voucher này áp dụng cho toàn bộ hệ thống và do admin tạo.</p>
+                    </div>
+                    <button type="button" class="admin-modal__close" data-close-admin-voucher-modal aria-label="Đóng">&times;</button>
+                </div>
+
+                <form method="post" action="{{ url_for('admin.create_voucher') }}" class="admin-form">
+                    <input type="hidden" name="q" value="{{ search_query }}">
+
+                    <div class="admin-form__field">
+                        <label for="voucher_code">Mã voucher</label>
+                        <input type="text" id="voucher_code" name="voucher_code" maxlength="50" value="{{ admin_voucher_form_values.get('voucher_code', '') }}" class="admin-input {% if admin_voucher_form_errors.get('voucher_code') %}is-invalid{% endif %}" placeholder="VD: SYSTEM10">
+                        {% if admin_voucher_form_errors.get('voucher_code') %}
+                        <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('voucher_code') }}</small>
+                        {% else %}
+                        <small class="admin-form__note">Mã nên viết liền, không có khoảng trắng.</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="admin-form__grid">
+                        <div class="admin-form__field">
+                            <label for="discount_value">Giá trị giảm</label>
+                            <input type="number" id="discount_value" name="discount_value" min="1" step="1" value="{{ admin_voucher_form_values.get('discount_value', '') }}" class="admin-input {% if admin_voucher_form_errors.get('discount_value') %}is-invalid{% endif %}" placeholder="10000">
+                            {% if admin_voucher_form_errors.get('discount_value') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('discount_value') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Nhập số tiền giảm cố định, ví dụ 10000.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="admin-form__field admin-form__field--switch">
+                            <label>Trạng thái</label>
+                            <label class="admin-switch">
+                                <input type="checkbox" name="status" {% if admin_voucher_form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
+                                <span class="admin-switch__track" aria-hidden="true">
+                                    <span class="admin-switch__thumb"></span>
+                                </span>
+                            </label>
+                            <small class="admin-form__note">Bật để voucher sẵn sàng sử dụng.</small>
+                        </div>
+
+                        <div class="admin-form__field">
+                            <label for="start_date">Ngày bắt đầu</label>
+                            <input type="date" id="start_date" name="start_date" value="{{ admin_voucher_form_values.get('start_date', '') }}" class="admin-input {% if admin_voucher_form_errors.get('start_date') %}is-invalid{% endif %}">
+                            {% if admin_voucher_form_errors.get('start_date') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('start_date') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Mặc định là hôm nay nếu để trống.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="admin-form__field">
+                            <label for="end_date">Ngày kết thúc</label>
+                            <input type="date" id="end_date" name="end_date" value="{{ admin_voucher_form_values.get('end_date', '') }}" class="admin-input {% if admin_voucher_form_errors.get('end_date') %}is-invalid{% endif %}">
+                            {% if admin_voucher_form_errors.get('end_date') %}
+                            <small class="admin-form__note admin-form__note--error">{{ admin_voucher_form_errors.get('end_date') }}</small>
+                            {% else %}
+                            <small class="admin-form__note">Để trống nếu không giới hạn thời gian.</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="admin-form__actions">
+                        <button type="button" class="admin-btn admin-btn--ghost" data-close-admin-voucher-modal>Hủy</button>
+                        <button type="submit" class="admin-btn admin-btn--primary">Tạo voucher</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% elif section_name == 'reviews' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Đánh giá</h2>
+                    <p>Duyệt nhanh phản hồi từ khách hàng.</p>
+                </div>
+                <form method="get" action="{{ url_for('admin.reviews') }}" data-live-search-form data-live-search-target="#admin-reviews-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+            </div>
+
+            <div id="admin-reviews-results">
+            <div class="admin-list">
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set review = item.review %}
+                <article class="admin-list__item">
+                    <div class="admin-list__top">
+                        <div>
+                            <strong>{{ item.customer_name }} → {{ item.restaurant_name }}</strong>
+                            <span>{{ item.created_at }}</span>
+                        </div>
+                        <span class="admin-badge {% if (review.rating or 0) >= 4 %}is-active{% elif (review.rating or 0) <= 2 %}is-warning{% else %}is-muted{% endif %}">{{ item.rating_label }}</span>
+                    </div>
+                    <p class="admin-list__comment">{{ review.comment or 'Chưa có nội dung đánh giá.' }}</p>
+                    {% if item.report_status == 'pending' %}
+                    <div class="admin-list__meta" style="margin-top: 6px;">
+                        <strong>Trạng thái:</strong> Đã được nhà hàng báo cáo
+                    </div>
+                    {% endif %}
+                </article>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Chưa có đánh giá nào phù hợp.</div>
+                {% endif %}
+            </div>
+            {% set reviews_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.reviews', page_info, reviews_pagination_params, 'adminReviewsPageSelect') }}
+            </div>
+        </section>
+        {% elif section_name == 'review_reports' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Báo cáo đánh giá</h2>
+                    <p>Các đánh giá bị nhà hàng báo cáo để admin xem xét và xử lý.</p>
+                </div>
+                <form method="get" action="{{ url_for('admin.review_reports') }}" data-live-search-form data-live-search-target="#admin-review-reports-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung báo cáo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+            </div>
+
+            <div id="admin-review-reports-results">
+            <div class="admin-list">
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set review = item.review %}
+                <article class="admin-list__item">
+                    <div class="admin-list__top">
+                        <div>
+                            <strong>{{ item.customer_name }} → {{ item.restaurant_name }}</strong>
+                            <span>Gửi lúc {{ item.report_date or item.created_at }} | Trạng thái: chờ xử lý</span>
+                        </div>
+                        <span class="admin-badge is-warning">{{ item.rating_label }} | {{ item.severity }}</span>
+                    </div>
+                    <p class="admin-list__comment">{{ review.comment or 'Chưa có nội dung đánh giá.' }}</p>
+                    <div class="admin-list__meta" style="margin-top: 8px;">
+                        <strong>Lý do báo cáo:</strong> {{ item.report_reason or 'Nhà hàng chưa ghi lý do chi tiết.' }}
+                    </div>
+                    <div class="admin-list__meta" style="margin-top: 4px;">
+                        <strong>Ghi chú:</strong> {{ item.report_note }}
+                    </div>
+                    <div class="admin-actions" style="margin-top: 12px;">
+                        <form method="post" action="{{ url_for('admin.dismiss_review_report', review_id=review.review_id, q=search_query, page=page_info.page) }}">
+                            <button class="admin-btn admin-btn--ghost" type="submit">Bỏ qua báo cáo</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin.delete_reported_review', review_id=review.review_id, q=search_query, page=page_info.page) }}">
+                            <button class="admin-btn admin-btn--primary" type="submit">Xoá đánh giá</button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Chưa có báo cáo đánh giá nào đang chờ xử lý.</div>
+                {% endif %}
+            </div>
+            {% set review_reports_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.review_reports', page_info, review_reports_pagination_params, 'adminReviewReportsPageSelect') }}
+            </div>
+        </section>
+        {% elif section_name == 'complaints' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Khiếu nại</h2>
+                    <p>Các đánh giá tiêu cực cần theo dõi thêm.</p>
+                </div>
+                <form method="get" action="{{ url_for('admin.complaints') }}" data-live-search-form data-live-search-target="#admin-complaints-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo nội dung, nhà hàng, khách" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+            </div>
+
+            <div id="admin-complaints-results">
+            <div class="admin-list">
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set review = item.review %}
+                <article class="admin-list__item">
+                    <div class="admin-list__top">
+                        <div>
+                            <strong>{{ item.customer_name }} → {{ item.restaurant_name }}</strong>
+                            <span>{{ item.created_at }} | Mức độ: {{ item.severity }}</span>
+                        </div>
+                        <span class="admin-badge is-warning">{{ review.rating or 0 }}/5</span>
+                    </div>
+                    <p class="admin-list__comment">{{ review.comment or 'Chưa có nội dung.' }}</p>
+                </article>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Chưa có khiếu nại nào để xử lý.</div>
+                {% endif %}
+            </div>
+            {% set complaints_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.complaints', page_info, complaints_pagination_params, 'adminComplaintsPageSelect') }}
+            </div>
+        </section>
+        {% elif section_name == 'disputes' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Hỗ trợ tranh chấp / hủy đơn</h2>
+                    <p>Theo dõi các đơn có trạng thái hủy, tranh chấp hoặc cần hỗ trợ.</p>
+                </div>
+                <form method="get" action="{{ url_for('admin.disputes') }}" data-live-search-form data-live-search-target="#admin-disputes-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo địa chỉ, trạng thái, khách, nhà hàng" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+            </div>
+
+            <div id="admin-disputes-results">
+            <div class="admin-table">
+                <div class="admin-table__head">
+                    <div>Đơn</div>
+                    <div>Khách hàng</div>
+                    <div>Nhà hàng</div>
+                    <div>Trạng thái</div>
+                    <div>Ngày</div>
+                    <div>Ghi chú</div>
+                </div>
+                {% if page_items %}
+                {% for item in page_items %}
+                {% set order = item.order %}
+                <div class="admin-table__row">
+                    <div class="admin-table__cell--strong">#{{ order.order_id }}</div>
+                    <div>{{ item.customer_name }}</div>
+                    <div>{{ item.restaurant_name }}</div>
+                    <div><span class="admin-badge is-warning">{{ item.status_label }}</span></div>
+                    <div>{{ item.created_at }}</div>
+                    <div>{{ order.delivery_address or 'Không có địa chỉ' }}</div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="admin-empty">Chưa có đơn tranh chấp hoặc hủy đơn.</div>
+                {% endif %}
+            </div>
+            {% set disputes_pagination_params = {'q': search_query} %}
+            {{ render_admin_pagination('admin.disputes', page_info, disputes_pagination_params, 'adminDisputesPageSelect') }}
+            </div>
+        </section>
+                                        {% elif section_name == 'shipping_rules' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Phí ship theo khoảng km</h2>
+                    <p>Cập nhật mức phí ship cho các khoảng cách giao hàng.</p>
+                </div>
+            </div>
+
+            <form method="post" action="{{ url_for('admin.shipping_rules') }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="shipping_rules">
+                <div class="admin-table admin-table--fees admin-table--shipping-rules">
+                    <div class="admin-table__head">
+                        <div>Km tối thiểu</div>
+                        <div>Km tối đa</div>
+                        <div>Phí ship</div>
+                        <div>Mô tả</div>
+                    </div>
+                    {% for rule in shipping_rules or [] %}
+                    <div class="admin-table__row">
+                        <div><input class="admin-input" type="number" step="0.1" min="0" name="min_km" value="{{ rule.min_km }}"></div>
+                        <div><input class="admin-input" type="number" step="0.1" min="0" name="max_km" value="{{ rule.max_km if rule.max_km is not none else '' }}"></div>
+                        <div><input class="admin-input" type="number" step="1" min="0" name="fee" value="{{ rule.fee }}"></div>
+                        <div>{{ rule.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="admin-actions admin-actions--sticky">
+                    <button class="admin-btn admin-btn--primary" type="submit">Lưu phí ship</button>
+                </div>
+            </form>
+        </section>
+        {% elif section_name == 'shipping_fees' %}
+        <section class="admin-card admin-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Phí sàn nhà hàng</h2>
+                    <p>Chỉnh phí sàn riêng cho từng nhà hàng. Checkout sẽ dùng đúng mức phí của nhà hàng đang thanh toán.</p>
+                </div>
+            </div>
+
+            <div class="admin-toolbar admin-toolbar--stacked">
+                <form method="get" action="{{ url_for('admin.shipping_fees') }}" data-live-search-form data-live-search-target="#admin-restaurant-fee-results" autocomplete="off">
+                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khu vực, địa chỉ hoặc phí" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                </form>
+            </div>
+
+            <form method="post" action="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page) }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="bulk_apply_area">
+                <div class="admin-note-box">
+                    <strong>Áp dụng đồng loạt theo khu vực</strong>
+                    <p>Chọn khu vực và nhập phí sàn để áp dụng cho tất cả nhà hàng trong khu vực đó. Bạn vẫn có thể sửa từng nhà hàng ở bảng bên dưới.</p>
+                </div>
+
+                <div class="admin-bulk-apply">
+                    <div class="admin-bulk-apply__field">
+                        <label>Khu vực</label>
+                        <select class="admin-select" name="area">
+                            <option value="">Chọn khu vực</option>
+                            {% for area in area_options or [] %}
+                            <option value="{{ area }}">{{ area }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="admin-bulk-apply__field">
+                        <label>Phí sàn (đ)</label>
+                        <input class="admin-input" type="number" step="1" min="0" name="platform_fee" value="0" placeholder="0">
+                    </div>
+                    <div class="admin-bulk-apply__actions">
+                        <button class="admin-btn admin-btn--primary" type="submit">Áp dụng đồng loạt</button>
+                    </div>
+                </div>
+            </form>
+
+            <form method="post" action="{{ url_for('admin.shipping_fees', q=search_query, page=page_info.page) }}" class="admin-shipping-form">
+                <input type="hidden" name="form_type" value="restaurant_fees">
+                <div id="admin-restaurant-fee-results" class="admin-table admin-table--fees">
+                    <div class="admin-table__head">
+                        <div>Nhà hàng</div>
+                        <div>Khu vực</div>
+                        <div>Địa chỉ</div>
+                        <div>Phí sàn (đ)</div>
+                    </div>
+                    {% if page_items %}
+                    {% for item in page_items %}
+                    {% set restaurant = item.restaurant %}
+                    <div class="admin-table__row">
+                        <div class="admin-table__cell--strong">
+                            {{ item.restaurant_name }}
+                            <div class="admin-list__meta">#{{ restaurant.restaurant_id }}</div>
+                        </div>
+                        <div>{{ item.area }}</div>
+                        <div>{{ item.address }}</div>
+                        <div class="admin-fee-input-cell">
+                            <input type="hidden" name="restaurant_id" value="{{ restaurant.restaurant_id }}">
+                            <input class="admin-input" type="number" step="1" min="0" name="platform_fee" value="{{ item.platform_fee or 0 }}" placeholder="0">
+                            <small>Hiện tại: {{ item.platform_fee_text }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="admin-empty">Không tìm thấy nhà hàng phù hợp.</div>
+                    {% endif %}
+                </div>
+
+                {% set shipping_fees_pagination_params = {'q': search_query} %}
+                {{ render_admin_pagination('admin.shipping_fees', page_info, shipping_fees_pagination_params, 'adminShippingFeesPageSelect') }}
+
+                <div class="admin-actions admin-actions--sticky">
+                    <button class="admin-btn admin-btn--primary" type="submit">Lưu phí sàn</button>
+                </div>
+            </form>
+        </section>
+        {% endif %}
+    </main>
+</div>
+<script>
+(function () {
+    const scrollKey = "admin-dashboard-scroll-y";
+    const scrollFlagKey = "admin-dashboard-scroll-pending";
+    const paginationControls = document.querySelectorAll("[data-admin-pagination-jump]");
+    const modal = document.getElementById("adminVoucherModal");
+    const openButtons = document.querySelectorAll("[data-open-admin-voucher-modal]");
+    const closeButtons = document.querySelectorAll("[data-close-admin-voucher-modal]");
+
+    function rememberScrollPosition() {
+        try {
+            sessionStorage.setItem(scrollKey, String(window.scrollY || 0));
+            sessionStorage.setItem(scrollFlagKey, "1");
+        } catch (error) {
+            // Ignore storage errors.
+        }
+    }
+
+    function restoreScrollPosition() {
+        try {
+            if (sessionStorage.getItem(scrollFlagKey) !== "1") {
+                return;
+            }
+            sessionStorage.removeItem(scrollFlagKey);
+            const saved = Number(sessionStorage.getItem(scrollKey));
+            if (Number.isFinite(saved) && saved >= 0) {
+                window.scrollTo({ top: saved, behavior: "auto" });
+            }
+        } catch (error) {
+            // Ignore storage errors.
+        }
+    }
+
+    function openModal() {
+        if (!modal) return;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+    }
+
+    paginationControls.forEach((control) => {
+        if (control.tagName === "SELECT") {
+            control.addEventListener("change", () => {
+                rememberScrollPosition();
+                if (control.value) {
+                    window.location.href = control.value;
+                }
+            });
+            return;
+        }
+
+        control.addEventListener("click", rememberScrollPosition);
+    });
+
+    openButtons.forEach((button) => button.addEventListener("click", openModal));
+    closeButtons.forEach((button) => button.addEventListener("click", closeModal));
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal || event.target.closest("[data-close-admin-voucher-modal]")) {
+                closeModal();
+            }
+        });
+    }
+
+    window.addEventListener("pageshow", restoreScrollPosition);
+})();
+</script>
+<script src="{{ url_for('static', filename='js/live_search.js') }}"></script>
+{% endblock %}

@@ -3,18 +3,41 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Food Delivery{% endblock %}</title>
+    <title>{% block title %}fiveFood{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-toast-plugin/1.3.2/jquery.toast.min.css">
+    {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <header class="site-header">
-        <div class="container">
-            <a class="brand" href="{{ url_for('main.home') }}">Food Delivery</a>
+<body data-app-user-id="{{ session.get('user_id') or '' }}" data-app-user-role="{{ session.get('user_role') or '' }}">
+    {% set flashed_messages = get_flashed_messages(with_categories=true) %}
+    {% if flashed_messages %}
+    <script id="app-flash-messages" type="application/json">{{ flashed_messages | tojson }}</script>
+    {% endif %}
+    {% include "partials/header_search.html" %}
+    <main class="page-shell {% block page_shell_class %}{% endblock %}">
+        <div class="container {% block content_container_class %}{% endblock %}">
+            {% block content %}{% endblock %}
         </div>
-    </header>
-
-    <main class="container">
-        {% block content %}{% endblock %}
     </main>
+    {% include "partials/footer.html" %}
+    <button
+        type="button"
+        class="scroll-top-button"
+        data-scroll-top="true"
+        aria-label="Lên đầu trang"
+        title="Lên đầu trang"
+    >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 15 6-6 6 6"></path>
+        </svg>
+    </button>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-toast-plugin/1.3.2/jquery.toast.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/notifications.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/location.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/home_search.js') }}" defer></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

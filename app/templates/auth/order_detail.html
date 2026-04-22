@@ -1,0 +1,281 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Chi tiết đơn hàng | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checkout.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="checkout-page order-detail-page">
+    <div class="checkout-page__heading order-detail-page__heading">
+        <a class="order-detail-page__back" href="{{ url_for('auth.orders') }}">
+            <span class="order-detail-page__back-arrow" aria-hidden="true">&larr;</span>
+            <span class="order-detail-page__back-text">Quay lại đơn hàng</span>
+        </a>
+        <h1>Chi tiết đơn #{{ order.order_id }}</h1>
+        <p>{{ restaurant_name }} · {{ date_text }}</p>
+    </div>
+
+    {% if status_info.step_key == 'delivered' %}
+    <div class="order-detail-layout order-detail-layout--delivered">
+        <section class="order-detail-card order-detail-card--delivered-items">
+            <div class="order-detail-delivered-head">
+                <div class="order-detail-delivered-head__left">
+                    <div class="order-detail-delivered-head__avatar">🍱</div>
+                    <div>
+                        <strong>{{ date_text }}</strong>
+                        <span>Mã đơn hàng: {{ order.order_id }}</span>
+                    </div>
+                </div>
+                <div class="order-detail-delivered-head__right">
+                    <strong>{{ restaurant_name }}</strong>
+                    <span>{{ total_quantity }} món · {{ "{:,}".format(order.total_amount or 0) }}đ</span>
+                </div>
+            </div>
+
+            <div class="order-detail-items order-detail-items--delivered">
+                {% for item in item_rows %}
+                <article class="order-detail-item order-detail-item--delivered">
+                    <div class="order-detail-item__thumb">
+                        {% if item.image_url %}
+                        <img src="{{ item.image_url }}" alt="{{ item.name }}">
+                        {% endif %}
+                    </div>
+                    <div class="order-detail-item__body">
+                        <strong>{{ item.quantity }}x {{ item.name }}</strong>
+                        <span>{{ "{:,}".format(item.price or 0) }}đ</span>
+                    </div>
+                    <div class="order-detail-item__price">{{ "{:,}".format(item.line_total or 0) }}đ</div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <aside class="order-detail-summary">
+            <div class="order-detail-summary__card order-detail-summary__card--billing">
+                <div class="order-detail-summary__line">
+                    <span>Tạm tính ({{ total_quantity }} món)</span>
+                    <strong>{{ "{:,}".format(subtotal_amount or 0) }}đ</strong>
+                </div>
+                <div class="order-detail-summary__line order-detail-summary__line--fee">
+                    <span class="order-detail-summary__label-with-tip">
+                        Phí áp dụng
+                        <span class="order-detail-summary__tip" title="{{ delivery_fee_detail_text or '' }}">i</span>
+                    </span>
+                    <strong>{{ "{:,}".format(applied_delivery_fee or 0) }}đ</strong>
+                </div>
+                <div class="order-detail-summary__line">
+                    <span>{{ voucher_display_text or 'Giảm voucher' }}</span>
+                    <strong>
+                        {% if voucher_discount_value %}
+                            -{{ "{:,}".format(voucher_discount_value) }}đ
+                        {% else %}
+                            0đ
+                        {% endif %}
+                    </strong>
+                </div>
+                <div class="order-detail-summary__divider"></div>
+                <div class="order-detail-summary__line order-detail-summary__line--total">
+                    <span>{{ payment_method_label or 'Thanh toán' }}</span>
+                    <strong>{{ "{:,}".format(order.total_amount or 0) }}đ</strong>
+                </div>
+            </div>
+
+            <div class="order-detail-summary__card order-detail-summary__card--info">
+                <div class="order-detail-list-card">
+                    <div class="order-detail-list-card__item">
+                        <div class="order-detail-list-card__avatar">S</div>
+                        <div>
+                            <strong>{{ shipper_name }}</strong>
+                            <span>Shipper mặc định</span>
+                        </div>
+                    </div>
+                    <div class="order-detail-list-card__item">
+                        <div class="order-detail-list-card__avatar order-detail-list-card__avatar--blue">🏪</div>
+                        <div>
+                            <strong>{{ restaurant_name }}</strong>
+                            <span>{{ restaurant_address or 'Chưa có địa chỉ nhà hàng' }}</span>
+                        </div>
+                    </div>
+                    <div class="order-detail-list-card__item">
+                        <div class="order-detail-list-card__avatar order-detail-list-card__avatar--yellow">📍</div>
+                        <div>
+                            <strong>{{ order.delivery_address or 'Chưa có địa chỉ giao hàng' }}</strong>
+                            <span>{{ customer_name or 'Khách hàng' }}{% if customer_phone %} · {{ customer_phone }}{% endif %}</span>
+                            {% if order.note %}
+                            <small class="order-detail-address__note">Ghi chú giao hàng: {{ order.note }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-detail-summary__card order-detail-summary__card--review">
+                <h3>Đánh giá và đặt lại</h3>
+                <div class="order-detail-summary__actions">
+                    <button type="button" class="order-detail-review-btn">Đánh giá</button>
+                    <form method="post" action="{{ url_for('auth.reorder_order', order_id=order.order_id) }}">
+                        <button type="submit" class="order-detail-review-btn order-detail-review-btn--secondary">Đặt lại</button>
+                    </form>
+                </div>
+            </div>
+        </aside>
+    </div>
+    {% else %}
+    <div class="order-detail-layout">
+        <section class="order-detail-card">
+            <div class="order-detail-card__header">
+                <div>
+                    <span class="order-status {{ status_info.badge_class }}">{{ status_info.label }}</span>
+                    <h2>Tình trạng đơn: {{ status_info.stage }}</h2>
+                    <p class="order-detail-card__desc">{{ status_info.description }}</p>
+                </div>
+                <div class="order-detail-card__total">{{ "{:,}".format(order.total_amount or 0) }}đ</div>
+            </div>
+
+            {% if status_info.step_key == 'payment' %}
+            <div class="order-detail-timer order-detail-timer--warning">
+                <div class="order-detail-timer__header">
+                    <strong>Đếm ngược thanh toán</strong>
+                    {% if order.payment and (order.payment.payment_method or '') == 'momo' %}
+                    <a class="order-detail-timer__button" href="{{ url_for('checkout.checkout_momo', order_id=order.order_id) }}">Thanh toán tiếp</a>
+                    {% endif %}
+                </div>
+                <span id="paymentCountdown" data-seconds="{{ payment_remaining_seconds }}">{{ payment_remaining_seconds }} giây</span>
+                <small>Không thanh toán trong 10 phút, đơn sẽ tự chuyển sang đã hủy.</small>
+            </div>
+            {% endif %}
+
+            {% if status_info.step_key in ['preparing', 'shipping'] %}
+            <div class="order-detail-shipper">
+                <div class="order-detail-shipper__avatar">S</div>
+                <div>
+                    <strong>{{ shipper_name }}</strong>
+                    <span>Shipper mặc định</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="order-detail-addresses">
+                <div class="order-detail-address">
+                    <span>Giao tới</span>
+                    <strong>{{ customer_name or 'Khách hàng' }}</strong>
+                    {% if customer_phone %}
+                    <small>{{ customer_phone }}</small>
+                    {% endif %}
+                    <p>{{ order.delivery_address or 'Chưa có địa chỉ giao hàng' }}</p>
+                    {% if order.note %}
+                    <small class="order-detail-address__note">Ghi chú giao hàng: {{ order.note }}</small>
+                    {% endif %}
+                </div>
+
+                <div class="order-detail-address">
+                    <span>Nhà hàng</span>
+                    <strong>{{ restaurant_name }}</strong>
+                    <p>{{ restaurant_address or 'Chưa có địa chỉ nhà hàng' }}</p>
+                </div>
+            </div>
+
+            {% if status_info.step_key == 'shipping' %}
+            <div class="order-detail-timer order-detail-timer--info">
+                <strong>Đang giao hàng</strong>
+                <span id="shippingCountdown" data-seconds="{{ shipping_remaining_seconds }}">{{ shipping_remaining_seconds }} giây</span>
+                <small>Hệ thống sẽ tự cập nhật sang đã giao sau 2 phút.</small>
+            </div>
+            {% endif %}
+
+            <div class="order-detail-items">
+                {% for item in item_rows %}
+                <article class="order-detail-item">
+                    <div class="order-detail-item__thumb">
+                        {% if item.image_url %}
+                        <img src="{{ item.image_url }}" alt="{{ item.name }}">
+                        {% endif %}
+                    </div>
+                    <div class="order-detail-item__body">
+                        <strong>{{ item.quantity }}x {{ item.name }}</strong>
+                        <span>{{ "{:,}".format(item.price or 0) }}đ</span>
+                        {% if item.note %}
+                        <small>Ghi chú: {{ item.note }}</small>
+                        {% endif %}
+                    </div>
+                    <div class="order-detail-item__price">{{ "{:,}".format(item.line_total or 0) }}đ</div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <aside class="order-detail-summary">
+            <div class="order-detail-summary__card order-detail-summary__card--billing">
+                <div class="order-detail-summary__line">
+                    <span>Tạm tính ({{ total_quantity }} món)</span>
+                    <strong>{{ "{:,}".format(subtotal_amount or 0) }}đ</strong>
+                </div>
+                <div class="order-detail-summary__line order-detail-summary__line--fee">
+                    <span class="order-detail-summary__label-with-tip">
+                        Phí áp dụng
+                        <span class="order-detail-summary__tip" title="{{ delivery_fee_detail_text or '' }}">i</span>
+                    </span>
+                    <strong>{{ "{:,}".format(applied_delivery_fee or 0) }}đ</strong>
+                </div>
+                <div class="order-detail-summary__line">
+                    <span>{{ voucher_display_text or 'Giảm voucher' }}</span>
+                    <strong>
+                        {% if voucher_discount_value %}
+                            -{{ "{:,}".format(voucher_discount_value) }}đ
+                        {% else %}
+                            0đ
+                        {% endif %}
+                    </strong>
+                </div>
+                <div class="order-detail-summary__divider"></div>
+                <div class="order-detail-summary__line order-detail-summary__line--total">
+                    <span>{{ payment_method_label or 'Thanh toán' }}</span>
+                    <strong>{{ "{:,}".format(order.total_amount or 0) }}đ</strong>
+                </div>
+            </div>
+
+            <div class="order-detail-summary__card">
+                <h3>Trạng thái</h3>
+                <p>{{ status_info.description }}</p>
+                {% if status_info.step_key in ['cancelled', 'refund_pending'] and cancel_reason %}
+                <p class="order-detail-summary__reason"><strong>Lý do hủy:</strong><span>{{ cancel_reason }}</span></p>
+                {% endif %}
+            </div>
+
+        </aside>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    function bindCountdown(id, onDone) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        let seconds = Number(el.dataset.seconds || 0);
+        if (!seconds || seconds <= 0) return;
+        const render = () => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            el.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+        };
+        render();
+        const timer = setInterval(() => {
+            seconds -= 1;
+            if (seconds <= 0) {
+                clearInterval(timer);
+                if (typeof onDone === 'function') onDone();
+                return;
+            }
+            render();
+        }, 1000);
+    }
+
+    bindCountdown('paymentCountdown', () => window.location.reload());
+    bindCountdown('shippingCountdown', () => window.location.reload());
+})();
+</script>
+{% endblock %}

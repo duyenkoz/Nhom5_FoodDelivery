@@ -1,0 +1,24 @@
+<section class="home-section{% if section.key == 'suggested-dishes' %} home-section--slider{% endif %}">
+    <div class="home-section__header">
+        <h2>{{ section.title }}</h2>
+    </div>
+
+    {% if section["items"] %}
+    <div class="restaurant-grid{% if section.key == 'suggested-dishes' %} restaurant-grid--slider{% endif %}"{% if section.key == 'suggested-dishes' %} data-slider-track="true"{% endif %}>
+        {% for item in section["items"] %}
+            {% include "partials/home_card.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>{{ page.empty_title }}</h3>
+        <p>{{ page.empty_description }}</p>
+    </div>
+    {% endif %}
+
+    {% if section.show_load_more %}
+    <div class="home-section__footer">
+        <a class="home-more" href="{{ section.load_more_href }}">{{ section.load_more_label }}</a>
+    </div>
+    {% endif %}
+</section>

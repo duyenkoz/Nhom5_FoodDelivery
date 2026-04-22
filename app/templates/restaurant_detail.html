@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.restaurant_name }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_detail.css') }}">
+{% endblock %}
+
+{% block content %}
+<div
+    class="restaurant-detail"
+    data-restaurant-detail="true"
+    data-restaurant-id="{{ page.restaurant_id }}"
+    data-cart-url="{{ url_for('home.restaurant_cart', restaurant_id=page.restaurant_id) }}"
+    data-cart-add-url="{{ url_for('home.add_restaurant_cart_item', restaurant_id=page.restaurant_id) }}"
+    data-cart-update-url-template="{{ url_for('home.update_restaurant_cart', restaurant_id=page.restaurant_id, dish_id=0) }}"
+    data-login-url="{{ url_for('auth.login') }}"
+>
+    <script type="application/json" data-restaurant-dishes-json>{{ page.dish_views|tojson }}</script>
+    <script type="application/json" data-restaurant-cart-json>{{ page.cart|tojson }}</script>
+
+    <section class="restaurant-detail__hero">
+        <div class="restaurant-detail__hero-media">
+            {% if page.cover_image.startswith('http://') or page.cover_image.startswith('https://') %}
+            <img src="{{ page.cover_image }}" alt="{{ page.restaurant_name }}">
+            {% else %}
+            <img src="{{ url_for('static', filename=page.cover_image) }}" alt="{{ page.restaurant_name }}">
+            {% endif %}
+        </div>
+
+        <div class="restaurant-detail__hero-body">
+            <div class="restaurant-detail__hero-copy">
+                <h1>{{ page.restaurant_name }}</h1>
+                <p class="restaurant-detail__address">{{ page.restaurant_address }}</p>
+                <button
+                    type="button"
+                    class="restaurant-detail__info-link restaurant-detail__info-link--toggle"
+                    data-similar-toggle="true"
+                    aria-expanded="false"
+                    aria-controls="similarRestaurants"
+                >
+                    <span>Nhà hàng tương tự</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <button class="restaurant-detail__favorite" type="button" aria-label="Yêu thích nhà hàng">
+                <span aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 21.35 10.55 20C5 15.1 2 12.28 2 8.85 2 6.07 4.24 3.8 7 3.8c1.56 0 3.04.73 4 1.88a5.11 5.11 0 0 1 4-1.88c2.76 0 5 2.27 5 5.05 0 3.43-3 6.25-8.55 11.15Z"></path>
+                    </svg>
+                </span>
+                <span>Yêu thích</span>
+            </button>
+        </div>
+    </section>
+
+    <section class="restaurant-similar" id="similarRestaurants" aria-labelledby="similarRestaurantsTitle" hidden>
+        <div class="restaurant-similar__header">
+            <h2 id="similarRestaurantsTitle">Nhà hàng tương tự</h2>
+            <p>Gợi ý những nhà hàng có món hoặc danh mục gần giống với quán hiện tại.</p>
+        </div>
+
+        {% if page.similar_restaurants %}
+        <div class="restaurant-similar__grid">
+            {% for item in page.similar_restaurants %}
+            <a class="restaurant-similar__card" href="{{ url_for('home.restaurant_detail', restaurant_id=item.restaurant_id) }}">
+                <div class="restaurant-similar__image-wrap">
+                    {% if item.image_path.startswith('http://') or item.image_path.startswith('https://') %}
+                    <img src="{{ item.image_path }}" alt="{{ item.name }}" class="restaurant-similar__image">
+                    {% else %}
+                    <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.name }}" class="restaurant-similar__image">
+                    {% endif %}
+                </div>
+
+                <div class="restaurant-similar__body">
+                    <h3>{{ item.name }}</h3>
+                    <p class="restaurant-similar__address">{{ item.address }}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="restaurant-detail__search-empty">
+            <h3>Chưa có nhà hàng tương tự</h3>
+            <p>Hệ thống sẽ gợi ý thêm khi có nhiều quán cùng món hơn.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="restaurant-detail__toolbar" id="restaurantInfo">
+        <label class="restaurant-detail__search">
+            <span aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                </svg>
+            </span>
+            <input type="search" placeholder="Tìm kiếm trong nhà hàng" data-restaurant-search="true" aria-label="Tìm kiếm trong nhà hàng">
+        </label>
+
+        {% if page.categories %}
+        <div class="restaurant-detail__tabs" data-category-tabs="true" role="tablist" aria-label="Danh mục món ăn">
+            {% for category in page.categories %}
+            <button
+                type="button"
+                class="restaurant-detail__tab {% if loop.first %}is-active{% endif %}"
+                data-category-tab="{{ category.slug }}"
+                role="tab"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+            >
+                <span>{{ category.name }}</span>
+                <strong>{{ category.count }}</strong>
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    <div class="restaurant-detail__content">
+        <main class="restaurant-detail__menu">
+            {% if page.menu_sections %}
+                {% for section in page.menu_sections %}
+                <section class="restaurant-menu-section" data-menu-section="{{ section.slug }}">
+                    <div class="restaurant-menu-section__header">
+                        <h2>{{ section.name }}</h2>
+                    </div>
+
+                    <div class="restaurant-menu-grid">
+                        {% for item in section["items"] %}
+                        <article
+                            class="restaurant-menu-card {% if not item.is_available %}is-sold-out{% endif %}"
+                            data-dish-card="true"
+                            data-dish-id="{{ item.dish_id }}"
+                            data-dish-available="{{ 'true' if item.is_available else 'false' }}"
+                            data-category-slug="{{ item.category_slug }}"
+                            data-search-text="{{ item.search_text }}"
+                            tabindex="0"
+                            role="button"
+                            aria-label="Xem chi tiết món {{ item.name }}"
+                        >
+                            <div class="restaurant-menu-card__image-wrap">
+                                {% if item.image_path.startswith('http://') or item.image_path.startswith('https://') %}
+                                <img src="{{ item.image_path }}" alt="{{ item.name }}" class="restaurant-menu-card__image">
+                                {% else %}
+                                <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.name }}" class="restaurant-menu-card__image">
+                                {% endif %}
+                            </div>
+
+                            <div class="restaurant-menu-card__body">
+                                <h3>{{ item.name }}</h3>
+                                <p>{{ item.description }}</p>
+                                <div class="restaurant-menu-card__meta">
+                                    <span>
+                                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path d="M7 18c-1.11 0-1.99.89-1.99 2S5.89 22 7 22s2-.89 2-2-.9-2-2-2Zm10 0c-1.11 0-1.99.89-1.99 2S15.89 22 17 22s2-.89 2-2-.9-2-2-2ZM7.17 14h9.96c.75 0 1.41-.41 1.75-1.03L22 7H6.21l-.94-2H2v2h2l3.6 7.59-1.35 2.44A1.99 1.99 0 0 0 8 20h12v-2H8l1.17-2Z"></path>
+                                        </svg>
+                                        {{ item.sold_count }} đã bán
+                                    </span>
+                                </div>
+                                <div class="restaurant-menu-card__footer">
+                                    <strong>{{ item.price_text }}</strong>
+                                    <button
+                                        type="button"
+                                        class="restaurant-menu-card__add {% if not item.is_available %}is-sold-out{% endif %}"
+                                        data-add-dish="{{ item.dish_id }}"
+                                        aria-label="{% if item.is_available %}Thêm {{ item.name }} vào giỏ{% else %}{{ item.name }} đang hết món{% endif %}"
+                                        {% if not item.is_available %}disabled aria-disabled="true"{% endif %}
+                                    >{% if item.is_available %}+{% else %}Hết món{% endif %}</button>
+                                </div>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endfor %}
+            {% else %}
+            <div class="restaurant-detail__empty">
+                <h2>Nhà hàng chưa có món đang bán</h2>
+                <p>Thực đơn sẽ được cập nhật sớm.</p>
+            </div>
+            {% endif %}
+        </main>
+
+        <aside class="restaurant-cart" data-cart-sidebar="true">
+            <div class="restaurant-cart__card">
+                <div class="restaurant-cart__header">
+                    <h2>Giỏ hàng của tôi</h2>
+                </div>
+
+                <div class="restaurant-cart__items" data-cart-items="true"></div>
+
+                <div class="restaurant-cart__summary">
+                    <div class="restaurant-cart__summary-row">
+                        <span>Tổng số tiền</span>
+                        <strong data-cart-total="true">{{ page.cart.total_amount_text }}</strong>
+                    </div>
+                    {% if session.get('auth_state') == 'logged_in' and session.get('user_role') == 'customer' %}
+                    <button
+                        type="button"
+                        class="restaurant-cart__cta"
+                        data-cart-orders-cta="true"
+                        data-order-url="{{ url_for('checkout.checkout', restaurant_id=page.restaurant_id) }}"
+                        {% if page.cart.is_empty %}disabled aria-disabled="true"{% endif %}
+                    >Xem đơn hàng</button>
+                    {% else %}
+                    <a class="restaurant-cart__cta" href="{{ url_for('auth.login') }}">Đăng nhập để đặt đơn</a>
+                    {% endif %}
+                    <p class="restaurant-cart__note">Xem phí áp dụng và dùng mã khuyến mãi ở bước tiếp theo</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="restaurant-detail__search-empty" data-search-empty="true" hidden>
+        <h3>Không tìm thấy món phù hợp</h3>
+        <p>Thử tìm theo tên món hoặc mô tả ngắn hơn.</p>
+    </div>
+</div>
+
+<div class="dish-modal" data-dish-modal="true" hidden>
+    <div class="dish-modal__backdrop" data-close-dish-modal="true"></div>
+    <div class="dish-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dishModalTitle">
+        <button type="button" class="dish-modal__close" data-close-dish-modal="true" aria-label="Đóng chi tiết món">&times;</button>
+        <div class="dish-modal__media">
+            <img src="" alt="" data-dish-modal-image="true">
+        </div>
+        <div class="dish-modal__body">
+            <div class="dish-modal__title-row">
+                <h2 id="dishModalTitle" data-dish-modal-title="true"></h2>
+                <strong data-dish-modal-price="true"></strong>
+            </div>
+            <p class="dish-modal__description" data-dish-modal-description="true"></p>
+            <div class="dish-modal__meta">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M7 18c-1.11 0-1.99.89-1.99 2S5.89 22 7 22s2-.89 2-2-.9-2-2-2Zm10 0c-1.11 0-1.99.89-1.99 2S15.89 22 17 22s2-.89 2-2-.9-2-2-2ZM7.17 14h9.96c.75 0 1.41-.41 1.75-1.03L22 7H6.21l-.94-2H2v2h2l3.6 7.59-1.35 2.44A1.99 1.99 0 0 0 8 20h12v-2H8l1.17-2Z"></path>
+                </svg>
+                <span data-dish-modal-sold="true"></span>
+            </div>
+            <label class="dish-modal__note-field">
+                <span>Viết lời nhắn cho nhà hàng</span>
+                <textarea rows="3" data-dish-modal-note="true" placeholder="Ví dụ: ít đá, không hành..."></textarea>
+            </label>
+        </div>
+        <div class="dish-modal__actions">
+            <div class="dish-qty" data-modal-qty-picker="true">
+                <button type="button" data-modal-qty-minus="true" aria-label="Giảm số lượng">-</button>
+                <strong data-dish-modal-qty="true">1</strong>
+                <button type="button" data-modal-qty-plus="true" aria-label="Tăng số lượng">+</button>
+            </div>
+            <button type="button" class="dish-modal__add" data-dish-modal-submit="true"></button>
+        </div>
+    </div>
+</div>
+
+<div class="cart-confirm-modal" data-cart-confirm-modal="true" hidden>
+    <div class="cart-confirm-modal__backdrop" data-cart-confirm-cancel="true"></div>
+    <div class="cart-confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cartConfirmTitle">
+        <button type="button" class="cart-confirm-modal__close" data-cart-confirm-cancel="true" aria-label="Đóng">&times;</button>
+        <h3 id="cartConfirmTitle">Cập nhật giỏ hàng</h3>
+        <p data-cart-confirm-message="true">Bạn có chắc muốn giữ số lượng món này bằng 0?</p>
+        <div class="cart-confirm-modal__actions">
+            <button type="button" class="cart-confirm-modal__secondary" data-cart-confirm-cancel="true">Hủy</button>
+            <button type="button" class="cart-confirm-modal__primary" data-cart-confirm-accept="true">OK</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/restaurant_detail.js') }}" defer></script>
+{% endblock %}

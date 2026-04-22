@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/home_slider.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+<section class="home-hero">
+    <h1 class="home-hero__title">{{ page.hero_title }}</h1>
+
+    <div
+        class="delivery-address location-autocomplete-shell"
+        data-location-autocomplete="true"
+        data-location-mode="home"
+        data-location-search-url="{{ url_for('location.search') }}"
+        data-location-resolve-url="{{ url_for('location.resolve') }}"
+        data-location-storage-key="{{ page.location_storage_key }}"
+        data-location-persist="{{ 'true' if page.location_persist else 'false' }}"
+        data-location-clear-storage-key="{{ page.location_clear_storage_key|default('') }}"
+    >
+        <div class="delivery-address__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"></path>
+                <circle cx="12" cy="10" r="2.4"></circle>
+            </svg>
+        </div>
+        <div class="delivery-address__content">
+            <input
+                id="homeAddressInput"
+                class="delivery-address__input location-autocomplete__input"
+                type="search"
+                data-location-input="true"
+                placeholder="Nhập địa chỉ của bạn"
+                value="{{ page.hero_value if page.location_persist else '' }}"
+                autocomplete="off"
+                aria-label="Nhập địa chỉ của bạn"
+            >
+            <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+        </div>
+    </div>
+</section>
+
+{% if page.search_mode %}
+<section class="home-section home-search-section">
+    <div class="home-search-section__header">
+        <div class="home-search-tabs" role="tablist" aria-label="Bộ lọc tìm kiếm">
+            {% for tab_item in page.search_tabs %}
+            <a
+                class="home-search-tabs__item {% if tab_item.active %}is-active{% endif %}"
+                href="{{ tab_item.href }}"
+                role="tab"
+                aria-selected="{{ 'true' if tab_item.active else 'false' }}"
+            >
+                {{ tab_item.label }}
+            </a>
+            {% endfor %}
+        </div>
+        <p class="home-search-section__result-note">
+            {{ page.search_results_count }} kết quả
+            {% if page.search_filter_active_count %}
+            · {{ page.search_filter_active_count }} bộ lọc đang bật
+            {% endif %}
+        </p>
+    </div>
+
+    <details class="home-search-filters" {% if page.search_filter_active_count or page.search_filters.min_rating or page.search_filters.price_min is not none or page.search_filters.price_max is not none %}open{% endif %}>
+        <summary class="home-search-filters__summary">
+            <span class="home-search-filters__summary-label">Bộ lọc</span>
+            <span class="home-search-filters__summary-action">
+                {% if page.search_filter_active_count %}
+                <span class="home-search-filters__badge">{{ page.search_filter_active_count }}</span>
+                {% endif %}
+                <span>Chọn lọc</span>
+            </span>
+        </summary>
+
+        <form class="home-search-filters__form" method="get" action="{{ url_for('home.index') }}">
+            <input type="hidden" name="q" value="{{ page.search_query }}">
+            <input type="hidden" name="tab" value="{{ page.search_tab }}">
+            {% if page.search_location_params %}
+                {% for key, value in page.search_location_params.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+            {% endif %}
+
+            <div class="home-search-filters__grid">
+                <section class="home-search-filter-card">
+                    <div class="home-search-filter-card__head">
+                        <h3>Sắp xếp</h3>
+                        <p>Chọn cách hiển thị kết quả nhanh nhất.</p>
+                    </div>
+                    {% if not page.search_has_location %}
+                    <p class="home-search-filter-card__hint">Cần bật vị trí để sắp xếp theo khoảng cách gần - xa.</p>
+                    {% endif %}
+                    <div class="home-search-chip-group">
+                        {% for option in page.search_sort_options %}
+                        <label class="home-search-chip">
+                            <input type="radio" name="sort" value="{{ option.value }}" {% if page.search_filters.sort == option.value %}checked{% endif %}>
+                            <span>{{ option.label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="home-search-filter-card">
+                    <div class="home-search-filter-card__head">
+                        <h3>Đánh giá</h3>
+                        <p>Lọc theo số sao hiển thị trên card nhà hàng.</p>
+                    </div>
+                    <div class="home-search-chip-group">
+                        <label class="home-search-chip">
+                            <input type="radio" name="min_rating" value="" {% if page.search_filters.min_rating is none %}checked{% endif %}>
+                            <span>Tất cả</span>
+                        </label>
+                        {% for rating in page.search_rating_options %}
+                        <label class="home-search-chip">
+                            <input type="radio" name="min_rating" value="{{ rating }}" {% if page.search_filters.min_rating == rating %}checked{% endif %}>
+                            <span>★ {{ "%.1f"|format(rating) }} trở lên</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="home-search-filter-card">
+                    <div class="home-search-filter-card__head">
+                        <h3>Khoảng giá</h3>
+                        <p>Áp dụng cho tìm món, lấy theo giá món hiển thị.</p>
+                    </div>
+                    <div class="home-search-chip-group home-search-chip-group--dense">
+                        {% for preset in page.search_price_presets %}
+                        <label class="home-search-chip home-search-chip--wide">
+                            <input type="radio" name="price_range" value="{{ preset.value }}" {% if page.search_filters.price_range == preset.value %}checked{% endif %}>
+                            <span>{{ preset.label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <div class="home-search-range">
+                        <div class="home-search-range__field">
+                            <label for="priceMin">Tối thiểu</label>
+                            <input id="priceMin" type="number" inputmode="numeric" name="price_min" min="0" step="1000" value="{{ page.search_filters.price_min if page.search_filters.price_min is not none else '' }}" placeholder="0">
+                        </div>
+                        <div class="home-search-range__arrow" aria-hidden="true">→</div>
+                        <div class="home-search-range__field">
+                            <label for="priceMax">Tối đa</label>
+                            <input id="priceMax" type="number" inputmode="numeric" name="price_max" min="0" step="1000" value="{{ page.search_filters.price_max if page.search_filters.price_max is not none else '' }}" placeholder="250000">
+                        </div>
+                    </div>
+                    <p class="home-search-filter-card__hint">Nếu nhập khoảng giá thủ công thì sẽ ưu tiên hơn các chip chọn nhanh bên trên.</p>
+                </section>
+            </div>
+
+            <div class="home-search-filters__actions">
+                <a class="home-search-filters__reset" href="{{ page.search_clear_filters_href }}">Đặt lại</a>
+                <button class="home-search-filters__apply" type="submit">Áp dụng</button>
+            </div>
+        </form>
+    </details>
+
+    {% if page.search_results %}
+    <div class="restaurant-grid home-search-results">
+        {% for item in page.search_results %}
+            {% include "partials/home_card_search.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state home-search-empty">
+        <h3>{{ page.search_empty_title }}</h3>
+        <p>{{ page.search_empty_description }}</p>
+    </div>
+    {% endif %}
+
+    {% if page.search_has_more %}
+    <div class="home-section__footer">
+        <a class="home-more" href="{{ page.search_load_more_href }}">Xem thêm</a>
+    </div>
+    {% endif %}
+</section>
+{% else %}
+{% for section in page.sections %}
+    {% include "partials/home_section.html" %}
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Đặt hàng thành công | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checkout.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="checkout-page checkout-page--success">
+    <div class="checkout-success">
+        <div class="checkout-success__badge">✓</div>
+        <h1>Đặt hàng thành công</h1>
+        <p>Đơn hàng <strong>#{{ order.order_id }}</strong> đã được tạo và chuyển sang trạng thái chờ xác nhận.</p>
+
+        <div class="checkout-success__card">
+            <div class="checkout-success__row"><span>Trạng thái đơn</span><strong>{{ order_status_label or 'Chờ xác nhận' }}</strong></div>
+            <div class="checkout-success__row"><span>Tạm tính</span><strong>{{ "{:,}".format(subtotal_amount or 0) }}đ</strong></div>
+            <div class="checkout-success__row"><span>Phí giao hàng</span><strong>{{ "{:,}".format(order.delivery_fee or 0) }}đ</strong></div>
+            <div class="checkout-success__row"><span>{{ voucher_display_text or 'Giảm voucher' }}</span><strong>{% if voucher_discount_value is defined and voucher_discount_value %}-{{ "{:,}".format(voucher_discount_value) }}đ{% else %}0đ{% endif %}</strong></div>
+            <div class="checkout-success__row"><span>{{ payment_method_label or (order.payment.payment_method if order.payment else 'Thanh toán') }}</span><strong>{% if order.payment and order.payment.payment_method == 'momo' %}Đã thanh toán{% else %}{{ "{:,}".format(order.total_amount or 0) }}đ{% endif %}</strong></div>
+        </div>
+
+        <div class="checkout-success__countdown" id="successCountdownBox" data-remaining="{{ cancel_remaining_seconds or 0 }}" data-clear-cart-url="{{ success_cart_clear_url or '' }}">
+            <strong id="successCountdownText"></strong>
+            <p>Trong 30 giây này bạn có thể hủy đơn nếu đổi ý.</p>
+        </div>
+
+        <div class="checkout-success__actions">
+            {% if cancel_remaining_seconds and cancel_remaining_seconds > 0 %}
+            <form method="post" action="{{ url_for('checkout.checkout_cancel', order_id=order.order_id) }}">
+                <button class="checkout-btn checkout-btn--soft" type="submit" id="cancelOrderBtn">Hủy đơn</button>
+            </form>
+            {% endif %}
+            <a class="checkout-btn checkout-btn--primary" href="{{ url_for('auth.orders') }}">Xem đơn hàng</a>
+            <a class="checkout-btn checkout-btn--soft" href="{{ url_for('home.index') }}">Về trang chủ</a>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const box = document.getElementById("successCountdownBox");
+    const text = document.getElementById("successCountdownText");
+    const cancelBtn = document.getElementById("cancelOrderBtn");
+    if (!box || !text) return;
+
+    let remaining = Number(box.dataset.remaining || 0);
+    const clearCartUrl = box.dataset.clearCartUrl || "";
+    let clearCartSent = false;
+
+    async function clearCartIfNeeded() {
+        if (!clearCartUrl || clearCartSent) return;
+        clearCartSent = true;
+        try {
+            await fetch(clearCartUrl, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json",
+                },
+            });
+        } catch (error) {
+            return;
+        }
+    }
+
+    const tick = () => {
+        if (remaining <= 0) {
+            text.textContent = "Đã hết thời gian cho phép hủy đơn.";
+            if (cancelBtn) {
+                cancelBtn.disabled = true;
+                cancelBtn.classList.add("is-disabled");
+            }
+            clearCartIfNeeded();
+            return;
+        }
+        text.textContent = `Còn ${remaining}s để hủy đơn`;
+        remaining -= 1;
+        window.setTimeout(tick, 1000);
+    };
+
+    tick();
+})();
+</script>
+{% endblock %}

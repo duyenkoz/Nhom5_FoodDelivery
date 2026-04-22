@@ -1,0 +1,144 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Đơn hàng | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checkout.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="checkout-page orders-page">
+    <div class="checkout-page__heading">
+        <h1>Đơn hàng của bạn</h1>
+        <p>Xem nhanh các đơn chưa giao và đã giao theo trạng thái hiện tại.</p>
+    </div>
+
+    <div class="orders-tabs" role="tablist" aria-label="Danh sách đơn hàng">
+        <button type="button" class="orders-tab is-active" data-order-tab="pending">
+            <span>CHƯA GIAO</span>
+            <strong>{{ pending_count or 0 }}</strong>
+        </button>
+        <button type="button" class="orders-tab" data-order-tab="delivered">
+            <span>ĐÃ GIAO</span>
+            <strong>{{ delivered_count or 0 }}</strong>
+        </button>
+        <button type="button" class="orders-tab" data-order-tab="cancelled">
+            <span>ĐÃ HỦY</span>
+            <strong>{{ cancelled_count or 0 }}</strong>
+        </button>
+    </div>
+
+    <div class="orders-panels">
+        <section class="orders-panel is-active" data-order-panel="pending">
+            {% if pending_orders %}
+            <div class="orders-list">
+                {% for order in pending_orders %}
+                <article class="order-card">
+                    <div class="order-card__meta">
+                        <div class="order-card__thumb">
+                            <span>#{{ order.order_id }}</span>
+                        </div>
+                        <div class="order-card__text">
+                            <div class="order-card__topline">
+                                <strong>{{ order.date_text }} | {{ order.time_text }}</strong>
+                                <span class="order-status {{ order.status_class }}">{{ order.status_label }}</span>
+                            </div>
+                            <h3>{{ order.restaurant_name }}</h3>
+                            <p>{{ order.item_count }} món · {{ "{:,}".format(order.total_amount or 0) }}đ</p>
+                            {% if order.item_preview %}
+                            <small>{{ order.item_preview | join(" · ") }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="order-card__actions">
+                        <a class="order-card__link" href="{{ order.detail_url }}">&gt;</a>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="checkout-demo-note">Bạn chưa có đơn hàng nào đang chờ giao.</div>
+            {% endif %}
+        </section>
+
+        <section class="orders-panel" data-order-panel="delivered">
+            {% if delivered_orders %}
+            <div class="orders-list">
+                {% for order in delivered_orders %}
+                <article class="order-card order-card--done">
+                    <div class="order-card__meta">
+                        <div class="order-card__thumb">
+                            <span>#{{ order.order_id }}</span>
+                        </div>
+                        <div class="order-card__text">
+                            <div class="order-card__topline">
+                                <strong>{{ order.date_text }} | {{ order.time_text }}</strong>
+                                <span class="order-status {{ order.status_class }}">{{ order.status_label }}</span>
+                            </div>
+                            <h3>{{ order.restaurant_name }}</h3>
+                            <p>{{ order.item_count }} món · {{ "{:,}".format(order.total_amount or 0) }}đ</p>
+                            {% if order.item_preview %}
+                            <small>{{ order.item_preview | join(" · ") }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="order-card__actions">
+                        <a class="order-card__link" href="{{ order.detail_url }}" aria-label="Xem chi tiết đơn {{ order.order_id }}">&gt;</a>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="checkout-demo-note">Bạn chưa có đơn hàng đã giao nào.</div>
+            {% endif %}
+        </section>
+
+        <section class="orders-panel" data-order-panel="cancelled">
+            {% if cancelled_orders %}
+            <div class="orders-list">
+                {% for order in cancelled_orders %}
+                <article class="order-card order-card--cancelled">
+                    <div class="order-card__meta">
+                        <div class="order-card__thumb">
+                            <span>#{{ order.order_id }}</span>
+                        </div>
+                        <div class="order-card__text">
+                            <div class="order-card__topline">
+                                <strong>{{ order.date_text }} | {{ order.time_text }}</strong>
+                                <span class="order-status {{ order.status_class }}">{{ order.status_label }}</span>
+                            </div>
+                            <h3>{{ order.restaurant_name }}</h3>
+                            <p>{{ order.item_count }} món · {{ "{:,}".format(order.total_amount or 0) }}đ</p>
+                            {% if order.item_preview %}
+                            <small>{{ order.item_preview | join(" · ") }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="order-card__actions">
+                        <a class="order-card__link" href="{{ order.detail_url }}" aria-label="Xem chi tiết đơn {{ order.order_id }}">&gt;</a>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="checkout-demo-note">Bạn chưa có đơn hàng đã hủy nào.</div>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+<script>
+(function () {
+    const tabs = document.querySelectorAll("[data-order-tab]");
+    const panels = document.querySelectorAll("[data-order-panel]");
+    tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+            const target = tab.dataset.orderTab;
+            tabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+            panels.forEach((panel) => panel.classList.toggle("is-active", panel.dataset.orderPanel === target));
+        });
+    });
+})();
+</script>
+{% endblock %}

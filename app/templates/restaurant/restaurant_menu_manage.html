@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý thực đơn | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_dashboard.css') }}">
+{% endblock %}
+
+{% block page_shell_class %}page-shell--restaurant{% endblock %}
+{% block content_container_class %}container--restaurant{% endblock %}
+
+{% block content %}
+{% set form_values = form_values|default({}) %}
+{% set form_errors = form_errors|default({}) %}
+{% set search_query = search_query|default('') %}
+{% set active_category = active_category|default('all') %}
+{% set restaurant_name = restaurant.user.display_name if restaurant and restaurant.user and restaurant.user.display_name else (restaurant.user.username if restaurant and restaurant.user else 'Nhà hàng') %}
+{% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
+{% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
+{% set open_modal = edit_dish or form_errors %}
+
+<div class="restaurant-page">
+    <aside class="restaurant-page__sidebar">
+        <div class="restaurant-card restaurant-profile">
+            <div class="restaurant-profile__cover">
+                {% if restaurant and restaurant.image %}
+                <img src="{{ url_for('static', filename=restaurant.image) }}" alt="{{ restaurant_name }}">
+                {% else %}
+                <div class="restaurant-profile__placeholder">{{ restaurant_name[:1] }}</div>
+                {% endif %}
+            </div>
+            <div class="restaurant-profile__body">
+                <h2>{{ restaurant_name }}</h2>
+                <p>{{ restaurant_address }}</p>
+                <span class="restaurant-pill">{{ restaurant_area }}</span>
+            </div>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__links">
+            <a class="{% if request.endpoint == 'restaurant.dashboard' %}is-active{% endif %}" href="{{ url_for('restaurant.dashboard') }}">Quản lý thực đơn</a>
+            <a href="{{ url_for('restaurant.orders') }}">Quản lý đơn hàng</a>
+            <a href="{{ url_for('restaurant.analytics') }}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.vouchers') }}">Quản lý voucher</a>
+            <a href="{{ url_for('restaurant.reviews') }}">Xem các đánh giá nhà hàng</a>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__note">
+            <h3>Gợi ý</h3>
+            <p>Nút trạng thái bên phải sẽ đổi giữa còn món và hết món, giống luồng quản trị trong ảnh mẫu.</p>
+        </div>
+    </aside>
+
+    <main class="restaurant-page__content">
+        <section class="restaurant-top-panel">
+            <section class="restaurant-hero">
+                <div class="restaurant-hero__copy">
+                    <h1>Thực đơn nhà hàng</h1>
+                    <p>Quản lý danh sách món ăn và giá cả của nhà hàng.</p>
+                </div>
+            </section>
+
+            <section class="restaurant-toolbar" id="menu-toolbar">
+                <form class="restaurant-toolbar__main-form" method="get" action="{{ url_for('restaurant.dashboard') }}" id="toolbarForm" data-live-search-form data-live-search-target="#menu-results" autocomplete="off">
+                    <div class="restaurant-toolbar__search">
+                        <span class="restaurant-toolbar__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <path d="m20 20-3.5-3.5"></path>
+                            </svg>
+                        </span>
+                        <input
+                            type="search"
+                            name="q"
+                            value="{{ search_query }}"
+                            placeholder="Tìm tên món..."
+                            autocomplete="off"
+                            autocapitalize="off"
+                            autocorrect="off"
+                            spellcheck="false"
+                        >
+                    </div>
+
+                    <div class="restaurant-toolbar__filters">
+                        <div class="restaurant-dropdown">
+                            <select name="category" onchange="this.form.submit()">
+                                <option value="all" {% if active_category == 'all' %}selected{% endif %}>Tất cả danh mục</option>
+                                {% for category in categories %}
+                                <option value="{{ category }}" {% if active_category == category %}selected{% endif %}>{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="restaurant-dropdown__arrow"></span>
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="page" value="1">
+                </form>
+
+                <button type="button" class="restaurant-btn restaurant-btn--primary" data-open-form>+ Thêm món</button>
+            </section>
+        </section>
+
+        <section class="restaurant-table-card" id="menu-results">
+            <div class="restaurant-table-wrap">
+                <div class="restaurant-table">
+                    <div class="restaurant-table__head">
+                        <span>Ảnh</span>
+                        <span>Tên món</span>
+                        <span>Danh mục</span>
+                        <span>Giá</span>
+                        <span>Hôm nay</span>
+                        <span>TB Ngày</span>
+                        <span>Mô tả</span>
+                        <span>Hết món</span>
+                        <span>Thao tác</span>
+                    </div>
+
+                    {% if paged_dish_views %}
+                    {% for item in paged_dish_views %}
+                    {% set dish = item.dish %}
+                    <div class="restaurant-table__row {% if not dish.status %}is-offline{% endif %}">
+                        <div class="restaurant-table__image">
+                            <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ dish.dish_name }}">
+                        </div>
+                        <div class="restaurant-table__name" title="{{ dish.dish_name }}">
+                            <strong>{{ dish.dish_name }}</strong>
+                        </div>
+                        <div class="restaurant-table__category">{{ item.category }}</div>
+                        <div class="restaurant-table__price">{{ "{:,}".format(dish.price or 0) }}đ</div>
+                        <div class="restaurant-table__metric restaurant-table__metric--strong {{ item.performance_class }}">{{ item.today_orders }}</div>
+                        <div class="restaurant-table__metric {{ item.performance_class }}">{{ item.avg_day_orders }}</div>
+                        <div class="restaurant-table__description" title="{{ dish.description or 'Chưa có mô tả' }}" data-dish-name="{{ dish.dish_name }}" data-dish-description="{{ dish.description or 'Chưa có mô tả' }}">
+                            <span class="restaurant-table__description-text">{{ (dish.description or 'Chưa có mô tả')|truncate(44, True, '...') }}</span>
+                            <button type="button" class="restaurant-table__description-link" data-open-description>Xem</button>
+                        </div>
+                        <div class="restaurant-table__stock">
+                            <form method="post" action="{{ url_for('restaurant.toggle_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" class="restaurant-status-form restaurant-status-form--stock">
+                                <label class="restaurant-check" aria-label="{{ 'Đánh dấu hết món' if dish.status else 'Bỏ đánh dấu hết món' }}">
+                                    <input type="checkbox" name="sold_out" {% if not dish.status %}checked{% endif %} onchange="this.form.submit()">
+                                    <span class="restaurant-check__box">
+                                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                                            <path d="M5 10.5 8.2 13.7 15 7"></path>
+                                        </svg>
+                                    </span>
+                                </label>
+                            </form>
+                        </div>
+                        <div class="restaurant-table__actions">
+                            <a class="restaurant-icon-btn restaurant-icon-btn--edit" href="{{ url_for('restaurant.dashboard', edit=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}" aria-label="Chỉnh sửa món">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
+                            </a>
+                            <button
+                                type="button"
+                                class="restaurant-icon-btn restaurant-icon-btn--delete"
+                                aria-label="Xóa món"
+                                data-open-delete-modal
+                                data-delete-action="{{ url_for('restaurant.delete_dish', dish_id=dish.dish_id, q=search_query, category=active_category, page=pagination.page) }}"
+                                data-dish-name="{{ dish.dish_name }}"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="restaurant-table__empty">
+                        <strong>Chưa có món nào phù hợp.</strong>
+                        <p>Hãy thử đổi từ khoá tìm kiếm hoặc thêm món đầu tiên.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="restaurant-table-footer">
+                <div class="restaurant-table-footer__note">
+                    Hiển thị {{ pagination.total_items }} trên {{ stats.total }} món
+                </div>
+                <div class="restaurant-pagination">
+                    <a class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=pagination.page - 1) }}">Trước</a>
+                    {% for page_num in range(1, pagination.total_pages + 1) %}
+                    <a class="restaurant-pagination__page {% if page_num == pagination.page %}is-active{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=page_num) }}">{{ page_num }}</a>
+                    {% endfor %}
+                    <a class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=pagination.page + 1) }}">Sau</a>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="restaurant-description-modal" id="dishDescriptionModal" aria-hidden="true">
+    <div class="restaurant-description-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dishDescriptionModalTitle">
+        <div class="restaurant-description-modal__header">
+            <div>
+                <h3 id="dishDescriptionModalTitle">Chi tiết mô tả</h3>
+            </div>
+            <button type="button" class="restaurant-description-modal__close" id="closeDishDescriptionModal" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="restaurant-description-modal__body">
+            <h4 id="dishDescriptionName"></h4>
+            <p id="dishDescriptionText"></p>
+        </div>
+    </div>
+</div>
+
+<div class="restaurant-confirm-modal" id="deleteDishModal" aria-hidden="true">
+    <div class="restaurant-confirm-modal__backdrop" data-close-delete-modal="true"></div>
+    <div class="restaurant-confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="deleteDishModalTitle">
+        <button type="button" class="restaurant-confirm-modal__close" data-close-delete-modal="true" aria-label="Đóng">&times;</button>
+        <h3 id="deleteDishModalTitle">Xác nhận xóa món</h3>
+        <p id="deleteDishModalMessage">Bạn có chắc chắn muốn xóa món này không?</p>
+        <form method="post" id="deleteDishForm">
+            <div class="restaurant-confirm-modal__actions">
+                <button type="button" class="restaurant-btn restaurant-btn--ghost" data-close-delete-modal="true">Hủy</button>
+                <button type="submit" class="restaurant-btn restaurant-btn--danger">Xóa món</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="menu-modal {% if open_modal %}is-open{% endif %}" id="menuModal" aria-hidden="{% if open_modal %}false{% else %}true{% endif %}">
+    <div class="menu-modal__panel" role="dialog" aria-modal="true" aria-labelledby="menuModalTitle">
+        <div class="menu-modal__header">
+            <div>
+                <h2 id="menuModalTitle">{{ 'Chỉnh sửa món' if edit_dish else 'Thêm món mới' }}</h2>
+            </div>
+            <button type="button" class="menu-modal__close" data-close-form aria-label="Đóng">&times;</button>
+        </div>
+
+        {% set category_options = ['Món chính', 'Cơm', 'Bún/Phở', 'Khai vị', 'Đồ uống'] %}
+        <form method="post" action="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=pagination.page) }}" class="menu-form" enctype="multipart/form-data">
+            <input type="hidden" name="dish_id" value="{{ form_values.get('dish_id', '') }}">
+            <input type="hidden" name="q" value="{{ search_query }}">
+            <input type="hidden" name="filter_category" value="{{ active_category }}">
+            <input type="hidden" name="page" value="{{ pagination.page }}">
+
+            <div class="menu-form__field">
+                <label for="dish_name">Tên món</label>
+                <input type="text" id="dish_name" name="dish_name" maxlength="100" value="{{ form_values.get('dish_name', '') }}" class="{% if form_errors.get('dish_name') %}is-invalid{% endif %}" placeholder="Nhập tên món">
+                <small>{{ form_errors.get('dish_name') or '' }}</small>
+            </div>
+
+            <div class="menu-form__grid menu-form__grid--secondary">
+                <div class="menu-form__field">
+                    <label for="price">Giá</label>
+                    <input type="number" id="price" name="price" min="1" step="1" value="{{ form_values.get('price', '') }}" class="{% if form_errors.get('price') %}is-invalid{% endif %}" placeholder="55000">
+                    <small>{{ form_errors.get('price') or '' }}</small>
+                </div>
+
+                <div class="menu-form__field">
+                    <label for="dish_category">Danh mục</label>
+                    <input type="text" id="dish_category" name="category" value="{{ form_values.get('category', '') }}" class="{% if form_errors.get('category') %}is-invalid{% endif %}" placeholder="Ví dụ: Món chính" list="dishCategories">
+                    <datalist id="dishCategories">
+                        {% for option in category_options %}
+                        <option value="{{ option }}"></option>
+                        {% endfor %}
+                        {% for option in categories %}
+                        <option value="{{ option }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    <small>{{ form_errors.get('category') or 'Có thể chọn hoặc tự nhập danh mục.' }}</small>
+                </div>
+
+                <div class="menu-form__field">
+                    <label for="dish_image">Ảnh món</label>
+                    <input type="file" id="dish_image" name="dish_image" accept="image/*" class="menu-form__file">
+                    <small>{{ 'Ảnh hiện tại: ' ~ form_values.get('image_name') if form_values.get('image_name') else 'Để trống nếu muốn giữ ảnh mặc định hoặc ảnh đang có.' }}</small>
+                </div>
+
+                <div class="menu-form__field">
+                    <label>Trạng thái</label>
+                    <label class="restaurant-status-form restaurant-status-form--field restaurant-status-form--toggle">
+                        <input type="checkbox" id="dish_status" name="status" class="restaurant-status-form__input" {% if form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
+                        <span class="restaurant-switch" aria-hidden="true">
+                            <span class="restaurant-switch__thumb"></span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-form__field">
+                <label for="description">Mô tả</label>
+                <textarea id="description" name="description" rows="3" maxlength="300" class="{% if form_errors.get('description') %}is-invalid{% endif %}" placeholder="Mô tả ngắn">{{ form_values.get('description', '') }}</textarea>
+                <small>{{ form_errors.get('description') or '' }}</small>
+            </div>
+
+            <div class="menu-form__actions">
+                <button type="button" class="restaurant-btn restaurant-btn--ghost" data-close-form>Huỷ</button>
+                <button type="submit" class="restaurant-btn restaurant-btn--primary">{{ 'Lưu thay đổi' if edit_dish else 'Thêm món' }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const dishDescriptionModal = document.getElementById("dishDescriptionModal");
+const dishDescriptionName = document.getElementById("dishDescriptionName");
+const dishDescriptionText = document.getElementById("dishDescriptionText");
+const closeDishDescriptionModal = document.getElementById("closeDishDescriptionModal");
+const openDescriptionButtons = document.querySelectorAll("[data-open-description]");
+const menuModal = document.getElementById("menuModal");
+const openButtons = document.querySelectorAll("[data-open-form]");
+const closeButtons = document.querySelectorAll("[data-close-form]");
+const deleteDishModal = document.getElementById("deleteDishModal");
+const deleteDishForm = document.getElementById("deleteDishForm");
+const deleteDishModalMessage = document.getElementById("deleteDishModalMessage");
+const deleteDishButtons = document.querySelectorAll("[data-open-delete-modal]");
+const closeDeleteButtons = document.querySelectorAll("[data-close-delete-modal]");
+
+function openDishDescriptionModal(name, description) {
+    if (!dishDescriptionModal) return;
+    dishDescriptionName.textContent = name || "Món ăn";
+    dishDescriptionText.textContent = description || "Chưa có mô tả";
+    dishDescriptionModal.classList.add("is-open");
+    dishDescriptionModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDishDescriptionModalFn() {
+    if (!dishDescriptionModal) return;
+    dishDescriptionModal.classList.remove("is-open");
+    dishDescriptionModal.setAttribute("aria-hidden", "true");
+}
+
+openDescriptionButtons.forEach((button) => button.addEventListener("click", () => {
+    const cell = button.closest(".restaurant-table__description");
+    openDishDescriptionModal(
+        cell ? cell.dataset.dishName : "",
+        cell ? cell.dataset.dishDescription : ""
+    );
+}));
+
+if (closeDishDescriptionModal) {
+    closeDishDescriptionModal.addEventListener("click", closeDishDescriptionModalFn);
+}
+
+if (dishDescriptionModal) {
+    dishDescriptionModal.addEventListener("click", (event) => {
+        if (event.target === dishDescriptionModal) {
+            closeDishDescriptionModalFn();
+        }
+    });
+}
+
+function openMenuModal() {
+    if (!menuModal) return;
+    menuModal.classList.add("is-open");
+    menuModal.setAttribute("aria-hidden", "false");
+}
+
+function clearEditQueryParam() {
+    if (!window.history || !window.history.replaceState) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function closeMenuModal() {
+    if (!menuModal) return;
+    menuModal.classList.remove("is-open");
+    menuModal.setAttribute("aria-hidden", "true");
+    clearEditQueryParam();
+}
+
+function openDeleteDishModal(action, dishName) {
+    if (!deleteDishModal || !deleteDishForm) return;
+    deleteDishForm.setAttribute("action", action || "#");
+    deleteDishModalMessage.textContent = `Bạn có chắc chắn muốn xóa món "${dishName || "này"}" không?`;
+    deleteDishModal.classList.add("is-open");
+    deleteDishModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDeleteDishModal() {
+    if (!deleteDishModal) return;
+    deleteDishModal.classList.remove("is-open");
+    deleteDishModal.setAttribute("aria-hidden", "true");
+}
+
+openButtons.forEach((button) => button.addEventListener("click", openMenuModal));
+closeButtons.forEach((button) => button.addEventListener("click", closeMenuModal));
+
+deleteDishButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+        openDeleteDishModal(button.dataset.deleteAction, button.dataset.dishName);
+    });
+});
+
+closeDeleteButtons.forEach((button) => {
+    button.addEventListener("click", closeDeleteDishModal);
+});
+
+if (menuModal) {
+    menuModal.addEventListener("click", (event) => {
+        if (event.target === menuModal) {
+            closeMenuModal();
+        }
+    });
+}
+
+if (deleteDishModal) {
+    deleteDishModal.addEventListener("click", (event) => {
+        if (event.target === deleteDishModal) {
+            closeDeleteDishModal();
+        }
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeDishDescriptionModalFn();
+        closeMenuModal();
+        closeDeleteDishModal();
+    }
+});
+</script>
+<script src="{{ url_for('static', filename='js/live_search.js') }}"></script>
+{% endblock %}

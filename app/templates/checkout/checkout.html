@@ -1,0 +1,254 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Thanh toán | Food Delivery{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checkout.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set checkout_data = checkout or {} %}
+{% set checkout_items = checkout_data.get('items', []) %}
+{% set restaurant = checkout_data.get('restaurant') %}
+{% set form_values = checkout_data.get('form_values', {}) %}
+{% set form_errors = checkout_data.get('form_errors', {}) %}
+{% set checkout_page_data = {
+    "restaurant_id": restaurant.restaurant_id if restaurant else "",
+    "restaurant_detail_url": url_for("home.restaurant_detail", restaurant_id=restaurant.restaurant_id) if restaurant else "",
+    "checkout_cart_update_url_template": url_for("home.update_restaurant_cart", restaurant_id=restaurant.restaurant_id, dish_id=0) if restaurant else "",
+    "voucher_code": form_values.get("voucher_code", ""),
+    "voucher_id": form_values.get("voucher_id", ""),
+    "voucher_text": "Đã áp dụng 1 mã KM" if form_values.get("voucher_code") else "Khuyến mãi",
+    "discount_value": checkout_data.get("discount_value", 0),
+    "checkout_payload_url": url_for("checkout.checkout_payload_safe"),
+    "checkout_vouchers_url": url_for("checkout.checkout_vouchers_safe"),
+    "checkout_voucher_url": url_for("checkout.checkout_voucher_safe"),
+    "checkout_quote_url": url_for("checkout.checkout_quote"),
+    "checkout_recommendations_url": url_for("checkout.checkout_recommendations"),
+    "checkout_momo_url": url_for("checkout.checkout_momo"),
+} %}
+<div class="checkout-page">
+    <div class="checkout-page__heading">
+        <h1>Thanh toán - {{ checkout_data.get('restaurant_name') or 'Đơn hàng của bạn' }}</h1>
+    </div>
+
+    <div class="checkout-layout checkout-layout--top">
+        <section class="checkout-main">
+            <section class="checkout-panel checkout-panel--info">
+                <div class="checkout-panel__title">
+                    <span class="checkout-panel__icon">📍</span>
+                    <h2>Giao đến</h2>
+                </div>
+
+                <form id="checkoutForm" method="post" action="{{ url_for('checkout.checkout') }}">
+                    <input type="hidden" name="restaurant_id" value="{{ restaurant.restaurant_id if restaurant else '' }}">
+                    <input type="hidden" name="voucher_id" id="voucher_id" value="{{ form_values.get('voucher_id', '') }}">
+                    <input type="hidden" name="voucher_code" id="voucher_code_hidden" value="{{ form_values.get('voucher_code', '') }}">
+                    <input type="hidden" name="checkout_items_json" id="checkout_items_json" value='{{ checkout_items|tojson }}'>
+
+                    <div class="checkout-field">
+                        <label for="customer_name">Tên</label>
+                        <input type="text" id="customer_name" name="customer_name" value="{{ form_values.get('customer_name', '') }}" class="{% if form_errors.get('customer_name') %}is-invalid{% endif %}" placeholder="Nguyễn Văn A">
+                        {% if form_errors.get('customer_name') %}
+                        <small class="checkout-field__error">{{ form_errors.get('customer_name') }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="checkout-field">
+                        <label for="phone">Số điện thoại</label>
+                        <input type="tel" id="phone" name="phone" value="{{ form_values.get('phone', '') }}" class="{% if form_errors.get('phone') %}is-invalid{% endif %}" placeholder="090 123 4567">
+                        {% if form_errors.get('phone') %}
+                        <small class="checkout-field__error">{{ form_errors.get('phone') }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="checkout-field">
+                        <label for="delivery_address">Địa chỉ</label>
+                        <textarea id="delivery_address" name="delivery_address" rows="3" class="{% if form_errors.get('delivery_address') %}is-invalid{% endif %}" placeholder="123 Lê Văn Việt, Hiệp Phú, Thủ Đức, TP. HCM">{{ form_values.get('delivery_address', '') }}</textarea>
+                        {% if form_errors.get('delivery_address') %}
+                        <small class="checkout-field__error">{{ form_errors.get('delivery_address') }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="checkout-field">
+                        <label for="note">Ghi chú cho bác tài</label>
+                        <textarea id="note" name="note" rows="2" placeholder="VD: Nhà màu xanh">{{ form_values.get('note', '') }}</textarea>
+                    </div>
+                </form>
+            </section>
+        </section>
+
+        <aside class="checkout-side checkout-side--top">
+            <section class="checkout-panel checkout-panel--payment">
+                <h2>Hình thức thanh toán và Ưu đãi</h2>
+
+                <div class="payment-box">
+                    <select id="payment_method" name="payment_method" form="checkoutForm" class="payment-select">
+                        <option value="cash" {% if form_values.get('payment_method', 'cash') == 'cash' %}selected{% endif %}>Tiền mặt</option>
+                        <option value="momo" {% if form_values.get('payment_method') == 'momo' %}selected{% endif %}>Ví MoMo</option>
+                    </select>
+                </div>
+
+                <button type="button" class="voucher-chip" id="openVoucherModalBtn">
+                    <span class="voucher-chip__left" id="voucherChipText">
+                        {% if form_values.get('voucher_code') %}
+                            Đã áp dụng 1 mã KM ......
+                        {% else %}
+                            Khuyến mãi ......
+                        {% endif %}
+                    </span>
+                    <span class="voucher-chip__right">Chọn mã</span>
+                </button>
+
+                <div class="checkout-summary" data-subtotal="{{ checkout_data.get('subtotal', 0) }}" data-delivery-fee="{{ checkout_data.get('delivery_fee', 0) }}" data-shipping-fee="{{ checkout_data.get('shipping_fee', 0) }}" data-platform-fee="{{ checkout_data.get('platform_fee', 0) }}" data-raw-delivery-fee="{{ checkout_data.get('raw_delivery_fee', 0) }}" data-distance-text="{{ checkout_data.get('distance_text', '') }}">
+                    <div class="checkout-summary__line">
+                        <span>Tạm tính</span>
+                        <strong id="subtotalValue">{{ "{:,}".format(checkout_data.get('subtotal', 0)) }}đ</strong>
+                    </div>
+                    <div class="checkout-summary__line checkout-summary__line--fee">
+                        <span class="checkout-summary__label-with-tip">
+                            Phí sàn
+                            <span class="checkout-summary__tip" data-delivery-fee-tip title="Phí ship: {{ '{:,}'.format(checkout_data.get('shipping_fee', 0)) }}đ | Phí sàn: {{ '{:,}'.format(checkout_data.get('platform_fee', 0)) }}đ | Khoảng cách: {{ checkout_data.get('distance_text', '') or 'N/A' }}">i</span>
+                        </span>
+                        <strong id="deliveryFeeValue">{{ "{:,}".format(checkout_data.get('delivery_fee', 0)) }}đ</strong>
+                    </div>
+                    <div class="checkout-summary__line checkout-summary__line--discount">
+                        <span data-voucher-summary-label>{{ checkout_data.get('voucher_summary_label') or 'Giảm voucher' }}</span>
+                        <strong id="discountValue">{{ '-' ~ checkout_data.get('discount_text') if checkout_data.get('discount_value') else '0đ' }}</strong>
+                    </div>
+                    <div class="checkout-summary__divider"></div>
+                    <div class="checkout-summary__total">
+                        <span>Tổng tiền</span>
+                        <strong id="totalValue">{{ "{:,}".format(checkout_data.get('total_amount', 0)) }}đ</strong>
+                    </div>
+                </div>
+
+                <button type="submit" form="checkoutForm" class="checkout-btn checkout-btn--primary">Thanh toán</button>
+            </section>
+        </aside>
+    </div>
+
+    <div class="checkout-layout checkout-layout--bottom">
+        <section class="checkout-main">
+            <section class="checkout-panel checkout-panel--order">
+                <div class="checkout-order-head">
+                    <h2>Đơn Hàng</h2>
+                    <a class="checkout-order-head__link" href="{{ url_for('home.restaurant_detail', restaurant_id=restaurant.restaurant_id) if restaurant else '#' }}">Thêm món</a>
+                </div>
+
+                <div class="checkout-items" id="checkoutItemsList">
+                    {% for item in checkout_items %}
+                    <article class="checkout-item" data-item-id="{{ item.dish_id }}" data-item-key="{{ item.dish_id }}">
+                        <div class="checkout-item__thumb">
+                            {% if item.image_url or item.image_path %}
+                            <img src="{{ item.image_url or url_for('static', filename=item.image_path) }}" alt="{{ item.name }}">
+                            {% endif %}
+                        </div>
+                        <div class="checkout-item__body">
+                            <div class="checkout-item__qty">{{ item.quantity }}x</div>
+                            <div class="checkout-item__meta">
+                                <strong>{{ item.name }}</strong>
+                                {% if item.note %}
+                                <small class="checkout-item__note">
+                                    <span class="checkout-item__note-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                                            <path d="M7 4.75h7.55L18.75 9v10.25A1.75 1.75 0 0 1 17 21H7a1.75 1.75 0 0 1-1.75-1.75V6.5A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                            <path d="M14.5 4.75V9h4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M8.75 12.25h6.5M8.75 15.25h4.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                        </svg>
+                                    </span>
+                                    <span class="checkout-item__note-text">{{ item.note }}</span>
+                                </small>
+                                {% endif %}
+                                <button type="button" class="checkout-item__edit" data-edit-item>Chỉnh sửa món</button>
+                            </div>
+                        </div>
+                        <div class="checkout-item__side">
+                            <button type="button" class="checkout-item__remove" data-remove-item aria-label="Xóa món">&times;</button>
+                            <div class="checkout-item__price">{{ "{:,}".format(item.line_total or 0) }}đ</div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </section>
+
+        <aside class="checkout-side checkout-side--bottom">
+            <div id="checkoutRecommendations">
+                {% include "partials/checkout_recommendations.html" %}
+            </div>
+        </aside>
+    </div>
+</div>
+
+<div class="item-edit-modal" id="itemEditModal" aria-hidden="true">
+    <div class="item-edit-modal__backdrop" data-close-item-modal></div>
+    <div class="item-edit-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="itemEditModalTitle">
+        <button type="button" class="item-edit-modal__close" data-close-item-modal aria-label="Đóng">×</button>
+        <div class="item-edit-modal__media">
+            <img id="itemEditImage" alt="">
+        </div>
+        <div class="item-edit-modal__header">
+            <div>
+                <h3 id="itemEditModalTitle">Chỉnh sửa món</h3>
+                <p id="itemEditModalSubtitle">Cập nhật số lượng và ghi chú cho món ăn này.</p>
+            </div>
+        </div>
+
+        <div class="item-edit-modal__body">
+            <div class="item-edit-modal__title-row">
+                <h3 id="itemEditName"></h3>
+                <strong id="itemEditPrice"></strong>
+            </div>
+            <label class="item-edit-modal__note-field">
+                <span>Viết lời nhắn cho nhà hàng</span>
+                <textarea id="itemEditNote" rows="3" placeholder="Ví dụ: ít đá, không hành..."></textarea>
+            </label>
+        </div>
+
+        <div class="item-edit-modal__footer">
+            <div class="item-edit-modal__qty" data-edit-qty-control>
+                <button type="button" class="item-edit-modal__qty-btn" data-edit-qty-minus aria-label="Giảm số lượng">-</button>
+                <input type="number" min="1" step="1" id="itemEditQuantity">
+                <button type="button" class="item-edit-modal__qty-btn" data-edit-qty-plus aria-label="Tăng số lượng">+</button>
+            </div>
+            <button type="button" class="item-edit-modal__submit" id="saveItemEditBtn">Lưu thay đổi</button>
+        </div>
+    </div>
+</div>
+
+<div class="voucher-modal" id="voucherModal" aria-hidden="true">
+    <div class="voucher-modal__backdrop" data-close-voucher-modal></div>
+    <div class="voucher-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="voucherModalTitle">
+        <div class="voucher-modal__header">
+            <h3 id="voucherModalTitle">Chọn mã khuyến mãi</h3>
+            <button type="button" class="voucher-modal__close" data-close-voucher-modal>×</button>
+        </div>
+
+        <div class="voucher-modal__body">
+            <div class="voucher-modal__section">
+                <div class="voucher-list" id="voucherList">
+                    <div class="voucher-empty">Đang tải mã khuyến mãi...</div>
+                </div>
+                <small class="checkout-voucher__message" id="voucherModalMessage">Chọn một mã có sẵn để áp dụng.</small>
+            </div>
+        </div>
+
+        <div class="voucher-modal__footer">
+            <button type="button" class="voucher-modal__save" id="saveVoucherSelectionBtn">Xác nhận mã</button>
+        </div>
+    </div>
+</div>
+
+<div class="checkout-empty-modal" id="checkoutEmptyModal" aria-hidden="true" hidden>
+    <div class="checkout-empty-modal__backdrop" data-close-empty-cart-modal></div>
+    <div class="checkout-empty-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="checkoutEmptyModalTitle">
+        <h3 id="checkoutEmptyModalTitle">Giỏ hàng rỗng</h3>
+        <p>Bạn vui lòng quay lại trang của Quán để cập nhật thêm giỏ hàng nhé</p>
+        <button type="button" class="checkout-empty-modal__ok" id="checkoutEmptyModalOk">OK</button>
+    </div>
+</div>
+
+<script id="checkout-page-data" type="application/json">{{ checkout_page_data|tojson }}</script>
+<script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,88 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ section_title }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_sections.css') }}">
+{% endblock %}
+
+{% block page_shell_class %}page-shell--restaurant{% endblock %}
+{% block content_container_class %}container--restaurant{% endblock %}
+
+{% block content %}
+{% set restaurant_name = restaurant.user.display_name if restaurant and restaurant.user and restaurant.user.display_name else (restaurant.user.username if restaurant and restaurant.user else 'Nhà hàng') %}
+{% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
+{% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
+
+<div class="restaurant-page">
+    <aside class="restaurant-page__sidebar">
+        <div class="restaurant-card restaurant-profile">
+            <div class="restaurant-profile__cover">
+                {% if restaurant and restaurant.image %}
+                <img src="{{ url_for('static', filename=restaurant.image) }}" alt="{{ restaurant_name }}">
+                {% else %}
+                <div class="restaurant-profile__placeholder">{{ restaurant_name[:1] }}</div>
+                {% endif %}
+            </div>
+            <div class="restaurant-profile__body">
+                <h2>{{ restaurant_name }}</h2>
+                <p>{{ restaurant_address }}</p>
+                <span class="restaurant-pill">{{ restaurant_area }}</span>
+            </div>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__links">
+            <a href="{{ url_for('restaurant.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Quản lý thực đơn</a>
+            <a href="{{ url_for('restaurant.orders') }}" class="{% if section_name == 'orders' %}is-active{% endif %}">Quản lý đơn hàng</a>
+            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
+            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Xem các đánh giá nhà hàng</a>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__note">
+            <h3>Gợi ý</h3>
+            <p>Đây là khu quản trị của nhà hàng. Bạn có thể chuyển giữa các mục bằng sidebar bên trái.</p>
+        </div>
+    </aside>
+
+    <main class="restaurant-page__content">
+        <section class="restaurant-hero">
+            <div>
+                <h1>{{ section_title }}</h1>
+                <p>{{ section_subtitle }}</p>
+            </div>
+        </section>
+
+        <section class="restaurant-section">
+            <div class="restaurant-section__card restaurant-section__card--stats">
+                <div class="restaurant-section__stats">
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Doanh thu</span>
+                        <strong>{{ "{:,}".format(stats.revenue or 0) }}đ</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Tổng đơn</span>
+                        <strong>{{ stats.orders }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Tổng đánh giá</span>
+                        <strong>{{ stats.reviews }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Điểm TB</span>
+                        <strong>{{ stats.average_rating }}</strong>
+                    </article>
+                </div>
+            </div>
+
+            <div class="restaurant-section__card">
+                <div class="restaurant-empty">
+                    <strong>Trang thống kê mẫu.</strong>
+                    <p>Phần này đang hiển thị số liệu tổng hợp từ dữ liệu đơn hàng và đánh giá.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+{% endblock %}

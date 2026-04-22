@@ -1,0 +1,291 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ section_title }} | fiveFood{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_sections.css') }}">
+{% endblock %}
+
+{% block page_shell_class %}page-shell--restaurant{% endblock %}
+{% block content_container_class %}container--restaurant{% endblock %}
+
+{% block content %}
+{% set restaurant_name = restaurant.user.display_name if restaurant and restaurant.user and restaurant.user.display_name else (restaurant.user.username if restaurant and restaurant.user else 'Nhà hàng') %}
+{% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
+{% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
+{% set voucher_search = search_query|default('') %}
+{% set voucher_form_values = form_values|default({}) %}
+{% set voucher_form_errors = form_errors|default({}) %}
+{% set open_voucher_modal = edit_voucher or voucher_form_errors %}
+
+<div class="restaurant-page">
+    <aside class="restaurant-page__sidebar">
+        <div class="restaurant-card restaurant-profile">
+            <div class="restaurant-profile__cover">
+                {% if restaurant and restaurant.image %}
+                <img src="{{ url_for('static', filename=restaurant.image) }}" alt="{{ restaurant_name }}">
+                {% else %}
+                <div class="restaurant-profile__placeholder">{{ restaurant_name[:1] }}</div>
+                {% endif %}
+            </div>
+            <div class="restaurant-profile__body">
+                <h2>{{ restaurant_name }}</h2>
+                <p>{{ restaurant_address }}</p>
+                <span class="restaurant-pill">{{ restaurant_area }}</span>
+            </div>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__links">
+            <a href="{{ url_for('restaurant.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Quản lý thực đơn</a>
+            <a href="{{ url_for('restaurant.orders') }}" class="{% if section_name == 'orders' %}is-active{% endif %}">Quản lý đơn hàng</a>
+            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
+            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Xem các đánh giá nhà hàng</a>
+        </div>
+
+        <div class="restaurant-card restaurant-sidebar__note">
+            <h3>Gợi ý</h3>
+            <p>Nhà hàng chỉ có thể tạo, sửa và bật/tắt voucher của chính mình.</p>
+        </div>
+    </aside>
+
+    <main class="restaurant-page__content">
+        <section class="restaurant-hero">
+            <div>
+                <h1>{{ section_title }}</h1>
+                <p>{{ section_subtitle }}</p>
+            </div>
+        </section>
+
+        <section class="restaurant-section restaurant-voucher-section">
+            <div class="restaurant-section__card restaurant-section__card--stats">
+                <div class="restaurant-section__stats">
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Tổng voucher</span>
+                        <strong>{{ stats.total_vouchers }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Đang hoạt động</span>
+                        <strong>{{ stats.active_vouchers }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Sắp hết hạn</span>
+                        <strong>{{ stats.expiring_soon }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Đã được dùng</span>
+                        <strong>{{ stats.used_vouchers }}</strong>
+                    </article>
+                </div>
+            </div>
+
+            <div class="restaurant-section__card">
+                <div class="restaurant-section__header restaurant-voucher-header">
+                    <div>
+                        <h2>Danh sách voucher</h2>
+                        <p class="restaurant-voucher-header__sub">Nhà hàng chỉ có thể tạo, sửa và bật/tắt voucher của chính mình.</p>
+                    </div>
+                    <div class="restaurant-voucher-controls">
+                        <form class="restaurant-toolbar__search restaurant-voucher-search" method="get" action="{{ url_for('restaurant.vouchers') }}" data-live-search-form data-live-search-target="#voucher-results" autocomplete="off">
+                            <span class="restaurant-toolbar__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <path d="m20 20-3.5-3.5"></path>
+                                </svg>
+                            </span>
+                            <input type="search" name="q" value="{{ voucher_search }}" placeholder="Tìm theo mã voucher..." aria-label="Tìm voucher" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                        </form>
+                        <button type="button" class="restaurant-btn restaurant-btn--primary" data-open-voucher-form>+ Thêm voucher</button>
+                    </div>
+                </div>
+
+                <div id="voucher-results">
+                {% if items %}
+                <div class="restaurant-voucher-table">
+                    <div class="restaurant-voucher-table__head">
+                        <span>Mã</span>
+                        <span>Giảm</span>
+                        <span>Hiệu lực</span>
+                        <span>Phạm vi</span>
+                        <span>Trạng thái</span>
+                        <span>Dùng</span>
+                        <span>Thao tác</span>
+                    </div>
+                    {% for item in items %}
+                    {% set voucher = item.voucher %}
+                    <div class="restaurant-voucher-table__row">
+                        <div class="restaurant-voucher-table__code">
+                            <strong>{{ item.code }}</strong>
+                            <small>#{{ voucher.voucher_id }}</small>
+                        </div>
+
+                        <div class="restaurant-voucher-table__discount">{{ item.discount_text }}</div>
+
+                        <div class="restaurant-voucher-table__validity">{{ item.start_date_label }} - {{ item.end_date_label }}</div>
+
+                        <div class="restaurant-voucher-table__scope">{{ item.scope_text }}</div>
+
+                        <div class="restaurant-voucher-table__status">
+                            <form method="post" action="{{ url_for('restaurant.toggle_voucher', voucher_id=voucher.voucher_id, q=voucher_search) }}" class="restaurant-status-form">
+                                <button type="submit" class="restaurant-switch {% if item.is_active_now %}is-on{% else %}is-off{% endif %}" aria-label="{{ 'Tắt voucher' if item.is_active_now else 'Bật voucher' }}">
+                                    <span class="restaurant-switch__thumb"></span>
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="restaurant-voucher-table__usage">{{ item.usage_count }}</div>
+
+                        <div class="restaurant-voucher-table__actions">
+                            {% if item.is_editable %}
+                            <a class="restaurant-icon-btn restaurant-icon-btn--edit" href="{{ url_for('restaurant.vouchers', edit=voucher.voucher_id, q=voucher_search) }}" aria-label="Sửa voucher">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path></svg>
+                            </a>
+                            <form method="post" action="{{ url_for('restaurant.delete_voucher', voucher_id=voucher.voucher_id, q=voucher_search) }}" onsubmit="return confirm('Bạn chắc chắn muốn xoá voucher này?');">
+                                <button type="submit" class="restaurant-icon-btn restaurant-icon-btn--delete" aria-label="Xoá voucher">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="restaurant-empty restaurant-voucher-empty">
+                    <strong>Chưa có voucher phù hợp.</strong>
+                    <p>Hãy tạo voucher mới hoặc đổi từ khoá tìm kiếm.</p>
+                </div>
+                {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <div class="menu-modal {% if open_voucher_modal %}is-open{% endif %}" id="voucherModal" aria-hidden="{% if open_voucher_modal %}false{% else %}true{% endif %}">
+            <div class="menu-modal__panel" role="dialog" aria-modal="true" aria-labelledby="voucherModalTitle">
+                <div class="menu-modal__header">
+                    <div>
+                        <h2 id="voucherModalTitle">{{ 'Chỉnh sửa voucher' if edit_voucher else 'Thêm voucher mới' }}</h2>
+                    </div>
+                    <button type="button" class="menu-modal__close" data-close-voucher-form aria-label="Đóng">&times;</button>
+                </div>
+
+                <form method="post" action="{{ url_for('restaurant.vouchers', q=voucher_search) }}" class="menu-form">
+                    <input type="hidden" name="voucher_id" value="{{ voucher_form_values.get('voucher_id', '') }}">
+                    <input type="hidden" name="q" value="{{ voucher_search }}">
+                    <input type="hidden" name="voucher_scope" value="restaurant">
+
+                    <div class="menu-form__field">
+                        <label for="voucher_code">Mã voucher</label>
+                        <input type="text" id="voucher_code" name="voucher_code" maxlength="50" value="{{ voucher_form_values.get('voucher_code', '') }}" class="{% if voucher_form_errors.get('voucher_code') %}is-invalid{% endif %}" placeholder="VD: SALE10">
+                        {% if voucher_form_errors.get('voucher_code') %}
+                        <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('voucher_code') }}</small>
+                        {% else %}
+                        <small class="menu-form__field-note">Mã nên viết liền, không có khoảng trắng.</small>
+                        {% endif %}
+                    </div>
+
+                    <input type="hidden" id="discount_type" name="discount_type" value="amount">
+                    <div class="menu-form__field menu-form__field--meta">
+                        <label>Loại voucher</label>
+                        <div class="menu-form__meta-line">Giảm số tiền</div>
+                    </div>
+
+                    <div class="menu-form__grid menu-form__grid--secondary">
+                        <div class="menu-form__field">
+                            <label for="discount_value">Giá trị giảm</label>
+                            <input type="number" id="discount_value" name="discount_value" min="1" step="1" value="{{ voucher_form_values.get('discount_value', '') }}" class="{% if voucher_form_errors.get('discount_value') %}is-invalid{% endif %}" placeholder="10000">
+                            {% if voucher_form_errors.get('discount_value') %}
+                            <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('discount_value') }}</small>
+                            {% else %}
+                            <small class="menu-form__field-note">Nhập số tiền giảm cố định, ví dụ 10000.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="menu-form__field menu-form__field--switch">
+                            <label>Trạng thái</label>
+                            <label class="restaurant-status-form restaurant-status-form--field restaurant-status-form--toggle">
+                                <input type="checkbox" id="voucher_status" name="status" class="restaurant-status-form__input" {% if voucher_form_values.get('status') in ['on', '1', True, 'true', 'True'] %}checked{% endif %}>
+                                <span class="restaurant-switch" aria-hidden="true">
+                                    <span class="restaurant-switch__thumb"></span>
+                                </span>
+                            </label>
+                            <small class="menu-form__field-note">Bật để voucher sẵn sàng sử dụng.</small>
+                        </div>
+
+                        <div class="menu-form__field">
+                            <label for="start_date">Ngày bắt đầu</label>
+                            <input type="date" id="start_date" name="start_date" value="{{ voucher_form_values.get('start_date', '') }}" class="{% if voucher_form_errors.get('start_date') %}is-invalid{% endif %}">
+                            {% if voucher_form_errors.get('start_date') %}
+                            <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('start_date') }}</small>
+                            {% else %}
+                            <small class="menu-form__field-note">Mặc định là hôm nay nếu để trống.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="menu-form__field">
+                            <label for="end_date">Ngày kết thúc</label>
+                            <input type="date" id="end_date" name="end_date" value="{{ voucher_form_values.get('end_date', '') }}" class="{% if voucher_form_errors.get('end_date') %}is-invalid{% endif %}">
+                            {% if voucher_form_errors.get('end_date') %}
+                            <small class="menu-form__field-note menu-form__field-note--error">{{ voucher_form_errors.get('end_date') }}</small>
+                            {% else %}
+                            <small class="menu-form__field-note">Để trống nếu không giới hạn thời gian.</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="menu-form__actions">
+                        <button type="button" class="restaurant-btn restaurant-btn--ghost" data-close-voucher-form>Huỷ</button>
+                        <button type="submit" class="restaurant-btn restaurant-btn--primary">{{ 'Lưu thay đổi' if edit_voucher else 'Thêm voucher' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+const voucherModal = document.getElementById("voucherModal");
+const openVoucherButtons = document.querySelectorAll("[data-open-voucher-form]");
+const closeVoucherButtons = document.querySelectorAll("[data-close-voucher-form]");
+
+function openVoucherModal() {
+    if (!voucherModal) return;
+    voucherModal.classList.add("is-open");
+    voucherModal.setAttribute("aria-hidden", "false");
+}
+
+function clearEditQueryParam() {
+    if (!window.history || !window.history.replaceState) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function closeVoucherModal() {
+    if (!voucherModal) return;
+    voucherModal.classList.remove("is-open");
+    voucherModal.setAttribute("aria-hidden", "true");
+    clearEditQueryParam();
+}
+
+openVoucherButtons.forEach((button) => button.addEventListener("click", openVoucherModal));
+closeVoucherButtons.forEach((button) => button.addEventListener("click", closeVoucherModal));
+
+if (voucherModal) {
+    voucherModal.addEventListener("click", (event) => {
+        if (event.target === voucherModal) {
+            closeVoucherModal();
+        }
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeVoucherModal();
+    }
+});
+</script>
+<script src="{{ url_for('static', filename='js/live_search.js') }}"></script>
+{% endblock %}
