@@ -408,6 +408,7 @@
 }
 
 .checkout-item__edit {
+    display: block;
     margin-top: 8px;
     padding: 0;
     border: 0;

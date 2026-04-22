@@ -1,4 +1,4 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from datetime import datetime
 
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.admin_service import build_admin_context, save_voucher_for_admin
 from app.services.shipping_service import get_shipping_fee_settings, save_shipping_fee_settings
+from app.services.system_setting_service import set_setting
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -105,6 +106,49 @@ def review_reports():
 @bp.route("/disputes")
 def disputes():
     return _render_admin("disputes")
+
+
+@bp.route("/search-settings", methods=["GET", "POST", "PUT"])
+def search_settings():
+    if not _require_admin():
+        return _login_redirect()
+
+    def _payload():
+        if request.is_json:
+            data = request.get_json(silent=True)
+            return data if isinstance(data, dict) else {}
+        return request.form
+
+    if request.method in {"POST", "PUT"}:
+        payload = _payload()
+        raw_radius = payload.get("search_radius_km")
+        try:
+            search_radius_km = int(str(raw_radius).strip())
+            if search_radius_km < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            message = "Bán kính tìm kiếm phải là số nguyên lớn hơn 0."
+            if request.method == "PUT" or request.is_json:
+                return jsonify({"ok": False, "message": message}), 400
+
+            context = build_admin_context("search_settings")
+            return render_template(
+                "admin/dashboard.html",
+                show_search=False,
+                show_auth=False,
+                admin_search_radius_km_value=raw_radius or context.get("search_radius_km", 5),
+                admin_search_radius_km_error=message,
+                **context,
+            )
+
+        set_setting("SEARCH_RADIUS_KM", search_radius_km)
+        if request.method == "PUT" or request.is_json:
+            return jsonify({"ok": True, "search_radius_km": search_radius_km})
+
+        flash("Đã cập nhật bán kính tìm kiếm.", "success")
+        return redirect(url_for("admin.search_settings"))
+
+    return _render_admin("search_settings")
 
 
 @bp.route("/shipping-rules", methods=["GET", "POST"])

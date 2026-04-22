@@ -16,10 +16,11 @@ from app.services.location_service import (
     location_sort_key,
     normalize_text,
 )
+from app.services.system_setting_service import get_setting
 
 
 PAGE_SIZE = 8
-SEARCH_RADIUS_KM = 5.0
+DEFAULT_SEARCH_RADIUS_KM = 5.0
 SEARCH_TAB_ALL = "all"
 SEARCH_TAB_RESTAURANT = "restaurant"
 SEARCH_TAB_DISH = "dish"
@@ -360,10 +361,18 @@ def _restaurant_matches_selected_area(restaurant, user_location=None):
     return False
 
 
-def _within_search_radius(distance_km):
+def _search_radius_km():
+    radius = get_setting("SEARCH_RADIUS_KM", default=DEFAULT_SEARCH_RADIUS_KM)
+    try:
+        return max(0.0, float(radius))
+    except (TypeError, ValueError):
+        return DEFAULT_SEARCH_RADIUS_KM
+
+
+def _within_search_radius(distance_km, search_radius_km):
     if distance_km is None:
         return True
-    return distance_km <= SEARCH_RADIUS_KM
+    return distance_km <= search_radius_km
 
 
 def _parse_search_filters(filters):
@@ -512,6 +521,7 @@ def _build_search_cards(query, tab, user_location=None, filters=None):
     normalized_query = _normalized(query)
     search_filters = _parse_search_filters(filters)
     review_stats_map = _review_stats_by_restaurant()
+    search_radius_km = _search_radius_km()
     restaurants = (
         Restaurant.query.options(joinedload(Restaurant.user), joinedload(Restaurant.dishes))
         .order_by(Restaurant.restaurant_id.asc())
@@ -525,7 +535,7 @@ def _build_search_cards(query, tab, user_location=None, filters=None):
             continue
 
         distance_km = _restaurant_distance(user_location, restaurant)
-        if has_location and not _within_search_radius(distance_km):
+        if has_location and not _within_search_radius(distance_km, search_radius_km):
             continue
 
         restaurant_matches = _restaurant_matches_query(restaurant, normalized_query)
