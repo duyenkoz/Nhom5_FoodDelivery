@@ -50,6 +50,8 @@
         const cartConfirmModal = document.querySelector("[data-cart-confirm-modal='true']");
         const similarToggle = root.querySelector("[data-similar-toggle='true']");
         const similarSection = document.getElementById("similarRestaurants");
+        const reviewOpenButton = root.querySelector("[data-open-restaurant-reviews='true']");
+        const reviewModal = document.querySelector("[data-restaurant-review-modal='true']");
 
         const dishes = safeParseJson(
             (root.querySelector("[data-restaurant-dishes-json]") || {}).textContent,
@@ -86,6 +88,32 @@
             similarSection.hidden = !isOpen;
             similarToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
             similarToggle.classList.toggle("is-open", isOpen);
+        }
+
+        function openReviewModal() {
+            if (!reviewModal) {
+                return;
+            }
+
+            reviewModal.hidden = false;
+            reviewModal.setAttribute("aria-hidden", "false");
+            document.body.classList.add("is-modal-open");
+            if (reviewOpenButton) {
+                reviewOpenButton.setAttribute("aria-expanded", "true");
+            }
+        }
+
+        function closeReviewModal() {
+            if (!reviewModal) {
+                return;
+            }
+
+            reviewModal.hidden = true;
+            reviewModal.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("is-modal-open");
+            if (reviewOpenButton) {
+                reviewOpenButton.setAttribute("aria-expanded", "false");
+            }
         }
 
         function buildCartUpdateUrl(dishId) {
@@ -406,6 +434,16 @@
             });
         }
 
+        if (reviewOpenButton && reviewModal) {
+            reviewOpenButton.addEventListener("click", openReviewModal);
+
+            reviewModal.addEventListener("click", (event) => {
+                if (event.target.closest("[data-close-restaurant-reviews='true']")) {
+                    closeReviewModal();
+                }
+            });
+        }
+
         if (searchInput) {
             searchInput.addEventListener("input", applyFilters);
         }
@@ -578,6 +616,11 @@
             if (cartConfirmModal && !cartConfirmModal.hidden && event.key === "Escape") {
                 pendingZeroQuantitySubmit = null;
                 closeZeroQuantityConfirm();
+                return;
+            }
+
+            if (reviewModal && !reviewModal.hidden && event.key === "Escape") {
+                closeReviewModal();
                 return;
             }
 

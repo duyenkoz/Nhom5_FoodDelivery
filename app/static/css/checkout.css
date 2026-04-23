@@ -2370,6 +2370,7 @@ body.is-modal-open {
     margin: 0 0 6px;
     color: #ea580c;
     font-size: 28px;
+    margin-left: -4px;
 }
 
 .order-review-modal__header-copy p {
