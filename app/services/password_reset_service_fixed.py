@@ -151,11 +151,13 @@ def request_otp_for_email(email):
         }, 429
 
     otp = generate_otp()
-    save_otp(normalized_email, otp)
     try:
         send_otp_email(normalized_email, otp)
     except Exception:
         current_app.logger.exception("Failed to send OTP email for %s", normalized_email)
+        return {"ok": False, "message": "Không thể gửi email OTP lúc này. Vui lòng thử lại sau."}, 502
+
+    save_otp(normalized_email, otp)
 
     cooldown_until = now + RESEND_COOLDOWN_SECONDS
     _store_cooldown_until(normalized_email, cooldown_until)
@@ -186,11 +188,13 @@ def resend_otp_for_email(email):
         }, 429
 
     otp = generate_otp()
-    save_otp(normalized_email, otp)
     try:
         send_otp_email(normalized_email, otp)
     except Exception:
         current_app.logger.exception("Failed to resend OTP email for %s", normalized_email)
+        return {"ok": False, "message": "Không thể gửi lại email OTP lúc này. Vui lòng thử lại sau."}, 502
+
+    save_otp(normalized_email, otp)
 
     cooldown_until = _now() + RESEND_COOLDOWN_SECONDS
     _store_cooldown_until(normalized_email, cooldown_until)

@@ -219,7 +219,7 @@ def _parse_json_payload():
 
 @bp.route("/restaurants/<int:restaurant_id>")
 def restaurant_detail(restaurant_id):
-    context = build_public_restaurant_context(restaurant_id)
+    context = build_public_restaurant_context(restaurant_id, include_reviews=True)
     if context is None:
         abort(404)
 

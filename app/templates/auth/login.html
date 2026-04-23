@@ -20,7 +20,7 @@
                     <p class="auth-login__subtitle text-center">Chào mừng quay trở lại</p>
                 </div>
 
-                <form id="loginForm" method="POST" novalidate>
+                <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate>
                     {% if request.args.get('next') %}
                     <input type="hidden" name="next" value="{{ request.args.get('next') }}">
                     {% endif %}
@@ -83,7 +83,12 @@
                             <input type="checkbox" id="rememberMe" name="remember" class="form-check-input" {% if form_values.get('remember') %}checked{% endif %}>
                             <span class="form-check-label">Ghi nhớ đăng nhập</span>
                         </label>
-                        <button type="button" class="login-form__link" id="forgotPasswordBtn">Quên mật khẩu?</button>
+                        <button
+                            type="button"
+                            class="login-form__link"
+                            id="forgotPasswordBtn"
+                            onclick="var modal=document.getElementById('forgotPasswordModal');if(modal){modal.classList.add('is-open');modal.setAttribute('aria-hidden','false');}return false;"
+                        >Quên mật khẩu?</button>
                     </div>
 
                     <button class="btn btn-primary w-100" type="submit" id="loginSubmitBtn">ĐĂNG NHẬP</button>
@@ -105,7 +110,7 @@
 
                     <div class="text-center mt-3 auth-login__register">
                         Chưa có tài khoản?
-                        <button type="button" class="login-form__link login-form__link--bold" id="registerNowBtn">Đăng ký ngay</button>
+                        <a href="{{ url_for('auth.register') }}" class="login-form__link login-form__link--bold" id="registerNowBtn">Đăng ký ngay</a>
                     </div>
                 </form>
             </div>
@@ -118,7 +123,7 @@
                 <button type="button" class="auth-modal__close" id="forgotPasswordClose" aria-label="Đóng">&times;</button>
             </div>
             <div class="auth-modal__body forgot-modal__body">
-                <div class="forgot-modal__step is-active" id="forgotStepLookup">
+                <form class="forgot-modal__step is-active" id="forgotStepLookup" method="post" action="{{ url_for('password_reset.forgot_password') }}">
                     <p class="forgot-modal__note">Nhập email để mình gửi mã OTP xác minh tài khoản của bạn.</p>
                     <div class="forgot-modal__field">
                         <label class="form-label" for="forgotEmail">Email</label>
@@ -132,10 +137,10 @@
                     </div>
                     <div class="forgot-modal__message" id="forgotLookupMessage"></div>
                     <div class="forgot-modal__actions">
-                        <button type="button" class="btn btn-primary" id="forgotLookupBtn">Gửi mã OTP</button>
+                        <button type="submit" class="btn btn-primary" id="forgotLookupBtn">Gửi mã OTP</button>
                         <button type="button" class="btn btn-secondary" id="forgotLookupCloseBtn">Đóng</button>
                     </div>
-                </div>
+                </form>
 
                 <div class="forgot-modal__step" id="forgotStepVerify">
                     <p class="forgot-modal__note">Nhập mã OTP gồm 4 chữ số đã gửi đến email của bạn.</p>
@@ -308,14 +313,14 @@ const googlePhoneNote = document.getElementById("googlePhoneNote");
 const loginStorageKey = "fivefood_login_identifier";
 const loginRememberKey = "fivefood_login_remember";
 const registerUrl = "{{ url_for('auth.register') }}";
-const hasServerErrors = "{{ 'true' if form_errors else 'false' }}";
-const googleAccountLookupUrl = "{{ url_for('auth.check_google_account')|tojson }}";
+const hasServerErrors = {{ 'true' if form_errors else 'false' }};
+const googleAccountLookupUrl = {{ url_for('auth.check_google_account')|tojson }};
 const googleAccountMessage = "Tài khoản này đăng nhập bằng Google. Vui lòng đăng nhập bằng Google.";
-const googleLoginUrl = "{{ google_login_url|default(url_for('auth.google_login'))|tojson }}";
-const googlePhoneSubmitUrl = "{{ google_phone_submit_url|default(url_for('auth.google_phone_submit'))|tojson }}";
+const googleLoginUrl = {{ google_login_url|default(url_for('auth.google_login'))|tojson }};
+const googlePhoneSubmitUrl = {{ google_phone_submit_url|default(url_for('auth.google_phone_submit'))|tojson }};
 const googlePhonePending = "{{ 'true' if google_phone_pending else 'false' }}";
-const googlePhonePendingName = "{{ google_phone_pending_name|default('')|tojson }}";
-const googlePhonePendingEmail = "{{ google_phone_pending_email|default('')|tojson }}";
+const googlePhonePendingName = {{ google_phone_pending_name|default('')|tojson }};
+const googlePhonePendingEmail = {{ google_phone_pending_email|default('')|tojson }};
 const forgotLookupUrl = "{{ url_for('password_reset.forgot_password') }}";
 const forgotVerifyUrl = "{{ url_for('password_reset.verify_otp') }}";
 const forgotResendUrl = "{{ url_for('password_reset.resend_otp') }}";
@@ -772,6 +777,9 @@ async function handleForgotLookup() {
     }
 
     try {
+        forgotLookupBtn.disabled = true;
+        forgotLookupBtn.textContent = "Đang gửi...";
+        setForgotMessage(forgotLookupMessage, "Đang gửi mã OTP...", false);
         const data = await postJson(forgotLookupUrl, { email });
         forgotState.email = email;
         if (typeof data.cooldown_until === "number") {
@@ -783,6 +791,9 @@ async function handleForgotLookup() {
         forgotOtpInput.focus();
     } catch (error) {
         showForgotError(forgotLookupMessage, error.message || "Không thể gửi mã OTP lúc này.");
+    } finally {
+        forgotLookupBtn.disabled = false;
+        forgotLookupBtn.textContent = "Gửi mã OTP";
     }
 }
 
@@ -927,7 +938,10 @@ loginForm.addEventListener("submit", btnDangNhapClick);
 forgotPasswordBtn.addEventListener("click", openForgotModal);
 forgotPasswordClose.addEventListener("click", closeForgotModal);
 forgotLookupCloseBtn.addEventListener("click", closeForgotModal);
-forgotLookupBtn.addEventListener("click", handleForgotLookup);
+forgotStepLookup.addEventListener("submit", function (event) {
+    event.preventDefault();
+    handleForgotLookup();
+});
 forgotBackBtn.addEventListener("click", returnToForgotLookup);
 forgotVerifyBtn.addEventListener("click", handleForgotVerify);
 forgotResendBtn.addEventListener("click", handleForgotResend);
@@ -935,7 +949,8 @@ forgotVerifyCloseBtn.addEventListener("click", closeForgotModal);
 forgotResetBtn.addEventListener("click", handleForgotReset);
 forgotResetCloseBtn.addEventListener("click", closeForgotModal);
 registerNowBtn.addEventListener("click", btnDangKyNgayClick);
-googleLoginBtn.addEventListener("click", () => {
+googleLoginBtn.addEventListener("click", (event) => {
+    event.preventDefault();
     window.location.href = googleLoginUrl;
 });
 facebookLoginBtn.addEventListener("click", () => AppToast.warning("Đăng nhập Facebook đang được phát triển."));

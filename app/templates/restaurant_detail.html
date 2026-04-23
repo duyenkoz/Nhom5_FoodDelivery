@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_detail.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_sections.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -32,18 +33,38 @@
             <div class="restaurant-detail__hero-copy">
                 <h1>{{ page.restaurant_name }}</h1>
                 <p class="restaurant-detail__address">{{ page.restaurant_address }}</p>
+                {% set review_summary = page.review_summary or {} %}
+                {% if review_summary.review_count %}
                 <button
                     type="button"
-                    class="restaurant-detail__info-link restaurant-detail__info-link--toggle"
-                    data-similar-toggle="true"
+                    class="restaurant-detail__rating-summary"
+                    data-open-restaurant-reviews="true"
+                    aria-controls="restaurantReviewModal"
                     aria-expanded="false"
-                    aria-controls="similarRestaurants"
                 >
-                    <span>Nhà hàng tương tự</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="m6 9 6 6 6-6"></path>
-                    </svg>
+                    <span class="restaurant-detail__rating-summary-star" aria-hidden="true">★</span>
+                    <strong>{{ review_summary.average_rating_text }}</strong>
+                    <span>({{ review_summary.review_count_text }} Đánh giá)</span>
                 </button>
+                {% else %}
+                <div class="restaurant-detail__rating-summary restaurant-detail__rating-summary--empty">
+                    Chưa có đánh giá
+                </div>
+                {% endif %}
+                <div class="restaurant-detail__hero-actions">
+                    <button
+                        type="button"
+                        class="restaurant-detail__info-link restaurant-detail__info-link--toggle"
+                        data-similar-toggle="true"
+                        aria-expanded="false"
+                        aria-controls="similarRestaurants"
+                    >
+                        <span>Nhà hàng tương tự</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <button class="restaurant-detail__favorite" type="button" aria-label="Yêu thích nhà hàng">
@@ -267,6 +288,76 @@
         </div>
     </div>
 </div>
+
+{% if page.review_summary and page.review_summary.review_count %}
+<div class="restaurant-review-modal" id="restaurantReviewModal" data-restaurant-review-modal="true" hidden aria-hidden="true">
+    <div class="restaurant-review-modal__backdrop" data-close-restaurant-reviews="true"></div>
+    <div class="restaurant-review-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="restaurantReviewModalTitle">
+        <button type="button" class="restaurant-review-modal__close" data-close-restaurant-reviews="true" aria-label="Đóng">&times;</button>
+
+        <div class="restaurant-review-modal__header">
+            <div class="restaurant-review-modal__header-title">
+                <h2 id="restaurantReviewModalTitle">Đánh giá về nhà hàng</h2>
+            </div>
+            <div class="restaurant-review-modal__header-copy">
+                <p class="restaurant-review-modal__restaurant-name">{{ page.restaurant_name }}</p>
+                {% set average_rating = page.review_summary.average_rating or 0 %}
+                <div class="restaurant-review-modal__stars" aria-label="Đánh giá trung bình {{ page.review_summary.average_rating_text }} sao">
+                    {% for _ in range(1, 6) %}
+                    {% set star_value = loop.index %}
+                    {% if average_rating >= star_value %}
+                    {% set star_state = "full" %}
+                    {% elif average_rating >= star_value - 0.5 %}
+                    {% set star_state = "half" %}
+                    {% else %}
+                    {% set star_state = "empty" %}
+                    {% endif %}
+                    <span class="restaurant-review-modal__star restaurant-review-modal__star--{{ star_state }}" aria-hidden="true">★</span>
+                    {% endfor %}
+                    <span class="restaurant-review-modal__stars-text">{{ page.review_summary.average_rating_text }} sao</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="restaurant-review-modal__content">
+            {% if page.review_items %}
+            <div class="restaurant-review-list restaurant-review-modal__list">
+                {% for item in page.review_items %}
+                {% set review = item.review %}
+                <article class="restaurant-review-item">
+                    <div class="restaurant-review-item__avatar">{{ item.avatar_text }}</div>
+                    <div class="restaurant-review-item__body">
+                        <div class="restaurant-review-item__top">
+                            <div class="restaurant-review-item__user">
+                                <strong>{{ item.customer_name }}</strong>
+                            </div>
+                            <span class="restaurant-review-item__date">{{ item.review_date_text }}</span>
+                        </div>
+                        <div class="restaurant-review-item__rating" aria-label="{{ review.rating or 0 }} trên 5 sao">
+                            {% for star in range(1, 6) %}
+                            <span class="restaurant-review-item__rating-star {% if (review.rating or 0) >= star %}is-active{% endif %}" aria-hidden="true">★</span>
+                            {% endfor %}
+                        </div>
+                        {% if review.comment %}
+                        <p>{{ review.comment }}</p>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% if page.review_has_more %}
+            <p class="restaurant-review-modal__note">Hiển thị {{ page.review_items|length }} đánh giá gần nhất trong số {{ page.review_summary.review_count_text }} đánh giá.</p>
+            {% endif %}
+            {% else %}
+            <div class="restaurant-empty restaurant-review-modal__empty">
+                <strong>Chưa có đánh giá nào.</strong>
+                <p>Nhà hàng này chưa có lượt đánh giá từ khách hàng.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

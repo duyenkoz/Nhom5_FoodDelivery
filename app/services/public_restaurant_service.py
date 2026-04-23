@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 
 from flask import session
-from sqlalchemy.orm import joinedload
+from sqlalchemy import case, func
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
-from app.models import Dish, Order, Restaurant
+from app.models import Customer, Dish, Order, Restaurant, Review
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.models.order_item import OrderItem
@@ -157,15 +158,85 @@ def _build_similar_restaurants(restaurant, limit=6):
     return scored[:limit]
 
 
-def get_public_restaurant(restaurant_id):
-    return (
-        Restaurant.query.options(
-            joinedload(Restaurant.user),
-            joinedload(Restaurant.dishes).joinedload(Dish.order_items).joinedload(OrderItem.order),
+def _safe_user_name(user):
+    if not user:
+        return "Khách ẩn danh"
+    return user.display_name or user.username or "Khách ẩn danh"
+
+
+def _format_review_count(value):
+    count = int(value or 0)
+    if count >= 1000:
+        formatted = f"{count / 1000:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted}k"
+    return str(count)
+
+
+def _build_public_review_summary(restaurant_id):
+    row = (
+        db.session.query(
+            func.avg(Review.rating).label("average_rating"),
+            func.count(Review.review_id).label("review_count"),
+            func.sum(case((Review.rating >= 4, 1), else_=0)).label("positive_reviews"),
         )
-        .filter(Restaurant.restaurant_id == restaurant_id)
-        .one_or_none()
+        .filter(Review.restaurant_id == restaurant_id)
+        .filter(Review.rating.isnot(None))
+        .one()
     )
+
+    review_count = int(row.review_count or 0)
+    average_rating = round(float(row.average_rating or 0), 1) if row.average_rating is not None else 0
+    positive_reviews = int(row.positive_reviews or 0)
+    return {
+        "average_rating": average_rating,
+        "review_count": review_count,
+        "positive_reviews": positive_reviews,
+        "average_rating_text": f"{average_rating:.1f}" if review_count else "0.0",
+        "review_count_text": _format_review_count(review_count),
+        "review_count_label": f"{_format_review_count(review_count)} Đánh giá",
+    }
+
+
+def _build_public_review_items(restaurant_id, limit=10):
+    reviews = (
+        Review.query.options(selectinload(Review.customer).selectinload(Customer.user))
+        .filter(Review.restaurant_id == restaurant_id)
+        .order_by(Review.review_date.desc(), Review.review_id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    items = []
+    for review in reviews:
+        customer_name = "Khách ẩn danh"
+        customer_phone = ""
+        if review.customer and review.customer.user:
+            customer_name = _safe_user_name(review.customer.user)
+            customer_phone = review.customer.user.phone or ""
+
+        items.append(
+            {
+                "review": review,
+                "customer_name": customer_name,
+                "customer_phone": customer_phone,
+                "review_date_text": (
+                    review.review_date.strftime("%H:%M %d/%m/%Y")
+                    if review.review_date
+                    else ""
+                ),
+                "avatar_text": customer_name[:1] if customer_name else "K",
+            }
+        )
+    return items
+
+
+def get_public_restaurant(restaurant_id, include_reviews=False):
+    options = [
+        joinedload(Restaurant.user),
+        joinedload(Restaurant.dishes).joinedload(Dish.order_items).joinedload(OrderItem.order),
+    ]
+
+    return Restaurant.query.options(*options).filter(Restaurant.restaurant_id == restaurant_id).one_or_none()
 
 
 def get_public_dish(restaurant_id, dish_id):
@@ -599,8 +670,8 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
     return get_restaurant_cart_snapshot(session, restaurant_id)
 
 
-def build_public_restaurant_context(restaurant_id):
-    restaurant = get_public_restaurant(restaurant_id)
+def build_public_restaurant_context(restaurant_id, include_reviews=False, review_limit=10):
+    restaurant = get_public_restaurant(restaurant_id, include_reviews=include_reviews)
     if not restaurant:
         return None
 
@@ -630,6 +701,15 @@ def build_public_restaurant_context(restaurant_id):
         )
 
     cover_image = _restaurant_cover_image(restaurant, _active_dishes(restaurant))
+    review_summary = _build_public_review_summary(restaurant_id) if include_reviews else {
+        "average_rating": 0,
+        "review_count": 0,
+        "positive_reviews": 0,
+        "average_rating_text": "0.0",
+        "review_count_text": "0",
+        "review_count_label": "0 Đánh giá",
+    }
+    review_items = _build_public_review_items(restaurant_id, limit=review_limit) if include_reviews else []
     return {
         "restaurant": restaurant,
         "restaurant_id": restaurant.restaurant_id,
@@ -648,4 +728,7 @@ def build_public_restaurant_context(restaurant_id):
         "menu_sections": sections,
         "dish_views": dish_views,
         "similar_restaurants": _build_similar_restaurants(restaurant),
+        "review_summary": review_summary,
+        "review_items": review_items,
+        "review_has_more": review_summary["review_count"] > len(review_items),
     }
