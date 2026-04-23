@@ -331,9 +331,11 @@ def vouchers():
     user_id = session.get("user_id")
     edit_voucher_id = request.args.get("edit", type=int)
     search_query = request.args.get("q", "").strip()
+    current_page = request.args.get("page", default=1, type=int)
 
     if request.method == "POST":
         search_query = (request.form.get("q") or search_query).strip()
+        current_page = request.form.get("page", current_page, type=int)
         try:
             voucher, action = save_voucher_for_restaurant(user_id, request.form)
         except ValueError as exc:
@@ -350,6 +352,7 @@ def vouchers():
                 form_values=form_values,
                 form_errors=form_errors,
                 query=search_query,
+                page=current_page,
             )
             return render_template(
                 "restaurant/restaurant_voucher_manage.html",
@@ -359,14 +362,15 @@ def vouchers():
             )
 
         flash(f"Đã {action} voucher \"{voucher.voucher_code}\".", "success")
-        return redirect(url_for("restaurant.vouchers", q=search_query))
+        redirect_page = 1 if action == "created" else current_page
+        return redirect(url_for("restaurant.vouchers", q=search_query, page=redirect_page))
 
     context = build_section_context(
         user_id,
         "vouchers",
         edit_voucher_id=edit_voucher_id,
         query=search_query,
-        page=request.args.get("page", default=1, type=int),
+        page=current_page,
     )
     if context["restaurant"] is None:
         flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi quản lý voucher.", "warning")
@@ -454,6 +458,7 @@ def toggle_voucher(voucher_id):
     voucher = toggle_voucher_status_for_restaurant(session.get("user_id"), voucher_id)
     redirect_args = {
         "q": request.args.get("q", ""),
+        "page": request.args.get("page", 1, type=int),
     }
     if not voucher:
         flash("Không tìm thấy voucher để thay đổi trạng thái.", "error")
@@ -491,6 +496,7 @@ def delete_voucher(voucher_id):
     deleted = delete_voucher_for_restaurant(session.get("user_id"), voucher_id)
     redirect_args = {
         "q": request.args.get("q", ""),
+        "page": request.args.get("page", 1, type=int),
     }
     if not deleted:
         flash("Không thể xoá voucher vì voucher không tồn tại hoặc đã được dùng trong đơn hàng.", "error")

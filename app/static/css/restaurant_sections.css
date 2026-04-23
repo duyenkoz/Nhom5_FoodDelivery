@@ -285,10 +285,24 @@
 }
 
 .restaurant-voucher-table__head {
-    padding: 0 6px 10px;
-    color: #94a3b8;
+    min-height: 52px;
+    padding: 9px 6px;
+    background: #fbfcfd;
+    color: #6b7280;
+    font-size: 0.83rem;
     font-weight: 800;
-    border-bottom: 1px solid #edf0f4;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid #e9edf3;
+}
+
+.restaurant-voucher-table__head span {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.restaurant-voucher-table__head span:first-child {
+    padding-left: 14px;
 }
 
 .restaurant-voucher-table__row {
@@ -621,10 +635,24 @@
 }
 
 .restaurant-analytics-table__head {
-    padding: 0 6px 10px;
-    color: #94a3b8;
+    min-height: 52px;
+    padding: 9px 6px;
+    background: #fbfcfd;
+    color: #6b7280;
+    font-size: 0.83rem;
     font-weight: 800;
-    border-bottom: 1px solid #edf0f4;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid #e9edf3;
+}
+
+.restaurant-analytics-table__head span {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.restaurant-analytics-table__head span:first-child {
+    padding-left: 14px;
 }
 
 .restaurant-analytics-table__row {

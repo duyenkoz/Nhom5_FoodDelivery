@@ -85,6 +85,10 @@
             </div>
 
             <div class="restaurant-order-toolbar restaurant-card">
+                <div class="restaurant-order-toolbar__summary">
+                    <span>Đang hiển thị {{ pagination.total_items or 0 }} đơn theo bộ lọc hiện tại</span>
+                    <span>Tổng đơn hàng của nhà hàng: {{ stats.total_orders or 0 }}</span>
+                </div>
                 <form class="restaurant-order-toolbar__form" method="get" action="{{ url_for('restaurant.orders') }}">
                     <input type="hidden" name="page" value="1">
                     <div class="restaurant-order-toolbar__top">
@@ -130,10 +134,6 @@
 
             <div class="restaurant-order-table-card restaurant-card">
                 {% if items %}
-                <div class="restaurant-order-table__summary">
-                    <span>Hiển thị {{ pagination.start_item }}-{{ pagination.end_item }} trên {{ pagination.total_items }} đơn</span>
-                    <span>Mã đơn, ngày tạo, tổng tiền, thông tin giao hàng, trạng thái, chi tiết và hành động</span>
-                </div>
                 <div class="restaurant-order-table__wrap">
                     <table class="restaurant-order-table">
                         <thead>
@@ -348,6 +348,9 @@
                     <h4>Thông tin đặt hàng</h4>
                     <p data-order-detail-customer></p>
                     <p data-order-detail-address></p>
+                    <p class="restaurant-order-modal__note" data-order-detail-note-wrap hidden>
+                        <strong>Ghi chú:</strong> <span data-order-detail-note></span>
+                    </p>
                 </div>
                 <div class="restaurant-order-modal__section restaurant-order-modal__section--billing">
                     <div class="restaurant-order-modal__billing">
@@ -442,6 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailTotal = document.querySelector("[data-order-detail-total]");
     const detailCustomer = document.querySelector("[data-order-detail-customer]");
     const detailAddress = document.querySelector("[data-order-detail-address]");
+    const detailNoteWrap = document.querySelector("[data-order-detail-note-wrap]");
+    const detailNote = document.querySelector("[data-order-detail-note]");
     const detailItems = document.querySelector("[data-order-detail-items]");
     const detailSubtotal = document.querySelector("[data-order-detail-subtotal]");
     const detailFee = document.querySelector("[data-order-detail-fee]");
@@ -543,6 +548,11 @@ document.addEventListener("DOMContentLoaded", () => {
         detailTotal.textContent = payload.total_amount_text ? `${payload.total_amount_text}đ` : "";
         detailCustomer.textContent = payload.customer_name || "";
         detailAddress.textContent = payload.delivery_address || "";
+        if (detailNoteWrap && detailNote) {
+            const orderNote = (payload.order_note || "").trim();
+            detailNote.textContent = orderNote;
+            detailNoteWrap.hidden = !orderNote;
+        }
         detailSubtotal.textContent = payload.subtotal_amount_text ? `${payload.subtotal_amount_text}đ` : "0đ";
         detailFee.textContent = payload.delivery_fee_text ? `${payload.delivery_fee_text}đ` : "0đ";
         detailDiscount.textContent = payload.discount_amount_text || "0đ";
