@@ -803,8 +803,9 @@ def checkout_success_clear_cart(order_id):
     if not order:
         return jsonify({"ok": False, "message": "Không tìm thấy đơn hàng."}), 404
 
+    force_clear = _clean(request.args.get("force") or request.form.get("force")) in {"1", "true", "yes", "on"}
     remaining_seconds = _success_cancel_remaining(order_id, initialize=False)
-    if remaining_seconds > 0:
+    if remaining_seconds > 0 and not force_clear:
         return jsonify({"ok": True, "cleared": False, "remaining_seconds": remaining_seconds})
 
     clear_restaurant_cart(session, order.restaurant_id)
