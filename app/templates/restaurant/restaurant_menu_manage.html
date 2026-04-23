@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/restaurant_sections.css') }}">
 {% endblock %}
 
 {% block page_shell_class %}page-shell--restaurant{% endblock %}
@@ -39,9 +40,9 @@
         <div class="restaurant-card restaurant-sidebar__links">
             <a class="{% if request.endpoint == 'restaurant.dashboard' %}is-active{% endif %}" href="{{ url_for('restaurant.dashboard') }}">Quản lý thực đơn</a>
             <a href="{{ url_for('restaurant.orders') }}">Quản lý đơn hàng</a>
-            <a href="{{ url_for('restaurant.analytics') }}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.analytics') }}">Báo cáo thống kê</a>
             <a href="{{ url_for('restaurant.vouchers') }}">Quản lý voucher</a>
-            <a href="{{ url_for('restaurant.reviews') }}">Xem các đánh giá nhà hàng</a>
+            <a href="{{ url_for('restaurant.reviews') }}">Đánh giá nhà hàng</a>
         </div>
 
         <div class="restaurant-card restaurant-sidebar__note">
@@ -56,6 +57,31 @@
                 <div class="restaurant-hero__copy">
                     <h1>Thực đơn nhà hàng</h1>
                     <p>Quản lý danh sách món ăn và giá cả của nhà hàng.</p>
+                </div>
+            </section>
+
+            <section class="restaurant-section">
+                <div class="restaurant-section__stats">
+                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                        <span>Tổng món</span>
+                        <strong>{{ stats.total or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                        <span>Đang bán</span>
+                        <strong>{{ stats.active or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                        <span>Hết món</span>
+                        <strong>{{ stats.inactive or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                        <span>Danh mục</span>
+                        <strong>{{ stats.categories or 0 }}</strong>
+                    </article>
+                </div>
+                <div class="restaurant-order-table__summary">
+                    <span>Đang hiển thị {{ stats.filtered or 0 }} món theo bộ lọc hiện tại</span>
+                    <span>Tổng kho món của nhà hàng: {{ stats.total or 0 }} món</span>
                 </div>
             </section>
 
@@ -172,14 +198,45 @@
 
             <div class="restaurant-table-footer">
                 <div class="restaurant-table-footer__note">
-                    Hiển thị {{ pagination.total_items }} trên {{ stats.total }} món
+                    Hiển thị {{ pagination.start_item }}-{{ pagination.end_item }} trên {{ pagination.total_items }} món
                 </div>
                 <div class="restaurant-pagination">
-                    <a class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=pagination.page - 1) }}">Trước</a>
-                    {% for page_num in range(1, pagination.total_pages + 1) %}
-                    <a class="restaurant-pagination__page {% if page_num == pagination.page %}is-active{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=page_num) }}">{{ page_num }}</a>
+                    <label class="restaurant-pagination__select">
+                        <span>Trang</span>
+                        <select onchange="if (this.value) window.location.href = this.value">
+                            {% for page_num in range(1, pagination.total_pages + 1) %}
+                            <option value="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
+                                {{ page_num }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <a
+                        class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}"
+                        href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=(pagination.page - 1)) if pagination.has_prev else '#' }}"
+                        aria-disabled="{{ 'true' if not pagination.has_prev else 'false' }}"
+                        tabindex="{{ '-1' if not pagination.has_prev else '0' }}"
+                    >Trước</a>
+
+                    {% for page_item in pagination.pages or [] %}
+                        {% if page_item == '...' %}
+                        <span class="restaurant-pagination__ellipsis">...</span>
+                        {% else %}
+                        <a
+                            class="restaurant-pagination__page {% if page_item == pagination.page %}is-active{% endif %}"
+                            href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=page_item) }}"
+                            {% if page_item == pagination.page %}aria-current="page"{% endif %}
+                        >{{ page_item }}</a>
+                        {% endif %}
                     {% endfor %}
-                    <a class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}" href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=pagination.page + 1) }}">Sau</a>
+
+                    <a
+                        class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}"
+                        href="{{ url_for('restaurant.dashboard', q=search_query, category=active_category, page=(pagination.page + 1)) if pagination.has_next else '#' }}"
+                        aria-disabled="{{ 'true' if not pagination.has_next else 'false' }}"
+                        tabindex="{{ '-1' if not pagination.has_next else '0' }}"
+                    >Sau</a>
                 </div>
             </div>
         </section>

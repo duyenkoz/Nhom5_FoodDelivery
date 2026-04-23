@@ -22,6 +22,7 @@ from app.utils.time_utils import vietnam_today
 
 DEFAULT_DELIVERY_FEE = 15000
 DEFAULT_DEMO_ITEM_COUNT = 3
+PROCESSING_FEE = 3000
 _ORDERITEMS_HAS_NOTE_COLUMN = None
 
 
@@ -127,15 +128,17 @@ def _build_delivery_fee_breakdown(customer_profile, restaurant, delivery_address
     distance_km = _resolve_distance_km(customer_profile, restaurant, delivery_address=delivery_address)
     shipping_quote = get_shipping_fee_quote(distance_km)
     shipping_fee = _safe_int(shipping_quote.get("fee"), 0)
-    platform_fee = _safe_int(getattr(restaurant, "platform_fee", 0), 0)
-    raw_delivery_fee = max(0, shipping_fee + platform_fee)
+    processing_fee = PROCESSING_FEE
+    applied_delivery_fee = max(0, shipping_fee + processing_fee)
     return {
         "distance_km": distance_km,
         "distance_text": _format_distance_km(distance_km),
         "shipping_fee": shipping_fee,
-        "platform_fee": platform_fee,
-        "raw_delivery_fee": raw_delivery_fee,
-        "delivery_fee": raw_delivery_fee,
+        "processing_fee": processing_fee,
+        "platform_fee": processing_fee,
+        "raw_delivery_fee": applied_delivery_fee,
+        "delivery_fee": applied_delivery_fee,
+        "applied_delivery_fee": applied_delivery_fee,
         "shipping_rule": shipping_quote.get("rule"),
     }
 
@@ -303,8 +306,10 @@ def _build_order_snapshot(checkout_data):
         "subtotal": checkout_data.get("subtotal", 0),
         "delivery_fee": checkout_data.get("delivery_fee", 0),
         "shipping_fee": checkout_data.get("shipping_fee", 0),
+        "processing_fee": checkout_data.get("processing_fee", 0),
         "platform_fee": checkout_data.get("platform_fee", 0),
         "raw_delivery_fee": checkout_data.get("raw_delivery_fee", 0),
+        "applied_delivery_fee": checkout_data.get("applied_delivery_fee", 0),
         "distance_km": checkout_data.get("distance_km"),
         "distance_text": checkout_data.get("distance_text", ""),
         "form_values": form_values,
@@ -333,8 +338,10 @@ def _build_session_checkout_payload(checkout_data, form_values=None, payment_met
         "subtotal": checkout_data.get("subtotal", 0),
         "delivery_fee": checkout_data.get("delivery_fee", 0),
         "shipping_fee": checkout_data.get("shipping_fee", 0),
+        "processing_fee": checkout_data.get("processing_fee", 0),
         "platform_fee": checkout_data.get("platform_fee", 0),
         "raw_delivery_fee": checkout_data.get("raw_delivery_fee", 0),
+        "applied_delivery_fee": checkout_data.get("applied_delivery_fee", 0),
         "distance_km": checkout_data.get("distance_km"),
         "distance_text": checkout_data.get("distance_text", ""),
         "discount_value": checkout_data.get("discount_value", 0),
@@ -536,8 +543,10 @@ def _load_checkout_items(user_id, restaurant_id=None):
             "subtotal": subtotal,
             "delivery_fee": fee_breakdown["delivery_fee"],
             "shipping_fee": fee_breakdown["shipping_fee"],
+            "processing_fee": fee_breakdown["processing_fee"],
             "platform_fee": fee_breakdown["platform_fee"],
             "raw_delivery_fee": fee_breakdown["raw_delivery_fee"],
+            "applied_delivery_fee": fee_breakdown["applied_delivery_fee"],
             "distance_km": fee_breakdown["distance_km"],
             "distance_text": fee_breakdown["distance_text"],
             "shipping_rule": fee_breakdown["shipping_rule"],
@@ -667,8 +676,10 @@ def _load_checkout_items_v2(user_id, restaurant_id=None):
             "subtotal": subtotal,
             "delivery_fee": raw_delivery_fee,
             "shipping_fee": shipping_fee,
+            "processing_fee": PROCESSING_FEE,
             "platform_fee": platform_fee,
             "raw_delivery_fee": raw_delivery_fee,
+            "applied_delivery_fee": raw_delivery_fee,
             "distance_km": checkout_payload.get("distance_km"),
             "distance_text": checkout_payload.get("distance_text", ""),
             "note": checkout_payload.get("note", ""),
@@ -694,8 +705,10 @@ def _load_checkout_items_v2(user_id, restaurant_id=None):
             "subtotal": subtotal,
             "delivery_fee": fee_breakdown["delivery_fee"],
             "shipping_fee": fee_breakdown["shipping_fee"],
+            "processing_fee": fee_breakdown["processing_fee"],
             "platform_fee": fee_breakdown["platform_fee"],
             "raw_delivery_fee": fee_breakdown["raw_delivery_fee"],
+            "applied_delivery_fee": fee_breakdown["applied_delivery_fee"],
             "distance_km": fee_breakdown["distance_km"],
             "distance_text": fee_breakdown["distance_text"],
             "shipping_rule": fee_breakdown["shipping_rule"],
@@ -714,8 +727,10 @@ def _load_checkout_items_v2(user_id, restaurant_id=None):
         "subtotal": subtotal,
         "delivery_fee": fee_breakdown["delivery_fee"],
         "shipping_fee": fee_breakdown["shipping_fee"],
+        "processing_fee": fee_breakdown["processing_fee"],
         "platform_fee": fee_breakdown["platform_fee"],
         "raw_delivery_fee": fee_breakdown["raw_delivery_fee"],
+        "applied_delivery_fee": fee_breakdown["applied_delivery_fee"],
         "distance_km": fee_breakdown["distance_km"],
         "distance_text": fee_breakdown["distance_text"],
         "shipping_rule": fee_breakdown["shipping_rule"],
@@ -799,8 +814,10 @@ def build_checkout_context(user_id, restaurant_id=None, form_values=None, form_e
     delivery_fee = fee_breakdown["delivery_fee"]
     checkout_data["delivery_fee"] = delivery_fee
     checkout_data["shipping_fee"] = fee_breakdown["shipping_fee"]
+    checkout_data["processing_fee"] = fee_breakdown["processing_fee"]
     checkout_data["platform_fee"] = fee_breakdown["platform_fee"]
     checkout_data["raw_delivery_fee"] = fee_breakdown["raw_delivery_fee"]
+    checkout_data["applied_delivery_fee"] = fee_breakdown["applied_delivery_fee"]
     checkout_data["distance_km"] = fee_breakdown["distance_km"]
     checkout_data["distance_text"] = fee_breakdown["distance_text"]
     checkout_data["shipping_rule"] = fee_breakdown["shipping_rule"]
@@ -835,8 +852,10 @@ def build_checkout_context(user_id, restaurant_id=None, form_values=None, form_e
         "subtotal": subtotal,
         "delivery_fee": delivery_fee,
         "shipping_fee": checkout_data.get("shipping_fee", 0),
+        "processing_fee": checkout_data.get("processing_fee", 0),
         "platform_fee": checkout_data.get("platform_fee", 0),
         "raw_delivery_fee": checkout_data.get("raw_delivery_fee", 0),
+        "applied_delivery_fee": checkout_data.get("applied_delivery_fee", 0),
         "distance_km": checkout_data.get("distance_km"),
         "distance_text": checkout_data.get("distance_text", ""),
         "shipping_rule": checkout_data.get("shipping_rule"),

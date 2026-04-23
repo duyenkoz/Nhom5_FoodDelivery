@@ -384,8 +384,10 @@
                 items: checkoutItems.map(serializeItem),
                 delivery_fee: summary.dataset.deliveryFee || 0,
                 shipping_fee: summary.dataset.shippingFee || 0,
+                processing_fee: summary.dataset.processingFee || summary.dataset.platformFee || 0,
                 platform_fee: summary.dataset.platformFee || 0,
                 raw_delivery_fee: summary.dataset.rawDeliveryFee || 0,
+                applied_delivery_fee: summary.dataset.deliveryFee || 0,
                 note: document.getElementById("note")?.value || "",
             }),
         });
@@ -412,6 +414,7 @@
 
             summary.dataset.deliveryFee = String(data.delivery_fee || 0);
             summary.dataset.shippingFee = String(data.shipping_fee || 0);
+            summary.dataset.processingFee = String(data.processing_fee || data.platform_fee || 0);
             summary.dataset.platformFee = String(data.platform_fee || 0);
             summary.dataset.rawDeliveryFee = String(data.raw_delivery_fee || 0);
             summary.dataset.distanceText = data.distance_text || "";
@@ -423,7 +426,7 @@
                 selectedVoucher.id = data.voucher_id ? String(data.voucher_id) : "";
             }
             if (deliveryFeeTip) {
-                deliveryFeeTip.title = `Phí ship: ${formatMoney(data.shipping_fee || 0)} | Phí sàn: ${formatMoney(data.platform_fee || 0)} | Khoảng cách: ${data.distance_text || "N/A"}`;
+                deliveryFeeTip.title = `Phí ship: ${formatMoney(data.shipping_fee || 0)} | Phí xử lý đơn hàng: ${formatMoney(data.processing_fee || 3000)} | Khoảng cách: ${data.distance_text || "N/A"}`;
             }
             updateVoucherSummaryLabel();
             refreshTotals();

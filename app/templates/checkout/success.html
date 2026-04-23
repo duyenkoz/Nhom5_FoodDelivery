@@ -17,7 +17,7 @@
         <div class="checkout-success__card">
             <div class="checkout-success__row"><span>Trạng thái đơn</span><strong>{{ order_status_label or 'Chờ xác nhận' }}</strong></div>
             <div class="checkout-success__row"><span>Tạm tính</span><strong>{{ "{:,}".format(subtotal_amount or 0) }}đ</strong></div>
-            <div class="checkout-success__row"><span>Phí giao hàng</span><strong>{{ "{:,}".format(order.delivery_fee or 0) }}đ</strong></div>
+            <div class="checkout-success__row"><span>Phí áp dụng</span><strong>{{ "{:,}".format(order.delivery_fee or 0) }}đ</strong></div>
             <div class="checkout-success__row"><span>{{ voucher_display_text or 'Giảm voucher' }}</span><strong>{% if voucher_discount_value is defined and voucher_discount_value %}-{{ "{:,}".format(voucher_discount_value) }}đ{% else %}0đ{% endif %}</strong></div>
             <div class="checkout-success__row"><span>{{ payment_method_label or (order.payment.payment_method if order.payment else 'Thanh toán') }}</span><strong>{% if order.payment and order.payment.payment_method == 'momo' %}Đã thanh toán{% else %}{{ "{:,}".format(order.total_amount or 0) }}đ{% endif %}</strong></div>
         </div>

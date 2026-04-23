@@ -64,7 +64,27 @@
 
                     <div class="checkout-field">
                         <label for="delivery_address">Địa chỉ</label>
-                        <textarea id="delivery_address" name="delivery_address" rows="3" class="{% if form_errors.get('delivery_address') %}is-invalid{% endif %}" placeholder="123 Lê Văn Việt, Hiệp Phú, Thủ Đức, TP. HCM">{{ form_values.get('delivery_address', '') }}</textarea>
+                        <div
+                            class="location-autocomplete-shell checkout-address-autocomplete"
+                            data-location-autocomplete="true"
+                            data-location-mode="form"
+                            data-location-search-url="{{ url_for('location.search') }}"
+                            data-location-resolve-url="{{ url_for('location.resolve') }}"
+                        >
+                            <div class="location-autocomplete">
+                                <textarea
+                                    id="delivery_address"
+                                    name="delivery_address"
+                                    class="location-autocomplete__input{% if form_errors.get('delivery_address') %} is-invalid{% endif %}"
+                                    rows="3"
+                                    placeholder="123 Lê Văn Việt, Hiệp Phú, Thủ Đức, TP. HCM"
+                                    autocomplete="off"
+                                    data-location-input="true"
+                                    aria-label="Địa chỉ giao hàng"
+                                >{{ form_values.get('delivery_address', '') }}</textarea>
+                                <div class="location-autocomplete__menu" data-location-dropdown="true" hidden></div>
+                            </div>
+                        </div>
                         {% if form_errors.get('delivery_address') %}
                         <small class="checkout-field__error">{{ form_errors.get('delivery_address') }}</small>
                         {% endif %}
@@ -100,15 +120,15 @@
                     <span class="voucher-chip__right">Chọn mã</span>
                 </button>
 
-                <div class="checkout-summary" data-subtotal="{{ checkout_data.get('subtotal', 0) }}" data-delivery-fee="{{ checkout_data.get('delivery_fee', 0) }}" data-shipping-fee="{{ checkout_data.get('shipping_fee', 0) }}" data-platform-fee="{{ checkout_data.get('platform_fee', 0) }}" data-raw-delivery-fee="{{ checkout_data.get('raw_delivery_fee', 0) }}" data-distance-text="{{ checkout_data.get('distance_text', '') }}">
+                <div class="checkout-summary" data-subtotal="{{ checkout_data.get('subtotal', 0) }}" data-delivery-fee="{{ checkout_data.get('delivery_fee', 0) }}" data-shipping-fee="{{ checkout_data.get('shipping_fee', 0) }}" data-processing-fee="{{ checkout_data.get('processing_fee', 0) }}" data-platform-fee="{{ checkout_data.get('platform_fee', 0) }}" data-raw-delivery-fee="{{ checkout_data.get('raw_delivery_fee', 0) }}" data-distance-text="{{ checkout_data.get('distance_text', '') }}">
                     <div class="checkout-summary__line">
                         <span>Tạm tính</span>
                         <strong id="subtotalValue">{{ "{:,}".format(checkout_data.get('subtotal', 0)) }}đ</strong>
                     </div>
                     <div class="checkout-summary__line checkout-summary__line--fee">
                         <span class="checkout-summary__label-with-tip">
-                            Phí sàn
-                            <span class="checkout-summary__tip" data-delivery-fee-tip title="Phí ship: {{ '{:,}'.format(checkout_data.get('shipping_fee', 0)) }}đ | Phí sàn: {{ '{:,}'.format(checkout_data.get('platform_fee', 0)) }}đ | Khoảng cách: {{ checkout_data.get('distance_text', '') or 'N/A' }}">i</span>
+                            Phí áp dụng
+                            <span class="checkout-summary__tip" data-delivery-fee-tip title="Phí ship: {{ '{:,}'.format(checkout_data.get('shipping_fee', 0)) }}đ | Phí xử lý đơn hàng: {{ '{:,}'.format(checkout_data.get('processing_fee', 3000)) }}đ | Khoảng cách: {{ checkout_data.get('distance_text', '') or 'N/A' }}">i</span>
                         </span>
                         <strong id="deliveryFeeValue">{{ "{:,}".format(checkout_data.get('delivery_fee', 0)) }}đ</strong>
                     </div>

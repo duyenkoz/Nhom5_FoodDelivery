@@ -62,6 +62,7 @@ from app.services.momo_service import create_momo_payment
 from app.services.password_reset_service_fixed import RESEND_COOLDOWN_SECONDS
 from app.services.location_service import resolve_address
 from app.services.restaurant_service import infer_category, infer_image_path
+from app.services.order_state_service import refresh_simulated_order_state
 from app.utils.time_utils import format_vietnam_datetime
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -368,6 +369,16 @@ def _normalize_order_status(order):
         }
 
     if lowered in {"đang chuẩn bị", "preparing"}:
+        cancel_request_status = _clean(getattr(order, "cancel_request_status", "") or "").lower()
+        if cancel_request_status == "pending":
+            return {
+                "bucket": "pending",
+                "label": "Chờ duyệt hủy",
+                "badge_class": "is-warning",
+                "stage": "Chờ duyệt hủy",
+                "description": "Nhà hàng đã gửi yêu cầu hủy đơn, đang chờ admin xem xét.",
+                "step_key": "cancel_request",
+            }
         return {
             "bucket": "pending",
             "label": "Đang chuẩn bị",
@@ -388,36 +399,14 @@ def _normalize_order_status(order):
 
 
 def _refresh_simulated_order_state(order):
-    if not order or not order.order_date:
-        return order
-
-    raw_status = (order.status or "").strip().lower()
-    now = datetime.utcnow()
-    changed = False
-
-    if raw_status == "pending_payment":
-        if now >= order.order_date + timedelta(minutes=10):
-            order.status = "cancelled"
-            if order.payment and (order.payment.status or "").lower() != "paid":
-                order.payment.status = "cancelled"
-            changed = True
-
-    elif raw_status == "shipping":
-        if now >= order.order_date + timedelta(minutes=2):
-            order.status = "completed"
-            if order.payment and (order.payment.status or "").lower() != "paid":
-                order.payment.status = "paid"
-            changed = True
-
-    if changed:
-        db.session.commit()
-    return order
+    return refresh_simulated_order_state(order)
 
 
-def _countdown_seconds(order, minutes):
-    if not order or not order.order_date:
+def _countdown_seconds(order, minutes, reference_time=None):
+    reference_time = reference_time or (order.order_date if order else None)
+    if not order or not reference_time:
         return 0
-    remaining = int((order.order_date + timedelta(minutes=minutes) - datetime.utcnow()).total_seconds())
+    remaining = int((reference_time + timedelta(minutes=minutes) - datetime.utcnow()).total_seconds())
     return max(0, remaining)
 
 
@@ -915,7 +904,8 @@ def order_detail(order_id):
     _refresh_simulated_order_state(order)
     status_info = _normalize_order_status(order)
     payment_remaining_seconds = _countdown_seconds(order, 10) if status_info["step_key"] == "payment" else 0
-    shipping_remaining_seconds = _countdown_seconds(order, 2) if status_info["step_key"] == "shipping" else 0
+    shipping_started_at = getattr(order, "shipping_at", None) or order.order_date
+    shipping_remaining_seconds = _countdown_seconds(order, 1, reference_time=shipping_started_at) if status_info["step_key"] == "shipping" else 0
     customer_name = order.customer.user.display_name if order.customer and order.customer.user else ""
     customer_phone = order.customer.user.phone if order.customer and order.customer.user else ""
     try:
@@ -988,12 +978,18 @@ def order_detail(order_id):
         )
 
     applied_delivery_fee = order.delivery_fee or 0
-    platform_fee_detail = order.restaurant.platform_fee if order.restaurant and order.restaurant.platform_fee else 0
-    shipping_fee_detail = max(0, applied_delivery_fee - platform_fee_detail)
+    processing_fee_detail = 3000
+    shipping_fee_detail = max(0, applied_delivery_fee - processing_fee_detail)
     voucher_discount_value = max(0, subtotal_amount + applied_delivery_fee - (order.total_amount or 0))
     payment_method_label = format_payment_method_label(order.payment.payment_method if order.payment else "")
+    payment_status = (order.payment.status if order.payment else "") or ""
+    payment_status_label = "Đã thanh toán" if payment_status.lower() == "paid" else (
+        "Chờ thanh toán" if payment_status.lower() in {"pending", "pending_payment"} else (payment_status or "Chưa rõ")
+    )
     voucher_display_text = format_voucher_summary_label(order.voucher, voucher_discount_value)
-    delivery_fee_detail_text = f"Phí ship {shipping_fee_detail:,}đ · Phí sàn {platform_fee_detail:,}đ"
+    delivery_fee_detail_text = f"Phí ship {shipping_fee_detail:,}đ · Phí xử lý đơn hàng {processing_fee_detail:,}đ"
+    cancel_request_reason = (getattr(order, "cancel_request_reason", "") or "").strip()
+    cancel_request_status = (getattr(order, "cancel_request_status", "") or "").strip().lower()
 
     return render_template(
         "auth/order_detail.html",
@@ -1010,9 +1006,13 @@ def order_detail(order_id):
         voucher_discount_value=voucher_discount_value,
         voucher_display_text=voucher_display_text,
         payment_method_label=payment_method_label,
+        payment_status=payment_status,
+        payment_status_label=payment_status_label,
         applied_delivery_fee=applied_delivery_fee,
         delivery_fee_detail_text=delivery_fee_detail_text,
         cancel_reason=(order.cancel_reason or "").strip(),
+        cancel_request_reason=cancel_request_reason,
+        cancel_request_status=cancel_request_status,
         shipper_name="Shipper" if status_info["step_key"] in {"preparing", "shipping", "delivered"} else "",
         payment_remaining_seconds=payment_remaining_seconds,
         shipping_remaining_seconds=shipping_remaining_seconds,

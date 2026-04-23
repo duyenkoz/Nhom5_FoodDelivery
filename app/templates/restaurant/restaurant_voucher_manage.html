@@ -39,9 +39,9 @@
         <div class="restaurant-card restaurant-sidebar__links">
             <a href="{{ url_for('restaurant.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Quản lý thực đơn</a>
             <a href="{{ url_for('restaurant.orders') }}" class="{% if section_name == 'orders' %}is-active{% endif %}">Quản lý đơn hàng</a>
-            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Báo cáo thống kê</a>
             <a href="{{ url_for('restaurant.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
-            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Xem các đánh giá nhà hàng</a>
+            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Đánh giá nhà hàng</a>
         </div>
 
         <div class="restaurant-card restaurant-sidebar__note">
@@ -151,6 +151,49 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% if pagination and pagination.total_pages > 1 %}
+                <div class="restaurant-table-footer restaurant-voucher-table__footer">
+                    <span>Hiển thị {{ pagination.start_item }}-{{ pagination.end_item }} trên {{ pagination.total_items }} voucher</span>
+                    <nav class="restaurant-pagination" aria-label="Phân trang voucher">
+                        <label class="restaurant-pagination__select">
+                            <span>Trang</span>
+                            <select onchange="if (this.value) window.location.href = this.value">
+                                {% for page_num in range(1, pagination.total_pages + 1) %}
+                                <option value="{{ url_for('restaurant.vouchers', q=voucher_search, page=page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
+                                    {{ page_num }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+
+                        <a
+                            class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}"
+                            href="{{ url_for('restaurant.vouchers', q=voucher_search, page=(pagination.page - 1)) if pagination.has_prev else '#' }}"
+                            aria-disabled="{{ 'true' if not pagination.has_prev else 'false' }}"
+                            tabindex="{{ '-1' if not pagination.has_prev else '0' }}"
+                        >Trước</a>
+
+                        {% for page_item in pagination.pages or [] %}
+                        {% if page_item == '...' %}
+                        <span class="restaurant-pagination__ellipsis">...</span>
+                        {% else %}
+                        <a
+                            class="restaurant-pagination__page {% if page_item == pagination.page %}is-active{% endif %}"
+                            href="{{ url_for('restaurant.vouchers', q=voucher_search, page=page_item) }}"
+                            {% if page_item == pagination.page %}aria-current="page"{% endif %}
+                        >{{ page_item }}</a>
+                        {% endif %}
+                        {% endfor %}
+
+                        <a
+                            class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}"
+                            href="{{ url_for('restaurant.vouchers', q=voucher_search, page=(pagination.page + 1)) if pagination.has_next else '#' }}"
+                            aria-disabled="{{ 'true' if not pagination.has_next else 'false' }}"
+                            tabindex="{{ '-1' if not pagination.has_next else '0' }}"
+                        >Sau</a>
+                    </nav>
+                </div>
+                {% endif %}
                 {% else %}
                 <div class="restaurant-empty restaurant-voucher-empty">
                     <strong>Chưa có voucher phù hợp.</strong>
