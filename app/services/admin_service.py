@@ -87,6 +87,51 @@ def _format_money_signed(value):
     return '{:,}đ'.format(int(value or 0))
 
 
+def _order_bucket(status):
+    normalized = _clean(status).lower()
+    if normalized in {"pending", "pending_payment"}:
+        return "pending"
+    if normalized == "preparing":
+        return "preparing"
+    if normalized in {"ready_for_delivery", "waiting_delivery", "shipping"}:
+        return "shipping"
+    if normalized in {"completed", "delivered", "done"}:
+        return "completed"
+    if normalized in EXCLUDED_ORDER_STATUSES or normalized in {"cancelled", "canceled"}:
+        return "cancelled"
+    return "other"
+
+
+def _build_revenue_summary(source_orders):
+    summary = {
+        "completed_orders": 0,
+        "processing_fee_total": 0,
+        "restaurant_platform_fee_total": 0,
+        "system_voucher_discount_total": 0,
+        "merchant_voucher_discount_total": 0,
+        "gross_platform_income_total": 0,
+        "net_admin_revenue_total": 0,
+        "voucher_discount_total": 0,
+    }
+    for order in source_orders:
+        breakdown = _order_admin_revenue_breakdown(order)
+        summary["completed_orders"] += 1
+        summary["processing_fee_total"] += breakdown["processing_fee"]
+        summary["restaurant_platform_fee_total"] += breakdown["restaurant_platform_fee"]
+        summary["system_voucher_discount_total"] += breakdown["system_voucher_discount"]
+        summary["merchant_voucher_discount_total"] += breakdown["merchant_voucher_discount"]
+        summary["gross_platform_income_total"] += breakdown["platform_income"]
+        summary["net_admin_revenue_total"] += breakdown["net_admin_revenue"]
+        summary["voucher_discount_total"] += breakdown["discount_amount"]
+    return summary
+
+
+def _safe_percentage(numerator, denominator):
+    if not denominator:
+        return 0.0
+    return round((numerator / denominator) * 100, 1)
+
+
 def _order_admin_revenue_breakdown(order):
     items = order.items or []
     subtotal_amount = sum(_clean_int(item.price) * max(1, _clean_int(item.quantity, 1)) for item in items)
@@ -774,6 +819,197 @@ def _build_search_settings():
     }
 
 
+def _build_dashboard():
+    users = User.query.all()
+    orders = (
+        Order.query.options(
+            selectinload(Order.items),
+            selectinload(Order.voucher),
+            selectinload(Order.restaurant).selectinload(Restaurant.user),
+        )
+        .order_by(Order.order_date.desc(), Order.order_id.desc())
+        .all()
+    )
+
+    today = date.today()
+    _, month_start, month_end = _analytics_window_bounds("month", (today.year, today.month))
+
+    order_status_counts = {"pending": 0, "preparing": 0, "shipping": 0, "completed": 0, "cancelled": 0, "other": 0}
+    for order in orders:
+        order_status_counts[_order_bucket(order.status)] += 1
+
+    completed_orders = [order for order in orders if _order_bucket(order.status) == "completed"]
+    monthly_completed_orders = []
+    for order in completed_orders:
+        order_date = getattr(order, "order_date", None)
+        if not order_date:
+            continue
+        order_day = order_date.date()
+        if month_start <= order_day <= month_end:
+            monthly_completed_orders.append(order)
+
+    monthly_revenue_summary = _build_revenue_summary(monthly_completed_orders)
+    user_role_counts = {
+        "customer": sum(1 for user in users if user.role == "customer"),
+        "restaurant": sum(1 for user in users if user.role == "restaurant"),
+        "admin": sum(1 for user in users if user.role == "admin"),
+    }
+
+    trend_days = [today - timedelta(days=offset) for offset in range(6, -1, -1)]
+    trend_order_map = {trend_day: 0 for trend_day in trend_days}
+    trend_revenue_map = {trend_day: 0 for trend_day in trend_days}
+    for order in orders:
+        order_date = getattr(order, "order_date", None)
+        if not order_date:
+            continue
+        order_day = order_date.date()
+        if order_day not in trend_order_map:
+            continue
+        trend_order_map[order_day] += 1
+        if _order_bucket(order.status) == "completed":
+            trend_revenue_map[order_day] += _order_admin_revenue_breakdown(order)["net_admin_revenue"]
+
+    restaurant_summary_map = {}
+    for order in completed_orders:
+        restaurant = getattr(order, "restaurant", None)
+        restaurant_id = getattr(order, "restaurant_id", None)
+        if not restaurant_id:
+            continue
+        if restaurant_id not in restaurant_summary_map:
+            restaurant_summary_map[restaurant_id] = {
+                "restaurant_name": _safe_name(restaurant.user) if restaurant and restaurant.user else f"NhÃ  hÃ ng #{restaurant_id}",
+                "completed_orders": 0,
+                "net_admin_revenue_total": 0,
+            }
+        restaurant_summary_map[restaurant_id]["completed_orders"] += 1
+        restaurant_summary_map[restaurant_id]["net_admin_revenue_total"] += _order_admin_revenue_breakdown(order)["net_admin_revenue"]
+
+    top_restaurants = sorted(
+        restaurant_summary_map.values(),
+        key=lambda item: (-item["completed_orders"], -item["net_admin_revenue_total"], item["restaurant_name"]),
+    )[:5]
+
+    pending_review_reports_count = Review.query.filter(Review.report_status == "pending").count()
+    pending_cancel_requests_count = Order.query.filter(Order.cancel_request_status == "pending").count()
+    negative_reviews_count = Review.query.filter((Review.rating <= 2) | (Review.sentiment.ilike("negative"))).count()
+
+    latest_pending_review = (
+        Review.query.options(selectinload(Review.restaurant).selectinload(Restaurant.user))
+        .filter(Review.report_status == "pending")
+        .order_by(Review.report_date.desc(), Review.review_date.desc(), Review.review_id.desc())
+        .first()
+    )
+    latest_pending_cancel = (
+        Order.query.options(selectinload(Order.restaurant).selectinload(Restaurant.user))
+        .filter(Order.cancel_request_status == "pending")
+        .order_by(Order.cancel_request_date.desc(), Order.order_date.desc(), Order.order_id.desc())
+        .first()
+    )
+    latest_negative_review = (
+        Review.query.options(selectinload(Review.restaurant).selectinload(Restaurant.user))
+        .filter((Review.rating <= 2) | (Review.sentiment.ilike("negative")))
+        .order_by(Review.review_date.desc(), Review.review_id.desc())
+        .first()
+    )
+
+    total_orders = len(orders)
+    completed_count = order_status_counts["completed"]
+    cancelled_count = order_status_counts["cancelled"]
+
+    return {
+        "records": _paginate([], page=1, per_page=1, item_label="mục"),
+        "stats": {
+            "total_users": len(users),
+            "customers": user_role_counts["customer"],
+            "restaurants": user_role_counts["restaurant"],
+            "admins": user_role_counts["admin"],
+            "orders": total_orders,
+            "completed_orders": completed_count,
+            "cancelled_orders": cancelled_count,
+            "completion_rate": _safe_percentage(completed_count, total_orders),
+            "cancellation_rate": _safe_percentage(cancelled_count, total_orders),
+            "pending_review_reports": pending_review_reports_count,
+            "pending_cancel_requests": pending_cancel_requests_count,
+            "negative_reviews": negative_reviews_count,
+            "net_admin_revenue_month": monthly_revenue_summary["net_admin_revenue_total"],
+        },
+        "dashboard_chart_data": {
+            "trend_chart": {
+                "labels": [trend_day.strftime("%d/%m") for trend_day in trend_days],
+                "orders": [trend_order_map[trend_day] for trend_day in trend_days],
+                "revenue": [trend_revenue_map[trend_day] for trend_day in trend_days],
+            },
+            "order_status_chart": {
+                "labels": ["Chờ xác nhận", "Đang chuẩn bị", "Đang giao", "Hoàn thành", "Đã hủy", "Khác"],
+                "values": [
+                    order_status_counts["pending"],
+                    order_status_counts["preparing"],
+                    order_status_counts["shipping"],
+                    order_status_counts["completed"],
+                    order_status_counts["cancelled"],
+                    order_status_counts["other"],
+                ],
+                "colors": ["#f59e0b", "#fb7185", "#38bdf8", "#22c55e", "#94a3b8", "#cbd5e1"],
+            },
+            "top_restaurants_chart": {
+                "labels": [item["restaurant_name"] for item in top_restaurants],
+                "values": [item["completed_orders"] for item in top_restaurants],
+                "revenue_values": [item["net_admin_revenue_total"] for item in top_restaurants],
+                "color": "#ff8c1a",
+            },
+            "user_role_chart": {
+                "labels": ["Khách hàng", "Nhà hàng", "Admin"],
+                "values": [
+                    user_role_counts["customer"],
+                    user_role_counts["restaurant"],
+                    user_role_counts["admin"],
+                ],
+                "colors": ["#4f74b8", "#f97316", "#a855f7"],
+            },
+        },
+        "dashboard_alert_cards": [
+            {
+                "title": "Báo cáo đánh giá",
+                "count": pending_review_reports_count,
+                "description": (
+                    f"Mới nhất từ {_safe_name(latest_pending_review.restaurant.user) if latest_pending_review and latest_pending_review.restaurant and latest_pending_review.restaurant.user else 'nhà hàng'}"
+                    if latest_pending_review
+                    else "Hiện không có báo cáo đánh giá nào đang chờ."
+                ),
+                "href": "admin.review_reports",
+                "action_label": "Xem báo cáo",
+                "tone": "warning",
+            },
+            {
+                "title": "Yêu cầu hủy đơn",
+                "count": pending_cancel_requests_count,
+                "description": (
+                    f"Đơn gần nhất #{latest_pending_cancel.order_id}" if latest_pending_cancel else "Không có yêu cầu hủy đơn đang chờ duyệt."
+                ),
+                "href": "admin.disputes",
+                "action_label": "Mở tranh chấp",
+                "tone": "info",
+            },
+            {
+                "title": "Đánh giá tiêu cực",
+                "count": negative_reviews_count,
+                "description": (
+                    f"Gần nhất từ {_safe_name(latest_negative_review.restaurant.user) if latest_negative_review and latest_negative_review.restaurant and latest_negative_review.restaurant.user else 'nhà hàng'}"
+                    if latest_negative_review
+                    else "Chưa có đánh giá tiêu cực cần theo dõi."
+                ),
+                "href": "admin.complaints",
+                "action_label": "Xem khiếu nại",
+                "tone": "soft",
+            },
+        ],
+        "top_restaurants": top_restaurants,
+        "dashboard_period_summary": f"Xu hướng 7 ngày gần nhất | Doanh thu tháng {today.month}/{today.year}: {_format_money_signed(monthly_revenue_summary['net_admin_revenue_total'])}",
+        "section_title": "Dashboard quản trị",
+        "section_subtitle": "Theo dõi sức khỏe hoạt động hệ thống, đơn hàng và các mục cần admin xử lý.",
+    }
+
+
 def _build_reports(period="month", report_date="", report_month="", report_year="", page=1):
     users = User.query.all()
     orders = (
@@ -798,47 +1034,11 @@ def _build_reports(period="month", report_date="", report_month="", report_year=
         start_date = date(reference[0], reference[1], 1)
         end_date = date(reference[0], reference[1], calendar.monthrange(reference[0], reference[1])[1])
 
-    def _order_bucket(status):
-        normalized = _clean(status).lower()
-        if normalized in {"pending", "pending_payment"}:
-            return "pending"
-        if normalized == "preparing":
-            return "preparing"
-        if normalized in {"ready_for_delivery", "waiting_delivery", "shipping"}:
-            return "shipping"
-        if normalized in {"completed", "delivered", "done"}:
-            return "completed"
-        if normalized in EXCLUDED_ORDER_STATUSES or normalized in {"cancelled", "canceled"}:
-            return "cancelled"
-        return "other"
-
     order_status_counts = {"pending": 0, "preparing": 0, "shipping": 0, "completed": 0, "cancelled": 0, "other": 0}
     for order in orders:
         order_status_counts[_order_bucket(order.status)] += 1
 
     completed_orders_list = [order for order in orders if _order_bucket(order.status) == "completed"]
-    def _build_revenue_summary(source_orders):
-        summary = {
-            "completed_orders": 0,
-            "processing_fee_total": 0,
-            "restaurant_platform_fee_total": 0,
-            "system_voucher_discount_total": 0,
-            "merchant_voucher_discount_total": 0,
-            "gross_platform_income_total": 0,
-            "net_admin_revenue_total": 0,
-            "voucher_discount_total": 0,
-        }
-        for order in source_orders:
-            breakdown = _order_admin_revenue_breakdown(order)
-            summary["completed_orders"] += 1
-            summary["processing_fee_total"] += breakdown["processing_fee"]
-            summary["restaurant_platform_fee_total"] += breakdown["restaurant_platform_fee"]
-            summary["system_voucher_discount_total"] += breakdown["system_voucher_discount"]
-            summary["merchant_voucher_discount_total"] += breakdown["merchant_voucher_discount"]
-            summary["gross_platform_income_total"] += breakdown["platform_income"]
-            summary["net_admin_revenue_total"] += breakdown["net_admin_revenue"]
-            summary["voucher_discount_total"] += breakdown["discount_amount"]
-        return summary
 
     overall_revenue_summary = _build_revenue_summary(completed_orders_list)
 
@@ -905,8 +1105,8 @@ def _build_reports(period="month", report_date="", report_month="", report_year=
             "vouchers": len(vouchers),
             "reviews": len(reviews),
             "pending_review_reports": pending_review_reports,
-            "completion_rate": round((completed_orders / total_orders) * 100, 1),
-            "cancellation_rate": round((cancelled_orders / total_orders) * 100, 1),
+            "completion_rate": _safe_percentage(completed_orders, total_orders),
+            "cancellation_rate": _safe_percentage(cancelled_orders, total_orders),
             "filtered_completed_orders": filtered_revenue_summary["completed_orders"],
         },
         "report_data": {
@@ -1076,7 +1276,9 @@ def build_admin_context(section_name="dashboard", query="", role_filter="all", t
         "pending_cancel_requests": pending_cancel_requests,
     }
 
-    if section_name == "accounts":
+    if section_name == "dashboard":
+        context = _build_dashboard()
+    elif section_name == "accounts":
         context = _build_accounts(role_filter=role_filter, query=query, page=page, per_page=page_size)
     elif section_name == "vouchers":
         context = _build_vouchers(query=query, page=page, per_page=page_size)

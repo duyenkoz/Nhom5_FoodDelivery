@@ -20,6 +20,7 @@
     <div class="admin-pagination__summary">
         Hiển thị {{ page_info.start_item or 0 }}-{{ page_info.end_item or 0 }} trên {{ page_info.total_items or 0 }} {{ page_info.item_label or 'mục' }}
     </div>
+    <div class="admin-pagination__controls">
     <label class="admin-pagination__select" for="{{ select_id }}">
         <span>Trang</span>
         <select id="{{ select_id }}" data-admin-pagination-jump>
@@ -66,6 +67,7 @@
         {% endif %}
         <a class="admin-pagination__nav {% if not page_info.has_next %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page + 1) }}" data-admin-pagination-jump>Sau</a>
     </div>
+    </div>
 </div>
 {% endif %}
 {%- endmacro %}
@@ -78,6 +80,9 @@
 {% set open_admin_voucher_modal = admin_voucher_form_errors %}
 {% set report_data = report_data|default({}) %}
 {% set report_filters = report_filters|default({}) %}
+{% set dashboard_chart_data = dashboard_chart_data|default({}) %}
+{% set dashboard_alert_cards = dashboard_alert_cards|default([]) %}
+{% set top_restaurants = top_restaurants|default([]) %}
 {% set report_pagination_params = {'period': report_filters.period|default('month'), 'date': report_filters.date|default(''), 'month': report_filters.month|default(''), 'year': report_filters.year|default('')} %}
 
 <div class="admin-page">
@@ -133,100 +138,171 @@
             {% endif %}
         </section>
 
-        {% if section_name == 'dashboard' %}
+{% if section_name == 'dashboard' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
                 <div>
                     <h2>Tổng quan nhanh</h2>
-                    <p>Xem số liệu chính và chuyển sang các khu quản lý bên trái.</p>
+                    <p>{{ dashboard_period_summary or 'Xem nhanh các chỉ số điều hành quan trọng của hệ thống.' }}</p>
                 </div>
             </div>
             <div class="admin-dashboard-grid">
                 <div class="admin-stat">
                     <span>Khách hàng</span>
-                    <strong>{{ dashboard_stats.customers }}</strong>
+                    <strong>{{ stats.customers or 0 }}</strong>
                 </div>
                 <div class="admin-stat">
-                    <span>Quản trị viên</span>
-                    <strong>{{ dashboard_stats.admins }}</strong>
+                    <span>Nhà hàng</span>
+                    <strong>{{ stats.restaurants or 0 }}</strong>
                 </div>
                 <div class="admin-stat">
                     <span>Đơn hàng</span>
-                    <strong>{{ dashboard_stats.orders }}</strong>
+                    <strong>{{ stats.orders or 0 }}</strong>
                 </div>
-                <div class="admin-stat">
-                    <span>Cần xử lý</span>
-                    <strong>{{ dashboard_stats.pending_cases }}</strong>
-                </div>
-            </div>
-        </section>
-        {% endif %}
-
-        {% if section_name == 'reports' %}
-        <section class="admin-card admin-panel admin-report-panel">
-            <div class="admin-panel__header">
-                <div>
-                    <h2>Báo cáo doanh thu</h2>
-                    <p>Theo dõi doanh thu phí xử lý 3.000, phí sàn nhà hàng và ảnh hưởng của voucher.</p>
-                </div>
-            </div>
-
-            <div class="admin-report-summary">
                 <div class="admin-stat">
                     <span>Đơn hoàn thành</span>
                     <strong>{{ stats.completed_orders or 0 }}</strong>
                 </div>
                 <div class="admin-stat">
-                    <span>Phí xử lý 3.000</span>
-                    <strong>{{ "{:,}".format(stats.processing_fee_total or 0) }}đ</strong>
+                    <span>Tỷ lệ hủy</span>
+                    <strong>{{ stats.cancellation_rate or 0 }}%</strong>
                 </div>
                 <div class="admin-stat">
-                    <span>Phí sàn nhà hàng</span>
-                    <strong>{{ "{:,}".format(stats.restaurant_platform_fee_total or 0) }}đ</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Giảm voucher hệ thống</span>
-                    <strong>{{ "{:,}".format(stats.system_voucher_discount_total or 0) }}đ</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Doanh thu gộp</span>
-                    <strong>{{ "{:,}".format(stats.gross_platform_income_total or 0) }}đ</strong>
-                </div>
-                <div class="admin-stat">
-                    <span>Doanh thu ròng</span>
-                    <strong class="{% if (stats.net_admin_revenue_total or 0) < 0 %}admin-money--negative{% endif %}">{{ "{:,}".format(stats.net_admin_revenue_total or 0) }}đ</strong>
+                    <span>Doanh thu admin tháng</span>
+                    <strong>{{ "{:,}".format(stats.net_admin_revenue_month or 0) }}đ</strong>
                 </div>
             </div>
+        </section>
 
-            <div class="admin-toolbar admin-toolbar--report-filters">
-                <form method="get" action="{{ url_for('admin.reports') }}" class="admin-report-filter-form">
-                    <label class="admin-filter-group">
-                        <span>Kiểu xem</span>
-                        <select name="period" data-admin-report-period class="admin-select">
-                            <option value="day" {% if report_filters.period == 'day' %}selected{% endif %}>Theo ngày</option>
-                            <option value="month" {% if report_filters.period == 'month' %}selected{% endif %}>Theo tháng</option>
-                            <option value="year" {% if report_filters.period == 'year' %}selected{% endif %}>Theo năm</option>
-                        </select>
-                    </label>
-                    <label class="admin-filter-group">
-                        <span data-admin-report-label>
-                            {% if report_filters.period == 'year' %}Năm{% elif report_filters.period == 'day' %}Ngày{% else %}Tháng{% endif %}
-                        </span>
-                        <input
-                            class="admin-input"
-                            data-admin-report-input
-                            type="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}number{% else %}month{% endif %}"
-                            name="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}year{% else %}month{% endif %}"
-                            value="{% if report_filters.period == 'day' %}{{ report_filters.date }}{% elif report_filters.period == 'year' %}{{ report_filters.year }}{% else %}{{ report_filters.month }}{% endif %}"
-                            {% if report_filters.period == 'year' %}min="2020" max="2100"{% endif %}
-                            data-day-value="{{ report_filters.date }}"
-                            data-month-value="{{ report_filters.month }}"
-                            data-year-value="{{ report_filters.year }}"
-                        >
-                    </label>
-                    <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
-                    <a class="admin-btn admin-btn--soft" href="{{ url_for('admin.reports') }}">Xóa lọc</a>
-                </form>
+        <section class="admin-dashboard-alerts">
+            <article class="admin-card admin-panel admin-dashboard-panel">
+                <div class="admin-panel__header">
+                    <div>
+                        <h2>Cảnh báo chờ xử lý</h2>
+                        <p>Giữ dashboard gọn nhưng vẫn nhìn thấy ngay các mục admin cần xử lý.</p>
+                    </div>
+                </div>
+                <div class="admin-dashboard-alert-grid">
+                    {% for alert in dashboard_alert_cards %}
+                    <article class="admin-dashboard-alert admin-dashboard-alert--{{ alert.tone }}">
+                        <div class="admin-dashboard-alert__top">
+                            <span>{{ alert.title }}</span>
+                            <strong>{{ alert.count }}</strong>
+                        </div>
+                        <p>{{ alert.description }}</p>
+                        <a class="admin-btn admin-btn--ghost" href="{{ url_for(alert.href) }}">{{ alert.action_label }}</a>
+                    </article>
+                    {% endfor %}
+                </div>
+            </article>
+        </section>
+
+        <section class="admin-dashboard-charts">
+            <article class="admin-card admin-panel admin-dashboard-panel admin-dashboard-panel--wide">
+                <div class="admin-panel__header">
+                    <div>
+                        <h2>Xu hướng đơn hàng và doanh thu</h2>
+                        <p>Cột thể hiện số đơn, đường thể hiện doanh thu ròng admin trong 7 ngày gần nhất.</p>
+                    </div>
+                </div>
+                <div class="admin-dashboard-chart-wrap admin-dashboard-chart-wrap--trend">
+                    <canvas id="adminDashboardTrendChart"></canvas>
+                </div>
+            </article>
+
+            <article class="admin-card admin-panel admin-dashboard-panel">
+                <div class="admin-panel__header">
+                    <div>
+                        <h2>Trạng thái đơn hàng</h2>
+                        <p>Donut tổng hợp trạng thái để nhìn nhanh luồng vận hành.</p>
+                    </div>
+                </div>
+                <div class="admin-dashboard-chart-wrap">
+                    <canvas id="adminDashboardOrderStatusChart"></canvas>
+                </div>
+            </article>
+
+            <article class="admin-card admin-panel admin-dashboard-panel">
+                <div class="admin-panel__header">
+                    <div>
+                        <h2>Cơ cấu tài khoản</h2>
+                        <p>Tỷ trọng khách hàng, nhà hàng và admin trong toàn hệ thống.</p>
+                    </div>
+                </div>
+                <div class="admin-dashboard-chart-wrap">
+                    <canvas id="adminDashboardUserRoleChart"></canvas>
+                </div>
+            </article>
+
+            <article class="admin-card admin-panel admin-dashboard-panel admin-dashboard-panel--wide">
+                <div class="admin-panel__header">
+                    <div>
+                        <h2>Top nhà hàng</h2>
+                        <p>So sánh top 5 nhà hàng theo số đơn hoàn thành trên hệ thống.</p>
+                    </div>
+                </div>
+                <div class="admin-dashboard-top">
+                    <div class="admin-dashboard-chart-wrap admin-dashboard-chart-wrap--bar">
+                        <canvas id="adminDashboardTopRestaurantsChart"></canvas>
+                    </div>
+                    <div class="admin-dashboard-ranking">
+                        {% if top_restaurants %}
+                            {% for item in top_restaurants %}
+                            <div class="admin-dashboard-ranking__item">
+                                <div>
+                                    <strong>{{ loop.index }}. {{ item.restaurant_name }}</strong>
+                                    <span>{{ item.completed_orders }} đơn hoàn thành</span>
+                                </div>
+                                <b>{{ "{:,}".format(item.net_admin_revenue_total or 0) }}đ</b>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="admin-empty">Chưa có dữ liệu nhà hàng để xếp hạng.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+        </section>
+        {% endif %}
+
+        {% if section_name == 'reports' %}
+        <section class="admin-card admin-panel admin-report-panel">
+            <div class="admin-panel__header admin-panel__header--filters">
+                <div>
+                    <h2>Báo cáo doanh thu</h2>
+                    <p>Theo dõi doanh thu phí xử lý 3.000, phí sàn nhà hàng và ảnh hưởng của voucher.</p>
+                </div>
+                <div class="admin-voucher-controls admin-report-controls">
+                    <form method="get" action="{{ url_for('admin.reports') }}" class="admin-report-filter-form admin-report-filter-form--inline">
+                        <label class="admin-filter-group admin-filter-group--compact" for="adminReportPeriod">
+                            <span class="admin-filter-group__label admin-filter-group__label--sr-only">Kiểu xem</span>
+                            <select id="adminReportPeriod" name="period" data-admin-report-period class="admin-select">
+                                <option value="day" {% if report_filters.period == 'day' %}selected{% endif %}>Theo ngày</option>
+                                <option value="month" {% if report_filters.period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                <option value="year" {% if report_filters.period == 'year' %}selected{% endif %}>Theo năm</option>
+                            </select>
+                        </label>
+                        <label class="admin-filter-group admin-filter-group--compact admin-filter-group--period" for="adminReportPeriodValue">
+                            <span class="admin-filter-group__label admin-filter-group__label--sr-only" data-admin-report-label>
+                                {% if report_filters.period == 'year' %}Năm{% elif report_filters.period == 'day' %}Ngày{% else %}Tháng{% endif %}
+                            </span>
+                            <input
+                                id="adminReportPeriodValue"
+                                class="admin-input"
+                                data-admin-report-input
+                                type="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}number{% else %}month{% endif %}"
+                                name="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}year{% else %}month{% endif %}"
+                                value="{% if report_filters.period == 'day' %}{{ report_filters.date }}{% elif report_filters.period == 'year' %}{{ report_filters.year }}{% else %}{{ report_filters.month }}{% endif %}"
+                                {% if report_filters.period == 'year' %}min="2020" max="2100"{% endif %}
+                                data-day-value="{{ report_filters.date }}"
+                                data-month-value="{{ report_filters.month }}"
+                                data-year-value="{{ report_filters.year }}"
+                            >
+                        </label>
+                        <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                        <a class="admin-btn admin-btn--soft" href="{{ url_for('admin.reports') }}">Xóa lọc</a>
+                    </form>
+                </div>
             </div>
 
             <div class="admin-table admin-table--reports" style="margin-top: 18px;">
@@ -293,24 +369,23 @@
 
         {% if section_name == 'accounts' %}
         <section class="admin-card admin-panel">
-            <div class="admin-panel__header">
+            <div class="admin-panel__header admin-panel__header--filters">
                 <div>
                     <h2>Quản lý tài khoản</h2>
-                    <p>Khoanh vùng khách hàng hoặc nhà hàng bằng bộ lọc bên dưới.</p>
+                    <p>Khoanh vùng khách hàng hoặc nhà hàng bằng bộ lọc phía trên.</p>
                 </div>
-            </div>
-
-            <div class="admin-toolbar">
-                <form method="get" action="{{ url_for('admin.accounts') }}" data-live-search-form data-live-search-target="#admin-accounts-results" autocomplete="off">
-                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo tên, username, email, SĐT" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <select name="role" class="admin-select">
-                        <option value="all" {% if role_filter == 'all' %}selected{% endif %}>Tất cả</option>
-                        <option value="customer" {% if role_filter == 'customer' %}selected{% endif %}>Khách hàng</option>
-                        <option value="restaurant" {% if role_filter == 'restaurant' %}selected{% endif %}>Nhà hàng</option>
-                        <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
-                    </select>
-                    <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
-                </form>
+                <div class="admin-voucher-controls admin-voucher-controls--filters">
+                    <form method="get" action="{{ url_for('admin.accounts') }}" data-live-search-form data-live-search-target="#admin-accounts-results" autocomplete="off">
+                        <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo tên, username, email, SĐT" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                        <select name="role" class="admin-select">
+                            <option value="all" {% if role_filter == 'all' %}selected{% endif %}>Tất cả</option>
+                            <option value="customer" {% if role_filter == 'customer' %}selected{% endif %}>Khách hàng</option>
+                            <option value="restaurant" {% if role_filter == 'restaurant' %}selected{% endif %}>Nhà hàng</option>
+                            <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                        <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                    </form>
+                </div>
             </div>
 
             <div id="admin-accounts-results">
@@ -890,6 +965,219 @@
         {% endif %}
     </main>
 </div>
+{% if section_name == 'dashboard' %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="application/json" id="admin-dashboard-data">{{ dashboard_chart_data|tojson }}</script>
+<script>
+(function () {
+    const dashboardDataElement = document.getElementById("admin-dashboard-data");
+    const dashboardData = dashboardDataElement ? JSON.parse(dashboardDataElement.textContent || "{}") : {};
+
+    function buildMoney(value) {
+        return `${Number(value || 0).toLocaleString("vi-VN")}đ`;
+    }
+
+    function createDonutChart(canvasId, chartData) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || !window.Chart || !chartData) return;
+
+        new Chart(canvas, {
+            type: "doughnut",
+            data: {
+                labels: chartData.labels || [],
+                datasets: [{
+                    data: chartData.values || [],
+                    backgroundColor: chartData.colors || [],
+                    borderWidth: 0,
+                    hoverOffset: 10,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "64%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: "circle",
+                            padding: 16,
+                            boxWidth: 10,
+                            color: "#22324a",
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(context) {
+                                const value = Number(context.raw || 0);
+                                return `${context.label}: ${value.toLocaleString("vi-VN")}`;
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    const trendCanvas = document.getElementById("adminDashboardTrendChart");
+    if (trendCanvas && window.Chart && dashboardData.trend_chart) {
+        const trendChart = dashboardData.trend_chart;
+        new Chart(trendCanvas, {
+            data: {
+                labels: trendChart.labels || [],
+                datasets: [
+                    {
+                        type: "bar",
+                        label: "Số đơn",
+                        data: trendChart.orders || [],
+                        backgroundColor: "rgba(255, 140, 26, 0.22)",
+                        borderColor: "#ff8c1a",
+                        borderWidth: 1,
+                        borderRadius: 12,
+                        yAxisID: "y",
+                    },
+                    {
+                        type: "line",
+                        label: "Doanh thu ròng admin",
+                        data: trendChart.revenue || [],
+                        borderColor: "#22324a",
+                        backgroundColor: "rgba(34, 50, 74, 0.12)",
+                        tension: 0.35,
+                        fill: false,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        yAxisID: "y1",
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: "index",
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            color: "#22324a",
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(context) {
+                                if (context.datasetIndex === 1) {
+                                    return `${context.dataset.label}: ${buildMoney(context.raw)}`;
+                                }
+                                return `${context.dataset.label}: ${Number(context.raw || 0).toLocaleString("vi-VN")}`;
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            color: "#64748b",
+                        },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: "#64748b",
+                            precision: 0,
+                        },
+                        grid: {
+                            color: "rgba(148, 163, 184, 0.16)",
+                        },
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: "right",
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            color: "#64748b",
+                            callback(value) {
+                                return buildMoney(value);
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    createDonutChart("adminDashboardOrderStatusChart", dashboardData.order_status_chart);
+    createDonutChart("adminDashboardUserRoleChart", dashboardData.user_role_chart);
+
+    const topRestaurantsCanvas = document.getElementById("adminDashboardTopRestaurantsChart");
+    if (topRestaurantsCanvas && window.Chart && dashboardData.top_restaurants_chart) {
+        const topRestaurantsChart = dashboardData.top_restaurants_chart;
+        new Chart(topRestaurantsCanvas, {
+            type: "bar",
+            data: {
+                labels: topRestaurantsChart.labels || [],
+                datasets: [{
+                    label: "Đơn hoàn thành",
+                    data: topRestaurantsChart.values || [],
+                    backgroundColor: topRestaurantsChart.color || "#ff8c1a",
+                    borderRadius: 12,
+                    maxBarThickness: 42,
+                }],
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(context) {
+                                const revenueValues = topRestaurantsChart.revenue_values || [];
+                                const revenueValue = revenueValues[context.dataIndex] || 0;
+                                return [
+                                    `Đơn hoàn thành: ${Number(context.raw || 0).toLocaleString("vi-VN")}`,
+                                    `Doanh thu ròng: ${buildMoney(revenueValue)}`,
+                                ];
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: "#64748b",
+                            precision: 0,
+                        },
+                        grid: {
+                            color: "rgba(148, 163, 184, 0.16)",
+                        },
+                    },
+                    y: {
+                        ticks: {
+                            color: "#22324a",
+                        },
+                        grid: {
+                            display: false,
+                        },
+                    },
+                },
+            },
+        });
+    }
+})();
+</script>
+{% endif %}
 {% if section_name == 'reports' %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script type="application/json" id="admin-report-data">{{ report_data|tojson }}</script>
