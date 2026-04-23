@@ -7,6 +7,9 @@ from app.services.restaurant_service import (
     delete_dish_for_restaurant,
     delete_voucher_for_restaurant,
     confirm_order_for_restaurant,
+    complete_order_for_restaurant,
+    request_cancel_order_for_restaurant,
+    withdraw_cancel_request_for_restaurant,
     report_review_for_restaurant,
     save_dish_for_restaurant,
     save_voucher_for_restaurant,
@@ -16,6 +19,7 @@ from app.services.restaurant_service import (
 from app.services.notification_service import (
     build_order_cancelled_notification,
     build_order_confirmed_notification,
+    build_order_shipping_notification,
     emit_structured_notification,
 )
 
@@ -42,6 +46,12 @@ def _render_section(section_name):
         date_to=request.args.get("end", "").strip(),
         focus_order_id=request.args.get("focus", type=int),
         page=request.args.get("page", default=1, type=int),
+        analytics_period=request.args.get("period", "month").strip() or "month",
+        analytics_date=request.args.get("date", "").strip(),
+        analytics_month=request.args.get("month", "").strip(),
+        analytics_year=request.args.get("year", "").strip(),
+        analytics_trend_period=request.args.get("trend_period", "month").strip() or "month",
+        analytics_top_period=request.args.get("top_period", "month").strip() or "month",
     )
     if context["restaurant"] is None:
         flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi vào khu quản trị.", "warning")
@@ -169,6 +179,109 @@ def confirm_order(order_id):
     )
 
 
+@bp.route("/orders/<int:order_id>/complete", methods=["POST"])
+def complete_order(order_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    order, status = complete_order_for_restaurant(session.get("user_id"), order_id)
+    if status == "not_found":
+        flash("Không tìm thấy đơn hàng để chuyển sang đang giao hàng.", "error")
+    elif status == "cancelled":
+        flash("Đơn hàng này đã bị hủy trước đó.", "warning")
+    elif status == "refund_pending":
+        flash("Đơn hàng này đang ở trạng thái Chờ hoàn tiền.", "warning")
+    elif status == "completed":
+        flash("Đơn hàng đã ở trạng thái hoàn thành.", "warning")
+    elif status == "cancel_request_pending":
+        flash("Đơn hàng đang có yêu cầu hủy chờ admin duyệt.", "warning")
+    elif status == "shipping" and order:
+        restaurant_name = session.get("user_display_name") or session.get("username") or "Nhà hàng"
+        notification_data = build_order_shipping_notification(order, restaurant_name=restaurant_name)
+        emit_structured_notification(notification_data)
+        flash(f"Đã chuyển đơn #{order.order_id} sang trạng thái Đang giao hàng.", "success")
+    else:
+        flash("Không thể chuyển đơn sang trạng thái đang giao hàng lúc này.", "error")
+
+    return redirect(
+        url_for(
+            "restaurant.orders",
+            q=request.values.get("q", ""),
+            status=request.values.get("status", "all"),
+            sort=request.values.get("sort", "desc"),
+            start=request.values.get("start", ""),
+            end=request.values.get("end", ""),
+            focus=request.values.get("focus", ""),
+            page=request.values.get("page", 1),
+        )
+    )
+
+
+@bp.route("/orders/<int:order_id>/request-cancel", methods=["POST"])
+def request_cancel_order(order_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    reason = (request.form.get("reason") or request.args.get("reason") or "").strip()
+    order, status, resolved_reason = request_cancel_order_for_restaurant(session.get("user_id"), order_id, reason=reason)
+    if not order:
+        flash("Không tìm thấy đơn hàng để gửi yêu cầu hủy.", "error")
+    elif status == "already_requested":
+        flash(f"Đơn #{order.order_id} đã có yêu cầu hủy đang chờ duyệt.", "warning")
+    elif status == "already_cancelled":
+        flash(f"Đơn #{order.order_id} đã bị hủy trước đó.", "warning")
+    elif status == "already_refund_pending":
+        flash(f"Đơn #{order.order_id} đang ở trạng thái Chờ hoàn tiền.", "warning")
+    elif status == "already_completed":
+        flash(f"Đơn #{order.order_id} đã hoàn thành, không thể gửi yêu cầu hủy.", "warning")
+    elif status == "requested" and order:
+        flash(f"Đã gửi yêu cầu hủy đơn #{order.order_id} đến admin để duyệt.", "success")
+    else:
+        flash("Không thể gửi yêu cầu hủy lúc này.", "error")
+
+    return redirect(
+        url_for(
+            "restaurant.orders",
+            q=request.values.get("q", ""),
+            status=request.values.get("status", "all"),
+            sort=request.values.get("sort", "desc"),
+            start=request.values.get("start", ""),
+            end=request.values.get("end", ""),
+            focus=request.values.get("focus", ""),
+            page=request.values.get("page", 1),
+        )
+    )
+
+
+@bp.route("/orders/<int:order_id>/withdraw-cancel-request", methods=["POST"])
+def withdraw_cancel_request(order_id):
+    if not _require_restaurant():
+        return redirect(url_for("home.index"))
+
+    order, status = withdraw_cancel_request_for_restaurant(session.get("user_id"), order_id)
+    if not order:
+        flash("Không tìm thấy đơn hàng để rút yêu cầu hủy.", "error")
+    elif status == "no_pending_request":
+        flash(f"Đơn #{order.order_id} không còn yêu cầu hủy đang chờ duyệt.", "warning")
+    elif status == "withdrawn":
+        flash(f"Đã rút yêu cầu hủy đơn #{order.order_id}.", "success")
+    else:
+        flash("Không thể rút yêu cầu hủy lúc này.", "error")
+
+    return redirect(
+        url_for(
+            "restaurant.orders",
+            q=request.values.get("q", ""),
+            status=request.values.get("status", "all"),
+            sort=request.values.get("sort", "desc"),
+            start=request.values.get("start", ""),
+            end=request.values.get("end", ""),
+            focus=request.values.get("focus", ""),
+            page=request.values.get("page", 1),
+        )
+    )
+
+
 @bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
 def cancel_order(order_id):
     if not _require_restaurant():
@@ -253,6 +366,7 @@ def vouchers():
         "vouchers",
         edit_voucher_id=edit_voucher_id,
         query=search_query,
+        page=request.args.get("page", default=1, type=int),
     )
     if context["restaurant"] is None:
         flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi quản lý voucher.", "warning")
@@ -271,7 +385,11 @@ def reviews():
     if not _require_restaurant():
         return redirect(url_for("home.index"))
 
-    context = build_section_context(session.get("user_id"), "reviews")
+    context = build_section_context(
+        session.get("user_id"),
+        "reviews",
+        page=request.args.get("page", default=1, type=int),
+    )
     if context["restaurant"] is None:
         flash("Vui lòng hoàn thiện thông tin nhà hàng trước khi xem đánh giá.", "warning")
         return redirect(url_for("auth.complete_restaurant"))

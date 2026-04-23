@@ -1,8 +1,9 @@
+import calendar
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from flask import current_app
+from flask import current_app, url_for
 from sqlalchemy import bindparam, func
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import selectinload
@@ -17,7 +18,16 @@ from app.models.review import Review
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.models.restaurant import Restaurant
-from app.utils.time_utils import format_vietnam_date, vietnam_today
+from app.services.order_state_service import refresh_simulated_order_state
+from app.services.notification_service import (
+    build_order_cancelled_notification,
+    build_restaurant_cancel_request_notification,
+    build_restaurant_cancel_request_result_notification,
+    build_restaurant_review_report_notification,
+    emit_structured_notification,
+    emit_structured_notifications_to_users,
+)
+from app.utils.time_utils import format_vietnam_date, format_vietnam_datetime, to_vietnam_datetime, vietnam_today
 
 
 CATEGORY_RULES = [
@@ -47,10 +57,18 @@ VOUCHER_DISCOUNT_LABELS = {
 }
 
 EXCLUDED_ORDER_STATUSES = {"cancel", "canceled", "cancelled", "failed", "refund", "refund_pending", "pending_refund", "refunded", "rejected"}
+COMPLETED_ORDER_STATUSES = {"completed", "delivered", "done"}
 
 
 def _clean(value):
     return value.strip() if isinstance(value, str) else ""
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _slugify(text):
@@ -182,6 +200,13 @@ def _build_restaurant_order_view(order, note_map=None):
     discount_summary = f"-{_format_money_vn(discount_amount)}đ" if discount_amount else "0đ"
     customer_name = _safe_user_name(order.customer.user) if order.customer and order.customer.user else "Khách ẩn danh"
     cancel_reason = _clean(getattr(order, "cancel_reason", "") or "")
+    cancel_request_status = _clean(getattr(order, "cancel_request_status", "") or "").lower()
+    cancel_request_reason = _clean(getattr(order, "cancel_request_reason", "") or "")
+    cancel_request_pending = cancel_request_status == "pending"
+    shipping_started_at = getattr(order, "shipping_at", None) or order.order_date
+    shipping_remaining_seconds = 0
+    if status_info["key"] == "shipping" and shipping_started_at:
+        shipping_remaining_seconds = max(0, int((shipping_started_at + timedelta(minutes=1) - datetime.utcnow()).total_seconds()))
     return {
         "order": order,
         "order_code": _format_order_code(order.order_id),
@@ -200,8 +225,12 @@ def _build_restaurant_order_view(order, note_map=None):
         "status_key": status_info["key"],
         "status_raw": status_info["raw_status"],
         "cancel_reason": cancel_reason,
+        "cancel_request_status": cancel_request_status,
+        "cancel_request_reason": cancel_request_reason,
+        "cancel_request_pending": cancel_request_pending,
         "payment_method_label": payment_method_label,
         "payment_status": payment_status or "",
+        "shipping_remaining_seconds": shipping_remaining_seconds,
         "items": items,
         "item_count": sum(item["quantity"] for item in items),
         "detail_payload": {
@@ -220,9 +249,600 @@ def _build_restaurant_order_view(order, note_map=None):
             "status_key": status_info["key"],
             "payment_method_label": payment_method_label,
             "payment_status": payment_status or "",
+            "shipping_remaining_seconds": shipping_remaining_seconds,
             "total_amount_text": _format_money_vn(total_amount),
             "cancel_reason": cancel_reason,
+            "cancel_request_status": cancel_request_status,
+            "cancel_request_reason": cancel_request_reason,
             "items": items,
+        },
+    }
+
+
+def _analytics_period_reference(period, date_value="", month_value="", year_value=""):
+    today = vietnam_today()
+    normalized_period = (period or "month").strip().lower()
+
+    if normalized_period == "day":
+        try:
+            reference_date = date.fromisoformat(_clean(date_value)) if _clean(date_value) else today
+        except ValueError:
+            reference_date = today
+        return normalized_period, reference_date
+
+    if normalized_period == "year":
+        try:
+            reference_year = int(_clean(year_value) or today.year)
+        except (TypeError, ValueError):
+            reference_year = today.year
+        return normalized_period, reference_year
+
+    try:
+        if _clean(month_value):
+            year_text, month_text = _clean(month_value).split("-", 1)
+            reference_year = int(year_text)
+            reference_month = int(month_text)
+        else:
+            reference_year = today.year
+            reference_month = today.month
+        if reference_month < 1 or reference_month > 12:
+            raise ValueError
+    except (ValueError, TypeError):
+        reference_year = today.year
+        reference_month = today.month
+
+    return "month", (reference_year, reference_month)
+
+
+def _analytics_period_summary(period, reference):
+    if period == "day":
+        return f"Trong ngày {format_vietnam_date(reference, '%d/%m/%Y')}"
+    if period == "year":
+        return f"Trong năm {reference}"
+    reference_year, reference_month = reference
+    return f"Trong tháng {reference_month}/{reference_year}"
+
+
+def _analytics_anchor_date(period, reference):
+    if period == "day":
+        return reference
+    if period == "year":
+        return date(reference, 12, 31)
+    reference_year, reference_month = reference
+    return date(reference_year, reference_month, calendar.monthrange(reference_year, reference_month)[1])
+
+
+def _analytics_window_bounds(chart_period, anchor_date):
+    normalized = (chart_period or "month").strip().lower()
+
+    if normalized == "week":
+        start_date = anchor_date - timedelta(days=6)
+        end_date = anchor_date
+    elif normalized == "year":
+        start_date = date(anchor_date.year, 1, 1)
+        end_date = date(anchor_date.year, 12, 31)
+    else:
+        start_date = date(anchor_date.year, anchor_date.month, 1)
+        end_date = date(anchor_date.year, anchor_date.month, calendar.monthrange(anchor_date.year, anchor_date.month)[1])
+
+    return normalized, start_date, end_date
+
+
+def _analytics_report_summary(period, reference, revenue_text):
+    if period == "day":
+        return f"Doanh thu ngày {format_vietnam_date(reference, '%d/%m/%Y')} là {revenue_text}đ."
+    if period == "year":
+        return f"Doanh thu năm {reference} là {revenue_text}đ."
+    reference_year, reference_month = reference
+    return f"Doanh thu tháng {reference_month}/{reference_year} là {revenue_text}đ."
+
+
+def _completed_order_timestamp(order):
+    status = (order.status or "").strip().lower()
+    if status not in COMPLETED_ORDER_STATUSES:
+        return None
+
+    if getattr(order, "shipping_at", None):
+        return order.shipping_at + timedelta(minutes=1)
+    return order.order_date
+
+
+def _analytics_group_key(period, local_dt):
+    if not local_dt:
+        return None
+    if period == "day":
+        return local_dt.hour
+    if period == "year":
+        return local_dt.month
+    return local_dt.day
+
+
+def _analytics_bucket_definitions(period, reference):
+    if period == "day":
+        return [
+            {
+                "key": hour,
+                "label": f"{hour:02d}h",
+                "short_label": f"{hour:02d}",
+                "orders": 0,
+                "gross": 0,
+                "net": 0,
+                "platform_fee": 0,
+                "voucher_discount": 0,
+            }
+            for hour in range(24)
+        ]
+
+    if period == "year":
+        return [
+            {
+                "key": month,
+                "label": f"T{month}",
+                "short_label": f"T{month}",
+                "orders": 0,
+                "gross": 0,
+                "net": 0,
+                "platform_fee": 0,
+                "voucher_discount": 0,
+            }
+            for month in range(1, 13)
+        ]
+
+    year, month = reference
+    days = calendar.monthrange(year, month)[1]
+    return [
+        {
+            "key": day,
+            "label": f"{day}",
+            "short_label": f"{day}",
+            "orders": 0,
+            "gross": 0,
+            "net": 0,
+            "platform_fee": 0,
+            "voucher_discount": 0,
+        }
+        for day in range(1, days + 1)
+    ]
+
+
+def _build_line_chart_points(buckets):
+    point_count = len(buckets)
+    if not point_count:
+        return "", []
+
+    svg_points = []
+    chart_points = []
+    denominator = max(1, point_count - 1)
+
+    for index, bucket in enumerate(buckets):
+        x_percent = round((index / denominator) * 100, 2) if point_count > 1 else 50
+        y_percent = round(100 - (bucket["height"] if bucket["net"] > 0 else 2), 2)
+        svg_points.append(f"{x_percent},{y_percent}")
+        chart_points.append(
+            {
+                **bucket,
+                "x_percent": x_percent,
+                "y_percent": y_percent,
+            }
+        )
+
+    return " ".join(svg_points), chart_points
+
+
+def _filter_completed_items_by_window(completed_items, start_date, end_date):
+    filtered = []
+    for item in completed_items:
+        completed_at = item.get("completed_at")
+        if not completed_at:
+            continue
+        completed_date = completed_at.date()
+        if start_date <= completed_date <= end_date:
+            filtered.append(item)
+    return filtered
+
+
+def _build_top_dish_analytics(completed_items):
+    dish_totals = {}
+
+    for item in completed_items:
+        order = item["order"]
+        for order_item in order.items or []:
+            dish = getattr(order_item, "dish", None)
+            dish_id = getattr(order_item, "dish_id", None) or getattr(dish, "dish_id", None)
+            dish_name = (getattr(dish, "dish_name", "") or "Món ăn").strip()
+            key = dish_id if dish_id is not None else f"name:{dish_name}"
+            quantity = max(1, _safe_int(getattr(order_item, "quantity", 1), 1))
+            line_total = max(0, _safe_int(getattr(order_item, "price", 0), 0) * quantity)
+
+            record = dish_totals.setdefault(
+                key,
+                {
+                    "key": key,
+                    "name": dish_name,
+                    "quantity": 0,
+                    "revenue": 0,
+                },
+            )
+            record["quantity"] += quantity
+            record["revenue"] += line_total
+
+    top_dishes = sorted(dish_totals.values(), key=lambda item: (item["quantity"], item["revenue"]), reverse=True)[:5]
+    total_quantity = sum(item["quantity"] for item in top_dishes) or 1
+    palette = ["#4f74b8", "#f97316", "#22c55e", "#eab308", "#a855f7"]
+
+    labels = [item["name"] for item in top_dishes]
+    values = [item["quantity"] for item in top_dishes]
+    colors = palette[: len(top_dishes)]
+    details = []
+
+    for index, dish in enumerate(top_dishes, start=1):
+        percentage = round((dish["quantity"] / total_quantity) * 100, 1) if total_quantity else 0
+        details.append(
+            {
+                "rank": index,
+                "name": dish["name"],
+                "quantity": dish["quantity"],
+                "percentage": percentage,
+                "quantity_text": f"{dish['quantity']}",
+                "percentage_text": f"{percentage:.1f}%",
+                "revenue_text": _format_money_vn(dish["revenue"]),
+                "color": colors[index - 1],
+            }
+        )
+
+    return {
+        "labels": labels,
+        "values": values,
+        "colors": colors,
+        "details": details,
+        "total_quantity": total_quantity,
+    }
+
+
+def _build_revenue_trend_analytics(completed_items, chart_period, anchor_date):
+    normalized, start_date, end_date = _analytics_window_bounds(chart_period, anchor_date)
+    window_items = _filter_completed_items_by_window(completed_items, start_date, end_date)
+
+    if normalized == "week":
+        buckets = []
+        for index in range(7):
+            day = start_date + timedelta(days=index)
+            buckets.append(
+                {
+                    "key": day.isoformat(),
+                    "label": format_vietnam_date(day, "%d/%m"),
+                    "short_label": format_vietnam_date(day, "%d/%m"),
+                    "orders": 0,
+                    "gross": 0,
+                    "net": 0,
+                    "platform_fee": 0,
+                    "voucher_discount": 0,
+                    "day": day,
+                }
+            )
+        bucket_map = {bucket["key"]: bucket for bucket in buckets}
+        for item in window_items:
+            bucket = bucket_map.get(item["completed_at"].date().isoformat())
+            if not bucket:
+                continue
+            bucket["orders"] += 1
+            bucket["gross"] += item["gross_amount"]
+            bucket["net"] += item["net_revenue"]
+            bucket["platform_fee"] += item["platform_fee_amount"]
+            bucket["voucher_discount"] += item["merchant_voucher_discount"]
+    elif normalized == "year":
+        buckets = [
+            {
+                "key": month,
+                "label": f"T{month}",
+                "short_label": f"T{month}",
+                "orders": 0,
+                "gross": 0,
+                "net": 0,
+                "platform_fee": 0,
+                "voucher_discount": 0,
+            }
+            for month in range(1, 13)
+        ]
+        bucket_map = {bucket["key"]: bucket for bucket in buckets}
+        for item in window_items:
+            bucket = bucket_map.get(item["completed_at"].month)
+            if not bucket:
+                continue
+            bucket["orders"] += 1
+            bucket["gross"] += item["gross_amount"]
+            bucket["net"] += item["net_revenue"]
+            bucket["platform_fee"] += item["platform_fee_amount"]
+            bucket["voucher_discount"] += item["merchant_voucher_discount"]
+    else:
+        year, month = start_date.year, start_date.month
+        days = calendar.monthrange(year, month)[1]
+        buckets = [
+            {
+                "key": day,
+                "label": f"{day}",
+                "short_label": f"{day}",
+                "orders": 0,
+                "gross": 0,
+                "net": 0,
+                "platform_fee": 0,
+                "voucher_discount": 0,
+            }
+            for day in range(1, days + 1)
+        ]
+        bucket_map = {bucket["key"]: bucket for bucket in buckets}
+        for item in window_items:
+            bucket = bucket_map.get(item["completed_at"].day)
+            if not bucket:
+                continue
+            bucket["orders"] += 1
+            bucket["gross"] += item["gross_amount"]
+            bucket["net"] += item["net_revenue"]
+            bucket["platform_fee"] += item["platform_fee_amount"]
+            bucket["voucher_discount"] += item["merchant_voucher_discount"]
+
+    labels = [bucket["label"] for bucket in buckets]
+    revenue_values = [bucket["net"] for bucket in buckets]
+    order_values = [bucket["orders"] for bucket in buckets]
+    max_net = max(revenue_values, default=0) or 1
+    if normalized == "week":
+        title = "Doanh thu theo tuáº§n"
+        subtitle = f"Từ {format_vietnam_date(start_date, '%d/%m')} đến {format_vietnam_date(end_date, '%d/%m/%Y')}."
+    elif normalized == "year":
+        title = f"Doanh thu theo tháng - Năm {start_date.year}"
+        subtitle = "Mỗi điểm là doanh thu thực nhận của từng tháng."
+    else:
+        title = f"Doanh thu theo ngày - {format_vietnam_date(start_date, '%m/%Y')}"
+        subtitle = "Mỗi điểm là doanh thu thực nhận của từng ngày trong tháng."
+
+    return {
+        "period": normalized,
+        "title": title,
+        "subtitle": subtitle,
+        "labels": labels,
+        "revenue_values": revenue_values,
+        "order_values": order_values,
+        "max_value": max_net,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+    }
+
+
+def _order_revenue_breakdown(order, restaurant):
+    items = order.items or []
+    subtotal_amount = sum(_safe_int(item.price, 0) * max(1, _safe_int(item.quantity, 1)) for item in items)
+    delivery_fee_amount = max(0, _safe_int(order.delivery_fee, 0))
+    total_amount = max(0, _safe_int(order.total_amount, 0))
+    platform_fee_amount = max(0, _safe_int(getattr(restaurant, "platform_fee", 0), 0))
+    discount_amount = max(0, subtotal_amount + delivery_fee_amount - total_amount)
+
+    voucher = getattr(order, "voucher", None)
+    voucher_scope = _clean(getattr(voucher, "voucher_scope", "")).lower() if voucher else ""
+    merchant_voucher_discount = discount_amount if voucher and voucher_scope == "restaurant" and voucher.created_by == restaurant.restaurant_id else 0
+    system_voucher_discount = discount_amount if voucher and voucher_scope == "system" else 0
+
+    net_revenue = max(0, subtotal_amount - platform_fee_amount - merchant_voucher_discount)
+
+    return {
+        "subtotal_amount": subtotal_amount,
+        "delivery_fee_amount": delivery_fee_amount,
+        "total_amount": total_amount,
+        "platform_fee_amount": platform_fee_amount,
+        "discount_amount": discount_amount,
+        "merchant_voucher_discount": merchant_voucher_discount,
+        "system_voucher_discount": system_voucher_discount,
+        "net_revenue": net_revenue,
+        "voucher_code": (voucher.voucher_code or "").strip() if voucher else "",
+        "voucher_scope": voucher_scope or "none",
+    }
+
+
+def _build_revenue_analytics_context(
+    restaurant,
+    period="month",
+    analytics_date="",
+    analytics_month="",
+    analytics_year="",
+    trend_period="month",
+    top_period="month",
+    page=1,
+    per_page=7,
+):
+    normalized_period, reference = _analytics_period_reference(period, analytics_date, analytics_month, analytics_year)
+
+    orders = (
+        Order.query.filter_by(restaurant_id=restaurant.restaurant_id)
+        .options(
+            selectinload(Order.items),
+            selectinload(Order.payment),
+            selectinload(Order.voucher),
+        )
+        .order_by(Order.order_date.desc(), Order.order_id.desc())
+        .all()
+    )
+    for order in orders:
+        refresh_simulated_order_state(order)
+
+    all_completed_items = []
+    for order in orders:
+        timestamp = _completed_order_timestamp(order)
+        if not timestamp:
+            continue
+
+        local_dt = to_vietnam_datetime(timestamp)
+        if not local_dt:
+            continue
+
+        revenue = _order_revenue_breakdown(order, restaurant)
+        all_completed_items.append(
+            {
+                "order": order,
+                "order_code": _format_order_code(order.order_id),
+                "completed_at": local_dt,
+                "completed_at_text": format_vietnam_datetime(local_dt, "%d/%m/%Y %H:%M"),
+                "payment_method_label": {
+                    "cash": "Tiền mặt",
+                    "momo": "MoMo",
+                }.get(((order.payment.payment_method if order.payment else "") or "").strip().lower(), "Thanh toán"),
+                "customer_paid_text": _format_money_vn(revenue["total_amount"]),
+                "gross_text": _format_money_vn(revenue["subtotal_amount"]),
+                "platform_fee_text": _format_money_vn(revenue["platform_fee_amount"]),
+                "voucher_discount_text": _format_money_vn(revenue["merchant_voucher_discount"]),
+                "system_voucher_discount_text": _format_money_vn(revenue["system_voucher_discount"]),
+                "net_revenue_text": _format_money_vn(revenue["net_revenue"]),
+                "voucher_code": revenue["voucher_code"],
+                "voucher_scope": revenue["voucher_scope"],
+                "gross_amount": revenue["subtotal_amount"],
+                "platform_fee_amount": revenue["platform_fee_amount"],
+                "merchant_voucher_discount": revenue["merchant_voucher_discount"],
+                "system_voucher_discount": revenue["system_voucher_discount"],
+                "net_revenue": revenue["net_revenue"],
+                "customer_paid_amount": revenue["total_amount"],
+            }
+        )
+
+    all_completed_items.sort(
+        key=lambda item: (
+            item["completed_at"].timestamp() if item["completed_at"] else 0,
+            item["order"].order_id or 0,
+        ),
+        reverse=True,
+    )
+
+    completed_items = []
+    for item in all_completed_items:
+        local_dt = item["completed_at"]
+        if normalized_period == "day":
+            if local_dt.date() != reference:
+                continue
+        elif normalized_period == "year":
+            if local_dt.year != reference:
+                continue
+        else:
+            reference_year, reference_month = reference
+            if local_dt.year != reference_year or local_dt.month != reference_month:
+                continue
+        completed_items.append(item)
+
+    total_completed = len(completed_items)
+    total_pages = max(1, (total_completed + per_page - 1) // per_page) if per_page else 1
+    current_page = max(1, min(_safe_int(page, 1), total_pages))
+    start = (current_page - 1) * per_page if per_page else 0
+    end = start + per_page if per_page else total_completed
+    page_items = completed_items[start:end]
+
+    pagination_pages = []
+    if total_pages <= 4:
+        pagination_pages = list(range(1, total_pages + 1))
+    else:
+        pagination_pages.extend([1, 2])
+        left_window = max(3, current_page - 1)
+        right_window = min(total_pages - 2, current_page + 1)
+        if left_window > 3:
+            pagination_pages.append("...")
+        for page_num in range(left_window, right_window + 1):
+            if page_num not in pagination_pages:
+                pagination_pages.append(page_num)
+        if right_window < total_pages - 2:
+            pagination_pages.append("...")
+        for page_num in [total_pages - 1, total_pages]:
+            if page_num not in pagination_pages:
+                pagination_pages.append(page_num)
+
+    chart_anchor_date = vietnam_today()
+    trend_chart = _build_revenue_trend_analytics(all_completed_items, trend_period, chart_anchor_date)
+
+    top_anchor_date = chart_anchor_date
+    top_normalized, top_start_date, top_end_date = _analytics_window_bounds(top_period, top_anchor_date)
+    top_completed_items = _filter_completed_items_by_window(all_completed_items, top_start_date, top_end_date)
+    top_dishes_chart = _build_top_dish_analytics(top_completed_items)
+    top_dishes_chart["period"] = top_normalized
+    top_dishes_chart["start_date"] = top_start_date.isoformat()
+    top_dishes_chart["end_date"] = top_end_date.isoformat()
+
+    trend_labels = {
+        "week": "Theo tuần",
+        "month": "Theo tháng",
+        "year": "Theo năm",
+    }
+    top_labels = {
+        "day": "Theo ngày",
+        "week": "Theo tuần",
+        "month": "Theo tháng",
+        "year": "Theo năm",
+    }
+    trend_label = trend_labels.get((trend_period or "month").strip().lower(), "Theo tháng")
+    top_label = top_labels.get((top_period or "month").strip().lower(), "Theo tháng")
+
+    gross_total = sum(item["gross_amount"] for item in completed_items)
+    platform_fee_total = sum(item["platform_fee_amount"] for item in completed_items)
+    merchant_voucher_discount_total = sum(item["merchant_voucher_discount"] for item in completed_items)
+    system_voucher_discount_total = sum(item["system_voucher_discount"] for item in completed_items)
+    net_revenue_total = sum(item["net_revenue"] for item in completed_items)
+    customer_paid_total = sum(item["customer_paid_amount"] for item in completed_items)
+    average_order_value = round(customer_paid_total / total_completed) if total_completed else 0
+
+    period_labels = {
+        "day": "Theo ngày",
+        "month": "Theo tháng",
+        "year": "Theo năm",
+    }
+    if normalized_period == "day":
+        reference_label = format_vietnam_date(reference, "%d/%m/%Y")
+        chart_title = f"Doanh thu theo giờ - {reference_label}"
+        chart_subtitle = "Mỗi cột là doanh thu thực nhận của từng khung giờ."
+    elif normalized_period == "year":
+        chart_title = f"Doanh thu theo tháng - Năm {reference}"
+        chart_subtitle = "Mỗi cột là doanh thu thực nhận của từng tháng."
+    else:
+        reference_year, reference_month = reference
+        month_reference = date(reference_year, reference_month, 1)
+        chart_title = f"Doanh thu theo ngày - {format_vietnam_date(month_reference, '%m/%Y')}"
+        chart_subtitle = "Mỗi cột là doanh thu thực nhận của từng ngày trong tháng."
+
+    return {
+        "restaurant": restaurant,
+        "section_name": "analytics",
+        "section_title": "Thống kê doanh thu",
+        "section_subtitle": f"{_analytics_period_summary(normalized_period, reference)}. {_analytics_report_summary(normalized_period, reference, _format_money_vn(net_revenue_total))}",
+        "stats": {
+            "completed_orders": total_completed,
+            "gross_revenue": gross_total,
+            "platform_fee_total": platform_fee_total,
+            "merchant_voucher_discount_total": merchant_voucher_discount_total,
+            "system_voucher_discount_total": system_voucher_discount_total,
+            "net_revenue": net_revenue_total,
+            "customer_paid_total": customer_paid_total,
+            "average_order_value": average_order_value,
+        },
+        "analytics_filters": {
+            "period": normalized_period,
+            "date": reference.isoformat() if normalized_period == "day" else _clean(analytics_date) or vietnam_today().isoformat(),
+            "month": f"{reference[0]:04d}-{reference[1]:02d}" if normalized_period == "month" else _clean(analytics_month) or f"{vietnam_today().year:04d}-{vietnam_today().month:02d}",
+            "year": str(reference) if normalized_period == "year" else _clean(analytics_year) or str(vietnam_today().year),
+            "period_label": period_labels.get(normalized_period, "Theo tháng"),
+            "period_summary": _analytics_period_summary(normalized_period, reference),
+            "report_summary": _analytics_report_summary(normalized_period, reference, _format_money_vn(net_revenue_total)),
+            "trend_period": (trend_period or "month").strip().lower(),
+            "trend_label": trend_label,
+            "top_period": (top_period or "month").strip().lower(),
+            "top_label": top_label,
+        },
+        "chart": trend_chart,
+        "trend_chart": trend_chart,
+        "top_dishes_chart": top_dishes_chart,
+        "items": page_items,
+        "completed_count": total_completed,
+        "pagination": {
+            "page": current_page,
+            "per_page": per_page,
+            "total_items": total_completed,
+            "total_pages": total_pages,
+            "has_prev": current_page > 1,
+            "has_next": current_page < total_pages,
+            "start_item": start + 1 if total_completed else 0,
+            "end_item": start + len(page_items) if total_completed else 0,
+            "pages": pagination_pages,
         },
     }
 
@@ -529,34 +1149,34 @@ def _validate_voucher_form(form):
     errors = {}
 
     if not voucher_code:
-        errors["voucher_code"] = "Vui l?ng nh?p m? voucher."
+        errors["voucher_code"] = "Vui lòng nhập mã voucher."
     elif len(voucher_code) > 50:
-        errors["voucher_code"] = "M? voucher kh?ng ??c v?t qu? 50 k? t?."
+        errors["voucher_code"] = "Mã voucher không được vượt quá 50 ký tự."
 
     if not discount_value_raw:
-        errors["discount_value"] = "Vui l?ng nh?p gi? tr? gi?m gi?."
+        errors["discount_value"] = "Vui lòng nhập giá trị giảm giá."
     else:
         try:
             discount_value = int(discount_value_raw)
             if discount_value <= 0:
                 raise ValueError
         except ValueError:
-            errors["discount_value"] = "Gi? tr? gi?m ph?i l? s? nguy?n l?n h?n 0."
+            errors["discount_value"] = "Giá trị giảm giá phải là số nguyên lớn hơn 0."
 
     start_date = None
     end_date = None
     try:
         start_date = _parse_date_input(start_date_raw) if start_date_raw else vietnam_today()
     except ValueError:
-        errors["start_date"] = "Ng?y b?t ?u kh?ng h?p l?."
+        errors["start_date"] = "Ngày bắt đầu không hợp lệ."
 
     try:
         end_date = _parse_date_input(end_date_raw)
     except ValueError:
-        errors["end_date"] = "Ng?y k?t th?c kh?ng h?p l?."
+        errors["end_date"] = "Ngày kết thúc không hợp lệ."
 
     if start_date and end_date and end_date < start_date:
-        errors["end_date"] = "Ng?y k?t th?c ph?i sau ho?c b?ng ng?y b?t ?u."
+        errors["end_date"] = "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu."
 
     if errors:
         raise ValueError(errors)
@@ -600,7 +1220,7 @@ def build_dashboard_context(
     query="",
     category="all",
     page=1,
-    per_page=6,
+    per_page=8,
 ):
     restaurant = get_restaurant_by_user_id(user_id)
     dishes = list(restaurant.dishes) if restaurant else []
@@ -649,10 +1269,30 @@ def build_dashboard_context(
     end = start + per_page
     paged_dish_views = filtered_dish_views[start:end]
 
+    pagination_pages = []
+    if total_pages <= 4:
+        pagination_pages = list(range(1, total_pages + 1))
+    else:
+        pagination_pages.extend([1, 2])
+        left_window = max(3, current_page - 1)
+        right_window = min(total_pages - 2, current_page + 1)
+        if left_window > 3:
+            pagination_pages.append("...")
+        for page_num in range(left_window, right_window + 1):
+            if page_num not in pagination_pages:
+                pagination_pages.append(page_num)
+        if right_window < total_pages - 2:
+            pagination_pages.append("...")
+        for page_num in [total_pages - 1, total_pages]:
+            if page_num not in pagination_pages:
+                pagination_pages.append(page_num)
+
     stats = {
         "total": len(dish_views),
         "active": sum(1 for item in dish_views if item["dish"].status),
         "inactive": sum(1 for item in dish_views if not item["dish"].status),
+        "categories": len(categories),
+        "filtered": total_items,
     }
 
     return {
@@ -674,6 +1314,9 @@ def build_dashboard_context(
             "total_pages": total_pages,
             "has_prev": current_page > 1,
             "has_next": current_page < total_pages,
+            "start_item": start + 1 if total_items else 0,
+            "end_item": start + len(paged_dish_views) if total_items else 0,
+            "pages": pagination_pages,
         },
     }
 
@@ -684,12 +1327,39 @@ def _safe_user_name(user):
     return user.display_name or user.username or "Khách ẩn danh"
 
 
+def _build_pagination_pages(current_page, total_pages):
+    if total_pages <= 4:
+        return list(range(1, total_pages + 1))
+
+    pages = [1, 2]
+    left_window = max(3, current_page - 1)
+    right_window = min(total_pages - 2, current_page + 1)
+
+    if left_window > 3:
+        pages.append("...")
+
+    for page_num in range(left_window, right_window + 1):
+        if page_num not in pages:
+            pages.append(page_num)
+
+    if right_window < total_pages - 2:
+        pages.append("...")
+
+    for page_num in [total_pages - 1, total_pages]:
+        if page_num not in pages:
+            pages.append(page_num)
+
+    return pages
+
+
 def build_voucher_section_context(
     user_id,
     edit_voucher_id=None,
     form_values=None,
     form_errors=None,
     query="",
+    page=1,
+    per_page=7,
 ):
     restaurant = get_restaurant_by_user_id(user_id)
     if not restaurant:
@@ -709,6 +1379,12 @@ def build_voucher_section_context(
     )
     voucher_views = [build_voucher_view_model(voucher, restaurant.restaurant_id) for voucher in vouchers]
     voucher_views = _filter_voucher_views(voucher_views, query=query)
+    total_items = len(voucher_views)
+    total_pages = max(1, (total_items + per_page - 1) // per_page) if per_page else 1
+    current_page = max(1, min(_safe_int(page, 1), total_pages))
+    start = (current_page - 1) * per_page if per_page else 0
+    end = start + per_page if per_page else total_items
+    paged_voucher_views = voucher_views[start:end]
 
     edit_voucher = None
     if edit_voucher_id is not None:
@@ -762,12 +1438,23 @@ def build_voucher_section_context(
         "section_name": "vouchers",
         "section_title": "Quản lý voucher",
         "section_subtitle": "Tạo, bật/tắt và cập nhật các voucher của nhà hàng.",
-        "items": voucher_views,
+        "items": paged_voucher_views,
         "stats": stats,
         "edit_voucher": edit_voucher,
         "form_values": form_values,
         "form_errors": form_errors or {},
         "search_query": query,
+        "pagination": {
+            "page": current_page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "has_prev": current_page > 1,
+            "has_next": current_page < total_pages,
+            "start_item": start + 1 if total_items else 0,
+            "end_item": start + len(paged_voucher_views) if total_items else 0,
+            "pages": _build_pagination_pages(current_page, total_pages),
+        },
     }
 
 
@@ -785,6 +1472,12 @@ def build_section_context(
     focus_order_id=None,
     page=1,
     per_page=10,
+    analytics_period="month",
+    analytics_date="",
+    analytics_month="",
+    analytics_year="",
+    analytics_trend_period="month",
+    analytics_top_period="month",
 ):
     restaurant = get_restaurant_by_user_id(user_id)
     if not restaurant:
@@ -824,6 +1517,13 @@ def build_section_context(
             if review.rating is not None:
                 ratings.append(review.rating)
 
+        total_items = len(items)
+        total_pages = max(1, (total_items + per_page - 1) // per_page) if per_page else 1
+        current_page = max(1, min(_safe_int(page, 1), total_pages))
+        start = (current_page - 1) * per_page if per_page else 0
+        end = start + per_page if per_page else total_items
+        paged_items = items[start:end]
+
         average_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
         stats = {
             "total_reviews": len(items),
@@ -835,8 +1535,19 @@ def build_section_context(
             "section_name": section_name,
             "section_title": "Xem các đánh giá nhà hàng",
             "section_subtitle": "Theo dõi nhận xét của khách hàng và phản hồi kịp thời.",
-            "items": items,
+            "items": paged_items,
             "stats": stats,
+            "pagination": {
+                "page": current_page,
+                "per_page": per_page,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "has_prev": current_page > 1,
+                "has_next": current_page < total_pages,
+                "start_item": start + 1 if total_items else 0,
+                "end_item": start + len(paged_items) if total_items else 0,
+                "pages": _build_pagination_pages(current_page, total_pages),
+            },
         }
 
     if section_name == "orders":
@@ -851,6 +1562,8 @@ def build_section_context(
             .order_by(Order.order_date.desc(), Order.order_id.desc())
             .all()
         )
+        for order in orders:
+            refresh_simulated_order_state(order)
         note_map = _orderitems_note_map([order.order_id for order in orders])
 
         search_term = _clean(query).lower()
@@ -869,9 +1582,18 @@ def build_section_context(
             except ValueError:
                 end_date = None
 
+        overview_items = []
         filtered_items = []
         for order in orders:
             order_view = _build_restaurant_order_view(order, note_map=note_map)
+            order_date_only = order.order_date.date() if order.order_date else None
+            if start_date and order_date_only and order_date_only < start_date:
+                continue
+            if end_date and order_date_only and order_date_only > end_date:
+                continue
+
+            overview_items.append(order_view)
+
             if search_term:
                 searchable = " ".join(
                     [
@@ -885,12 +1607,6 @@ def build_section_context(
                     continue
 
             if valid_statuses is not None and order_view["status_raw"] not in valid_statuses:
-                continue
-
-            order_date_only = order.order_date.date() if order.order_date else None
-            if start_date and order_date_only and order_date_only < start_date:
-                continue
-            if end_date and order_date_only and order_date_only > end_date:
                 continue
 
             filtered_items.append(order_view)
@@ -911,26 +1627,46 @@ def build_section_context(
         end = start + per_page if per_page else total_items
         items = filtered_items[start:end]
 
+        pagination_pages = []
+        if total_pages <= 4:
+            pagination_pages = list(range(1, total_pages + 1))
+        else:
+            pagination_pages.extend([1, 2])
+            left_window = max(3, current_page - 1)
+            right_window = min(total_pages - 2, current_page + 1)
+            if left_window > 3:
+                pagination_pages.append("...")
+            for page_num in range(left_window, right_window + 1):
+                if page_num not in pagination_pages:
+                    pagination_pages.append(page_num)
+            if right_window < total_pages - 2:
+                pagination_pages.append("...")
+            for page_num in [total_pages - 1, total_pages]:
+                if page_num not in pagination_pages:
+                    pagination_pages.append(page_num)
+
         stats = {
-            "total_orders": total_items,
-            "completed_orders": sum(1 for item in filtered_items if item["status_key"] == "done"),
-            "pending_orders": sum(1 for item in filtered_items if item["status_key"] == "pending"),
-            "preparing_orders": sum(1 for item in filtered_items if item["status_key"] == "preparing"),
-            "cancelled_orders": sum(1 for item in filtered_items if item["status_key"] == "cancelled"),
+            "total_orders": len(overview_items),
+            "completed_orders": sum(1 for item in overview_items if item["status_key"] == "done"),
+            "shipping_orders": sum(1 for item in overview_items if item["status_key"] == "shipping"),
+            "pending_orders": sum(1 for item in overview_items if item["status_key"] == "pending"),
+            "preparing_orders": sum(1 for item in overview_items if item["status_key"] == "preparing"),
+            "cancel_request_pending_orders": sum(1 for item in overview_items if item["cancel_request_pending"]),
+            "cancelled_orders": sum(1 for item in overview_items if item["status_key"] == "cancelled"),
         }
 
         tab_counts = {
-            "all": total_items,
-            "pending": sum(1 for item in filtered_items if item["status_key"] == "pending"),
-            "preparing": sum(1 for item in filtered_items if item["status_key"] == "preparing"),
+            "all": len(overview_items),
+            "pending": sum(1 for item in overview_items if item["status_key"] == "pending"),
+            "preparing": sum(1 for item in overview_items if item["status_key"] == "preparing"),
             "waiting_shipping": sum(
                 1
-                for item in filtered_items
+                for item in overview_items
                 if item["status_key"] == "shipping" and item["status_raw"] in {"ready_for_delivery", "waiting_delivery"}
             ),
-            "shipping": sum(1 for item in filtered_items if item["status_key"] == "shipping" and item["status_raw"] == "shipping"),
-            "completed": sum(1 for item in filtered_items if item["status_key"] == "done"),
-            "cancelled": sum(1 for item in filtered_items if item["status_key"] == "cancelled"),
+            "shipping": sum(1 for item in overview_items if item["status_key"] == "shipping" and item["status_raw"] == "shipping"),
+            "completed": sum(1 for item in overview_items if item["status_key"] == "done"),
+            "cancelled": sum(1 for item in overview_items if item["status_key"] == "cancelled"),
         }
 
         return {
@@ -966,6 +1702,7 @@ def build_section_context(
                 "has_next": current_page < total_pages,
                 "start_item": start + 1 if total_items else 0,
                 "end_item": start + len(items) if total_items else 0,
+                "pages": pagination_pages,
             },
         }
 
@@ -976,6 +1713,21 @@ def build_section_context(
             form_values=form_values,
             form_errors=form_errors,
             query=query,
+            page=page,
+            per_page=7,
+        )
+
+    if section_name == "analytics":
+        return _build_revenue_analytics_context(
+            restaurant,
+            period=analytics_period,
+            analytics_date=analytics_date,
+            analytics_month=analytics_month,
+            analytics_year=analytics_year,
+            trend_period=analytics_trend_period,
+            top_period=analytics_top_period,
+            page=page,
+            per_page=7,
         )
 
     orders = (
@@ -1148,17 +1900,27 @@ def confirm_order_for_restaurant(user_id, order_id):
     return order, "confirmed"
 
 
-def cancel_order_for_restaurant(user_id, order_id, reason=""):
-    restaurant, order = get_order_for_restaurant(user_id, order_id)
-    if not restaurant or not order:
-        return None, "not_found", ""
+def _clear_cancel_request_fields(order):
+    order.cancel_request_status = None
+    order.cancel_request_reason = None
+    order.cancel_request_date = None
+    order.cancel_request_handled_at = None
+    order.cancel_request_handled_by = None
+    order.cancel_request_admin_note = None
 
-    current_status = (order.status or "").strip().lower()
-    if current_status in {"cancelled", "canceled"}:
-        return order, "already_cancelled", _clean(reason)
-    if current_status in {"refund_pending", "pending_refund"}:
-        return order, "already_refund_pending", _clean(reason)
 
+def _mark_cancel_request_pending(order, reason=""):
+    resolved_reason = _clean(reason)
+    order.cancel_request_status = "pending"
+    order.cancel_request_reason = resolved_reason or "Nhà hàng đề nghị hủy đơn."
+    order.cancel_request_date = datetime.utcnow()
+    order.cancel_request_handled_at = None
+    order.cancel_request_handled_by = None
+    order.cancel_request_admin_note = None
+    return order.cancel_request_reason
+
+
+def _apply_order_cancellation(order, reason="", handled_by=None, admin_note=""):
     resolved_reason = _clean(reason)
     payment_method = (order.payment.payment_method if order.payment else "").strip().lower()
     payment_status = (order.payment.status if order.payment else "").strip().lower()
@@ -1173,7 +1935,244 @@ def cancel_order_for_restaurant(user_id, order_id, reason=""):
             order.payment.status = "cancelled"
 
     order.cancel_reason = resolved_reason or order.cancel_reason or "Không có lý do cụ thể."
+    order.cancel_request_status = "approved"
+    order.cancel_request_reason = resolved_reason or order.cancel_request_reason
+    order.cancel_request_date = order.cancel_request_date or datetime.utcnow()
+    order.cancel_request_handled_at = datetime.utcnow()
+    order.cancel_request_handled_by = handled_by
+    order.cancel_request_admin_note = _clean(admin_note) or None
+    return next_status, resolved_reason
+
+
+def complete_order_for_restaurant(user_id, order_id):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found"
+
+    current_status = (order.status or "").strip().lower()
+    if current_status in {"cancelled", "canceled"}:
+        return order, "cancelled"
+    if current_status in {"refund_pending", "pending_refund"}:
+        return order, "refund_pending"
+    if current_status in {"completed", "delivered", "done"}:
+        return order, "completed"
+    if _clean(getattr(order, "cancel_request_status", "")).lower() == "pending":
+        return order, "cancel_request_pending"
+    if current_status not in {"preparing"}:
+        return order, current_status or "invalid"
+
+    order.status = "shipping"
+    order.shipping_at = datetime.utcnow()
     db.session.commit()
+    return order, "shipping"
+
+
+def cancel_order_for_restaurant(user_id, order_id, reason=""):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found", ""
+
+    current_status = (order.status or "").strip().lower()
+    if current_status in {"cancelled", "canceled"}:
+        return order, "already_cancelled", _clean(reason)
+    if current_status in {"refund_pending", "pending_refund"}:
+        return order, "already_refund_pending", _clean(reason)
+    if _clean(getattr(order, "cancel_request_status", "")).lower() == "pending":
+        return order, "cancel_request_pending", _clean(reason)
+
+    resolved_reason = _clean(reason)
+    next_status, _ = _apply_order_cancellation(order, reason=resolved_reason)
+    _clear_cancel_request_fields(order)
+    db.session.commit()
+    return order, next_status, resolved_reason
+
+
+def request_cancel_order_for_restaurant(user_id, order_id, reason=""):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found", ""
+
+    current_status = (order.status or "").strip().lower()
+    if current_status in {"cancelled", "canceled"}:
+        return order, "already_cancelled", _clean(reason)
+    if current_status in {"refund_pending", "pending_refund"}:
+        return order, "already_refund_pending", _clean(reason)
+    if current_status in {"completed", "delivered", "done"}:
+        return order, "already_completed", _clean(reason)
+    if current_status != "preparing":
+        return order, current_status or "invalid", _clean(reason)
+    if _clean(getattr(order, "cancel_request_status", "")).lower() == "pending":
+        return order, "already_requested", _clean(reason)
+
+    resolved_reason = _mark_cancel_request_pending(order, reason=reason)
+    db.session.commit()
+
+    if restaurant.user:
+        restaurant_name = restaurant.user.display_name or restaurant.user.username or "Nhà hàng"
+    else:
+        restaurant_name = "Nhà hàng"
+    admin_ids = [user.user_id for user in User.query.filter_by(role="admin").all()]
+    emit_structured_notifications_to_users(
+        build_restaurant_cancel_request_notification(order, restaurant_name=restaurant_name, reason=resolved_reason),
+        admin_ids,
+    )
+    if order.customer_id:
+        emit_structured_notification(
+            {
+                "user_id": order.customer_id,
+                "type": "customer_order_cancel_request",
+                "title": f"Nhà hàng gửi yêu cầu hủy đơn #{order.order_id}",
+                "message": f"{restaurant_name} đã gửi yêu cầu hủy đơn và đang chờ admin duyệt.",
+                "link": url_for("auth.order_detail", order_id=order.order_id),
+                "payload": {
+                    "order_id": order.order_id,
+                    "restaurant_name": restaurant_name,
+                    "request_reason": resolved_reason,
+                },
+            }
+        )
+
+    return order, "requested", resolved_reason
+
+
+def withdraw_cancel_request_for_restaurant(user_id, order_id):
+    restaurant, order = get_order_for_restaurant(user_id, order_id)
+    if not restaurant or not order:
+        return None, "not_found"
+
+    if _clean(getattr(order, "cancel_request_status", "")).lower() != "pending":
+        return order, "no_pending_request"
+
+    order.cancel_request_status = None
+    order.cancel_request_reason = None
+    order.cancel_request_date = None
+    order.cancel_request_handled_at = None
+    order.cancel_request_handled_by = None
+    order.cancel_request_admin_note = None
+    db.session.commit()
+
+    if restaurant.user:
+        restaurant_name = restaurant.user.display_name or restaurant.user.username or "Nhà hàng"
+    else:
+        restaurant_name = "Nhà hàng"
+    admin_ids = [user.user_id for user in User.query.filter_by(role="admin").all()]
+    emit_structured_notifications_to_users(
+        {
+            "type": "admin_order_cancel_request_withdrawn",
+            "title": f"Đã rút yêu cầu hủy đơn #{order.order_id}",
+            "message": f"{restaurant_name} vừa rút yêu cầu hủy đơn.",
+            "link": url_for("admin.disputes"),
+            "payload": {
+                "order_id": order.order_id,
+                "restaurant_name": restaurant_name,
+            },
+        },
+        admin_ids,
+    )
+    if order.customer_id:
+        emit_structured_notification(
+            {
+                "user_id": order.customer_id,
+                "type": "customer_order_cancel_request_withdrawn",
+                "title": f"Nhà hàng đã rút yêu cầu hủy đơn #{order.order_id}",
+                "message": f"{restaurant_name} đã hủy bỏ yêu cầu hủy đơn trước đó.",
+                "link": url_for("auth.order_detail", order_id=order.order_id),
+                "payload": {
+                    "order_id": order.order_id,
+                    "restaurant_name": restaurant_name,
+                },
+            }
+        )
+
+    return order, "withdrawn"
+
+
+def process_cancel_request_for_admin(order_id, approved, admin_user_id, admin_note=""):
+    try:
+        order = (
+            Order.query.options(
+                selectinload(Order.customer).selectinload(Customer.user),
+                selectinload(Order.restaurant).selectinload(Restaurant.user),
+                selectinload(Order.payment),
+                selectinload(Order.voucher),
+            )
+            .filter_by(order_id=int(order_id))
+            .one_or_none()
+        )
+    except (TypeError, ValueError):
+        order = None
+
+    if not order:
+        return None, "not_found", ""
+
+    restaurant_name = order.restaurant.user.display_name if order.restaurant and order.restaurant.user else "Nhà hàng"
+    request_reason = _clean(getattr(order, "cancel_request_reason", "") or "")
+    current_request_status = _clean(getattr(order, "cancel_request_status", "")).lower()
+
+    if current_request_status not in {"pending", "approved", "rejected"}:
+        return order, "no_pending_request", ""
+
+    if current_request_status in {"approved", "rejected"} and approved:
+        return order, "already_processed", request_reason
+    if current_request_status in {"approved", "rejected"} and not approved:
+        return order, "already_processed", request_reason
+
+    if not approved:
+        order.cancel_request_status = "rejected"
+        order.cancel_request_handled_at = datetime.utcnow()
+        order.cancel_request_handled_by = admin_user_id
+        order.cancel_request_admin_note = _clean(admin_note) or "Admin đã từ chối yêu cầu hủy."
+        db.session.commit()
+
+        emit_structured_notification(
+            build_restaurant_cancel_request_result_notification(
+                order,
+                restaurant_name=restaurant_name,
+                approved=False,
+                admin_note=order.cancel_request_admin_note or "",
+            )
+        )
+        if order.customer_id:
+            emit_structured_notification(
+                {
+                    "user_id": order.customer_id,
+                    "type": "customer_order_cancel_request_rejected",
+                    "title": f"Yêu cầu hủy đơn #{order.order_id} bị từ chối",
+                    "message": f"Admin đã từ chối yêu cầu hủy từ {restaurant_name}.",
+                    "link": url_for("auth.order_detail", order_id=order.order_id),
+                    "payload": {
+                        "order_id": order.order_id,
+                        "restaurant_name": restaurant_name,
+                        "request_reason": request_reason,
+                        "admin_note": order.cancel_request_admin_note or "",
+                    },
+                }
+            )
+        return order, "rejected", request_reason
+
+    next_status, resolved_reason = _apply_order_cancellation(
+        order,
+        reason=request_reason,
+        handled_by=admin_user_id,
+        admin_note=admin_note,
+    )
+    db.session.commit()
+
+    emit_structured_notification(
+        build_restaurant_cancel_request_result_notification(
+            order,
+            restaurant_name=restaurant_name,
+            approved=True,
+            admin_note=admin_note,
+        )
+    )
+    emit_structured_notification(
+        build_order_cancelled_notification(
+            order,
+            cancel_reason=resolved_reason,
+            restaurant_name=restaurant_name,
+        )
+    )
     return order, next_status, resolved_reason
 
 
@@ -1220,4 +2219,14 @@ def report_review_for_restaurant(user_id, review_id, reason=""):
     review.report_handled_at = None
     review.report_handled_by = None
     db.session.commit()
+
+    admin_ids = [user.user_id for user in User.query.filter_by(role="admin").all()]
+    emit_structured_notifications_to_users(
+        build_restaurant_review_report_notification(
+            review,
+            restaurant_name=restaurant.user.display_name if restaurant.user else "Nhà hàng",
+            reason=review.report_reason or "",
+        ),
+        admin_ids,
+    )
     return review, "reported"

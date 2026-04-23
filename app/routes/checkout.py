@@ -365,8 +365,10 @@ def checkout_quote():
             "subtotal": checkout_data.get("subtotal", 0),
             "delivery_fee": checkout_data.get("delivery_fee", 0),
             "shipping_fee": checkout_data.get("shipping_fee", 0),
+            "processing_fee": checkout_data.get("processing_fee", 0),
             "platform_fee": checkout_data.get("platform_fee", 0),
             "raw_delivery_fee": checkout_data.get("raw_delivery_fee", 0),
+            "applied_delivery_fee": checkout_data.get("applied_delivery_fee", checkout_data.get("delivery_fee", 0)),
             "distance_km": checkout_data.get("distance_km"),
             "distance_text": checkout_data.get("distance_text", ""),
             "total_amount": checkout_data.get("total_amount", 0),
@@ -481,13 +483,15 @@ def checkout_payload():
     except (TypeError, ValueError):
         items = []
 
-    session["checkout_payload"] = {
+        session["checkout_payload"] = {
         "items": items,
         "restaurant_id": _clean(data.get("restaurant_id")),
         "delivery_fee": data.get("delivery_fee", 15000),
         "shipping_fee": data.get("shipping_fee", 0),
+        "processing_fee": data.get("processing_fee", data.get("platform_fee", 0)),
         "platform_fee": data.get("platform_fee", 0),
         "raw_delivery_fee": data.get("raw_delivery_fee", 0),
+        "applied_delivery_fee": data.get("applied_delivery_fee", data.get("delivery_fee", 15000)),
         "note": data.get("note", ""),
     }
     return jsonify({"ok": True, "items_count": len(items)})
@@ -574,6 +578,11 @@ def checkout_payload_safe():
         session["checkout_payload"] = {
             "items": items,
             "delivery_fee": data.get("delivery_fee", 15000),
+            "shipping_fee": data.get("shipping_fee", 0),
+            "processing_fee": data.get("processing_fee", data.get("platform_fee", 0)),
+            "platform_fee": data.get("platform_fee", 0),
+            "raw_delivery_fee": data.get("raw_delivery_fee", 0),
+            "applied_delivery_fee": data.get("applied_delivery_fee", data.get("delivery_fee", 15000)),
             "note": data.get("note", ""),
         }
         return jsonify({"ok": True, "items_count": len(items)})

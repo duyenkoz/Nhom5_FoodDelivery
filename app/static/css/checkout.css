@@ -1114,7 +1114,8 @@
 }
 
 .checkout-field input,
-.checkout-field textarea {
+.checkout-field textarea,
+.checkout-field .location-autocomplete__input {
     width: 100%;
     border: 1px solid #d6deea;
     border-radius: 16px;
@@ -1133,15 +1134,29 @@
 }
 
 .checkout-field input:focus,
-.checkout-field textarea:focus {
+.checkout-field textarea:focus,
+.checkout-field .location-autocomplete__input:focus {
     border-color: rgba(249, 115, 22, 0.6);
     box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
 }
 
 .checkout-field input.is-invalid,
-.checkout-field textarea.is-invalid {
+.checkout-field textarea.is-invalid,
+.checkout-field .location-autocomplete__input.is-invalid {
     border-color: #ef4444;
     box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.checkout-field .location-autocomplete-shell {
+    width: 100%;
+}
+
+.checkout-address-autocomplete .location-autocomplete__input {
+    min-height: 104px;
+    padding: 15px 16px;
+    border-radius: 16px;
+    resize: vertical;
+    line-height: 1.5;
 }
 
 .checkout-field__error {

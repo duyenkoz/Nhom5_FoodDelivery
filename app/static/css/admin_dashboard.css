@@ -213,10 +213,32 @@
     align-items: stretch;
 }
 
+.admin-toolbar--report-filters {
+    margin-top: 8px;
+    margin-bottom: 10px;
+}
+
 .admin-toolbar form {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.admin-report-filter-form {
+    width: 100%;
+}
+
+.admin-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #64748b;
+    font-size: 0.88rem;
+}
+
+.admin-filter-group .admin-input {
+    min-width: 180px;
 }
 
 .admin-input,
@@ -235,11 +257,16 @@
 
 .admin-btn {
     min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 0;
     border-radius: 14px;
     padding: 0 16px;
     font-weight: 700;
     cursor: pointer;
+    text-decoration: none;
+    box-sizing: border-box;
 }
 
 .admin-btn--primary {
@@ -251,6 +278,20 @@
     background: #f8fafc;
     color: #22324a;
     border: 1px solid #d6dce7;
+}
+
+.admin-btn--soft {
+    background: linear-gradient(180deg, #fffaf0 0%, #fff4e5 100%);
+    color: #9a5a0a;
+    border: 1px solid rgba(255, 140, 26, 0.24);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-btn--soft:hover {
+    border-color: rgba(255, 140, 26, 0.42);
+    box-shadow: 0 6px 16px rgba(255, 140, 26, 0.12);
+    transform: translateY(-1px);
 }
 
 .admin-voucher-controls {
@@ -289,9 +330,9 @@
 
 .admin-modal__panel {
     position: relative;
-    width: min(680px, 100%);
-    max-height: min(90vh, 860px);
-    overflow: auto;
+    width: min(960px, 100%);
+    max-height: none;
+    overflow: visible;
     border-radius: 24px;
     background: linear-gradient(180deg, #ffffff 0%, #fffaf1 100%);
     border: 1px solid rgba(251, 146, 60, 0.16);
@@ -456,10 +497,98 @@
     grid-template-columns: minmax(0, 1.3fr) minmax(140px, 0.7fr) minmax(0, 1.4fr) minmax(180px, 0.9fr);
 }
 
+.admin-table--accounts .admin-table__head,
+.admin-table--accounts .admin-table__row {
+    grid-template-columns: minmax(150px, 1.1fr) minmax(110px, 0.8fr) minmax(240px, 1.7fr) minmax(130px, 0.9fr) minmax(72px, 0.45fr) minmax(92px, 0.5fr);
+}
+
 .admin-table--shipping-rules .admin-table__head,
 .admin-table--shipping-rules .admin-table__row {
     grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.7fr) minmax(150px, 0.8fr) minmax(0, 1.5fr);
     column-gap: 16px;
+}
+
+.admin-table--reports {
+    overflow-x: auto;
+}
+
+.admin-table--reports .admin-table__head,
+.admin-table--reports .admin-table__row {
+    grid-template-columns: minmax(80px, 0.7fr) minmax(120px, 0.9fr) minmax(180px, 1.2fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(130px, 0.9fr);
+    min-width: 1080px;
+}
+
+.admin-table--reports .admin-table__head > div:nth-child(n + 4),
+.admin-table--reports .admin-table__row > div:nth-child(n + 4) {
+    justify-self: end;
+    text-align: right;
+}
+
+.admin-table--reports .admin-table__row > div:nth-child(8) {
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-table--reports .admin-table__head > div:nth-child(8),
+.admin-table--reports .admin-table__row > div:nth-child(8) {
+    padding-right: 6px;
+}
+
+.admin-table--reports .admin-table__cell--strong,
+.admin-table--reports .admin-table__head > div:nth-child(4),
+.admin-table--reports .admin-table__head > div:nth-child(5),
+.admin-table--reports .admin-table__head > div:nth-child(6),
+.admin-table--reports .admin-table__head > div:nth-child(7),
+.admin-table--reports .admin-table__head > div:nth-child(8) {
+    padding-right: 6px;
+}
+
+.admin-table--reports .admin-table__row > div:nth-child(8) {
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-table--fees .admin-table__head > div:nth-child(3),
+.admin-table--fees .admin-table__row > div:nth-child(3) {
+    text-align: right;
+}
+
+#admin-vouchers-results .admin-table__head > div:nth-child(3),
+#admin-vouchers-results .admin-table__row > div:nth-child(3) {
+    text-align: right;
+}
+
+#admin-vouchers-results .admin-table__head,
+#admin-vouchers-results .admin-table__row {
+    column-gap: 20px;
+}
+
+#admin-vouchers-results .admin-table__head > div:nth-child(4),
+#admin-vouchers-results .admin-table__row > div:nth-child(4) {
+    padding-left: 8px;
+}
+
+.admin-money--negative {
+    color: #dc2626;
+}
+
+.admin-table--accounts .admin-actions {
+    justify-content: flex-start;
+}
+
+.admin-table--accounts .admin-actions .admin-btn {
+    white-space: nowrap;
+}
+
+.admin-table--disputes .admin-table__head,
+.admin-table--disputes .admin-table__row {
+    grid-template-columns: minmax(88px, 0.65fr) minmax(128px, 0.95fr) minmax(136px, 1fr) minmax(118px, 0.8fr) minmax(138px, 0.9fr) minmax(180px, 1.25fr) minmax(60px, 0.32fr) minmax(220px, 1.15fr);
+}
+
+.admin-table--disputes .admin-actions {
+    flex-wrap: nowrap;
+}
+
+.admin-table--disputes .admin-actions .admin-btn {
+    white-space: nowrap;
 }
 
 .admin-table__row:hover {
@@ -496,6 +625,11 @@
 .admin-badge.is-warning {
     background: #fff7ed;
     color: #9a5a0a;
+}
+
+.admin-badge.is-info {
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .admin-list {
@@ -550,6 +684,32 @@
 
 .admin-actions form {
     margin: 0;
+}
+
+.admin-icon-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d6dce7;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.admin-icon-btn:hover {
+    background: #fff4e6;
+    border-color: #fed7aa;
+    color: #9a5a0a;
+    transform: translateY(-1px);
+}
+
+.admin-icon-btn svg {
+    width: 18px;
+    height: 18px;
 }
 
 .admin-fee-summary {
@@ -622,6 +782,58 @@
     margin: 0;
     box-sizing: border-box;
 }
+
+.admin-dispute-detail {
+    display: grid;
+    gap: 14px;
+}
+
+.admin-dispute-detail__meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.admin-dispute-detail__meta div,
+.admin-dispute-detail__block {
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid #e7ebf2;
+    background: #fff;
+}
+
+.admin-dispute-detail__meta span {
+    display: block;
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.admin-dispute-detail__meta strong {
+    color: #22324a;
+    line-height: 1.5;
+}
+
+.admin-dispute-detail__block h3 {
+    margin: 0 0 8px;
+    color: #22324a;
+    font-size: 1rem;
+}
+
+.admin-dispute-detail__block p {
+    margin: 0;
+    color: #334155;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.admin-dispute-detail__block--wide {
+    grid-column: 1 / -1;
+}
+
 .admin-bulk-apply__field label {
     font-weight: 700;
     color: #22324a;
@@ -670,10 +882,24 @@
 
 .admin-pagination {
     display: flex;
-    gap: 12px;
+    justify-content: space-between;
+    gap: 14px;
     flex-wrap: wrap;
     align-items: center;
     margin-top: 16px;
+}
+
+.admin-pagination__summary {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.admin-pagination__controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-left: auto;
 }
 
 .admin-pagination__links {
@@ -712,7 +938,6 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto;
     color: #22324a;
     font-weight: 600;
 }
@@ -760,6 +985,61 @@
     background: #fff;
 }
 
+.admin-report-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.admin-report-summary .admin-stat {
+    background: #fff;
+}
+
+.admin-report-charts {
+    display: grid;
+    gap: 18px;
+    margin-top: 28px;
+}
+
+.admin-report-chart-card {
+    padding: 18px 20px 20px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 249, 238, 0.9) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.admin-report-chart-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.admin-report-chart-card__header h3 {
+    margin: 0 0 6px;
+    color: #22324a;
+    font-size: 1.08rem;
+}
+
+.admin-report-chart-card__header p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.55;
+}
+
+.admin-report-chart-wrap {
+    position: relative;
+    height: 320px;
+}
+
+.admin-report-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 @media (max-width: 1100px) {
     .admin-page {
         grid-template-columns: 1fr;
@@ -776,6 +1056,10 @@
     .admin-dashboard-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .admin-report-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 640px) {
@@ -783,8 +1067,13 @@
         align-items: stretch;
     }
 
-    .admin-pagination__select {
+    .admin-pagination__controls {
         margin-left: 0;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .admin-pagination__select {
         width: 100%;
         justify-content: space-between;
     }
@@ -805,7 +1094,8 @@
     }
 
     .admin-hero__stats,
-    .admin-dashboard-grid {
+    .admin-dashboard-grid,
+    .admin-report-summary {
         grid-template-columns: 1fr;
     }
 
@@ -846,5 +1136,13 @@
 
     .admin-form__grid {
         grid-template-columns: 1fr;
+    }
+
+    .admin-dispute-detail__meta {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-dispute-detail__block--wide {
+        grid-column: auto;
     }
 }

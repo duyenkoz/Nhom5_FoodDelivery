@@ -14,8 +14,13 @@
 {% set restaurant_name = restaurant.user.display_name if restaurant and restaurant.user and restaurant.user.display_name else (restaurant.user.username if restaurant and restaurant.user else 'Nhà hàng') %}
 {% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
 {% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
+{% set filters = analytics_filters or {} %}
 
-<div class="restaurant-page">
+{% macro analytics_page_url(page_num) -%}
+{{ url_for('restaurant.analytics', period=filters.period, date=filters.date, month=filters.month, year=filters.year, trend_period=filters.trend_period, top_period=filters.top_period, page=page_num) }}
+{%- endmacro %}
+
+<div class="restaurant-page restaurant-analytics-page">
     <aside class="restaurant-page__sidebar">
         <div class="restaurant-card restaurant-profile">
             <div class="restaurant-profile__cover">
@@ -33,22 +38,22 @@
         </div>
 
         <div class="restaurant-card restaurant-sidebar__links">
-            <a href="{{ url_for('restaurant.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Quản lý thực đơn</a>
-            <a href="{{ url_for('restaurant.orders') }}" class="{% if section_name == 'orders' %}is-active{% endif %}">Quản lý đơn hàng</a>
-            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Xem thống kê doanh báo cáo</a>
-            <a href="{{ url_for('restaurant.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
-            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Xem các đánh giá nhà hàng</a>
+            <a href="{{ url_for('restaurant.dashboard') }}">Quản lý thực đơn</a>
+            <a href="{{ url_for('restaurant.orders') }}">Quản lý đơn hàng</a>
+            <a class="is-active" href="{{ url_for('restaurant.analytics') }}">Báo cáo thống kê</a>
+            <a href="{{ url_for('restaurant.vouchers') }}">Quản lý voucher</a>
+            <a href="{{ url_for('restaurant.reviews') }}">Đánh giá nhà hàng</a>
         </div>
 
         <div class="restaurant-card restaurant-sidebar__note">
             <h3>Gợi ý</h3>
-            <p>Đây là khu quản trị của nhà hàng. Bạn có thể chuyển giữa các mục bằng sidebar bên trái.</p>
+            <p>Doanh thu chỉ tính các đơn hoàn thành. Voucher hệ thống không trừ vào doanh thu nhà hàng; chỉ voucher do nhà hàng tạo mới bị khấu trừ.</p>
         </div>
     </aside>
 
     <main class="restaurant-page__content">
         <section class="restaurant-hero">
-            <div>
+            <div class="restaurant-hero__copy">
                 <h1>{{ section_title }}</h1>
                 <p>{{ section_subtitle }}</p>
             </div>
@@ -56,33 +61,576 @@
 
         <section class="restaurant-section">
             <div class="restaurant-section__card restaurant-section__card--stats">
-                <div class="restaurant-section__stats">
+                <div class="restaurant-analytics-stats__header">
+                    <div>
+                        <h2>{{ section_title }}</h2>
+                        <p>{{ analytics_filters.period_summary }}</p>
+                    </div>
+                    <span class="restaurant-analytics-badge">{{ completed_count or 0 }} đơn</span>
+                </div>
+                <div class="restaurant-section__stats restaurant-section__stats--analytics">
                     <article class="restaurant-stat restaurant-stat--compact">
-                        <span>Doanh thu</span>
-                        <strong>{{ "{:,}".format(stats.revenue or 0) }}đ</strong>
+                        <span>Doanh thu thực nhận</span>
+                        <strong>{{ "{:,}".format(stats.net_revenue or 0) }}đ</strong>
                     </article>
                     <article class="restaurant-stat restaurant-stat--compact">
-                        <span>Tổng đơn</span>
-                        <strong>{{ stats.orders }}</strong>
+                        <span>Tiền món</span>
+                        <strong>{{ "{:,}".format(stats.gross_revenue or 0) }}đ</strong>
                     </article>
                     <article class="restaurant-stat restaurant-stat--compact">
-                        <span>Tổng đánh giá</span>
-                        <strong>{{ stats.reviews }}</strong>
+                        <span>Phí sàn</span>
+                        <strong>{{ "{:,}".format(stats.platform_fee_total or 0) }}đ</strong>
                     </article>
                     <article class="restaurant-stat restaurant-stat--compact">
-                        <span>Điểm TB</span>
-                        <strong>{{ stats.average_rating }}</strong>
+                        <span>Voucher nhà hàng</span>
+                        <strong>{{ "{:,}".format(stats.merchant_voucher_discount_total or 0) }}đ</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Đơn hoàn thành</span>
+                        <strong>{{ stats.completed_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Trung bình/đơn</span>
+                        <strong>{{ "{:,}".format(stats.average_order_value or 0) }}đ</strong>
                     </article>
                 </div>
             </div>
 
             <div class="restaurant-section__card">
-                <div class="restaurant-empty">
-                    <strong>Trang thống kê mẫu.</strong>
-                    <p>Phần này đang hiển thị số liệu tổng hợp từ dữ liệu đơn hàng và đánh giá.</p>
+                <div class="restaurant-section__header restaurant-analytics__header">
+                    <div>
+                        <h2>Bộ lọc doanh thu</h2>
+                        <p class="restaurant-analytics__sub">Chọn ngày, tháng hoặc năm để xem doanh thu theo từng mốc thời gian.</p>
+                    </div>
+                    <form class="restaurant-analytics-filter" method="get" action="{{ url_for('restaurant.analytics') }}">
+                        <label class="restaurant-analytics-filter__field">
+                            <span>Kiểu xem</span>
+                            <select name="period" data-analytics-period>
+                                <option value="day" {% if filters.period == 'day' %}selected{% endif %}>Theo ngày</option>
+                                <option value="month" {% if filters.period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                <option value="year" {% if filters.period == 'year' %}selected{% endif %}>Theo năm</option>
+                            </select>
+                        </label>
+                        <label class="restaurant-analytics-filter__field restaurant-analytics-filter__field--dynamic">
+                            <span data-analytics-period-label>
+                                {% if filters.period == 'day' %}Ngày{% elif filters.period == 'year' %}Năm{% else %}Tháng{% endif %}
+                            </span>
+                            <input
+                                data-analytics-period-input
+                                type="{% if filters.period == 'day' %}date{% elif filters.period == 'year' %}number{% else %}month{% endif %}"
+                                name="{% if filters.period == 'day' %}date{% elif filters.period == 'year' %}year{% else %}month{% endif %}"
+                                value="{% if filters.period == 'day' %}{{ filters.date }}{% elif filters.period == 'year' %}{{ filters.year }}{% else %}{{ filters.month }}{% endif %}"
+                                {% if filters.period == 'year' %}min="2020" max="2100"{% endif %}
+                                data-day-value="{{ filters.date }}"
+                                data-month-value="{{ filters.month }}"
+                                data-year-value="{{ filters.year }}"
+                            >
+                        </label>
+                        <input type="hidden" name="trend_period" value="{{ filters.trend_period }}">
+                        <input type="hidden" name="top_period" value="{{ filters.top_period }}">
+                        <button type="submit" class="restaurant-btn restaurant-btn--primary restaurant-analytics-filter__submit">Lọc</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="restaurant-section__card">
+                <div class="restaurant-section__header">
+                    <div>
+                        <h2>Chi tiết các đơn đã tính doanh thu</h2>
+                        <p class="restaurant-analytics__sub">{{ analytics_filters.report_summary }}</p>
+                    </div>
+                    <span class="restaurant-analytics-badge">{{ completed_count or 0 }} đơn</span>
+                </div>
+
+                {% if items %}
+                <div class="restaurant-analytics-table">
+                    <div class="restaurant-analytics-table__head">
+                        <span>Đơn</span>
+                        <span>Hoàn thành</span>
+                        <span>Tiền món</span>
+                        <span>Phí sàn</span>
+                        <span>Voucher</span>
+                        <span>Thực nhận</span>
+                    </div>
+                    {% for item in items %}
+                    <article class="restaurant-analytics-table__row">
+                        <div class="restaurant-analytics-table__cell">
+                            <strong>#{{ item.order.order_id }}</strong>
+                            <small>{{ item.payment_method_label }}</small>
+                        </div>
+                        <div class="restaurant-analytics-table__cell">
+                            <strong>{{ item.completed_at_text }}</strong>
+                        </div>
+                        <div class="restaurant-analytics-table__cell">
+                            <strong>{{ item.gross_text }}đ</strong>
+                            <small>Khách thanh toán {{ item.customer_paid_text }}đ</small>
+                        </div>
+                        <div class="restaurant-analytics-table__cell">
+                            <strong>{{ item.platform_fee_text }}đ</strong>
+                        </div>
+                        <div class="restaurant-analytics-table__cell">
+                            {% if item.voucher_code %}
+                            <strong>{{ item.voucher_discount_text }}đ</strong>
+                            <small>
+                                {{ item.voucher_code }}
+                                {% if item.voucher_scope == 'restaurant' %}
+                                - voucher nhà hàng
+                                {% elif item.voucher_scope == 'system' %}
+                                - voucher hệ thống
+                                {% endif %}
+                            </small>
+                            {% else %}
+                            <strong>0đ</strong>
+                            <small>Không dùng voucher</small>
+                            {% endif %}
+                        </div>
+                        <div class="restaurant-analytics-table__cell restaurant-analytics-table__cell--total">
+                            <strong>{{ item.net_revenue_text }}đ</strong>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+
+                {% if pagination and pagination.total_pages > 1 %}
+                <div class="restaurant-table-footer">
+                    <span>Hiển thị {{ pagination.start_item }}-{{ pagination.end_item }} trên {{ pagination.total_items }} đơn</span>
+                    <nav class="restaurant-pagination" aria-label="Phân trang doanh thu">
+                        <label class="restaurant-pagination__select">
+                            <span>Trang</span>
+                            <select onchange="if (this.value) window.location.href = this.value">
+                                {% for page_num in range(1, pagination.total_pages + 1) %}
+                                <option value="{{ analytics_page_url(page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
+                                    {{ page_num }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+
+                        <a class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}" href="{{ analytics_page_url(pagination.page - 1) if pagination.has_prev else '#' }}" aria-disabled="{{ 'true' if not pagination.has_prev else 'false' }}" tabindex="{{ '-1' if not pagination.has_prev else '0' }}">Trước</a>
+                        {% for page_item in pagination.pages or [] %}
+                        {% if page_item == '...' %}
+                        <span class="restaurant-pagination__ellipsis">...</span>
+                        {% else %}
+                        <a class="restaurant-pagination__page {% if page_item == pagination.page %}is-active{% endif %}" href="{{ analytics_page_url(page_item) }}" {% if page_item == pagination.page %}aria-current="page"{% endif %}>{{ page_item }}</a>
+                        {% endif %}
+                        {% endfor %}
+                        <a class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}" href="{{ analytics_page_url(pagination.page + 1) if pagination.has_next else '#' }}" aria-disabled="{{ 'true' if not pagination.has_next else 'false' }}" tabindex="{{ '-1' if not pagination.has_next else '0' }}">Sau</a>
+                    </nav>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="restaurant-empty restaurant-empty--orders">
+                    <strong>Chưa có đơn hoàn thành trong khoảng thời gian này.</strong>
+                    <p>Hãy đổi bộ lọc ngày, tháng hoặc năm để xem báo cáo khác.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="restaurant-section__card restaurant-chart-card">
+                <div class="restaurant-analytics-chart__header">
+                    <div>
+                        <h2>Doanh thu và số đơn {{ analytics_filters.trend_label | lower }}</h2>
+                        <p>Đường thể hiện doanh thu, cột thể hiện số đơn trên cùng khoảng thời gian đang chọn.</p>
+                    </div>
+                    <div class="restaurant-analytics-chart__tools">
+                        <label class="restaurant-analytics-chart__select">
+                            <span>Biểu đồ</span>
+                            <select data-chart-period="trend">
+                                <option value="week" {% if filters.trend_period == 'week' %}selected{% endif %}>Theo tuần</option>
+                                <option value="month" {% if filters.trend_period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                <option value="year" {% if filters.trend_period == 'year' %}selected{% endif %}>Theo năm</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                <div class="restaurant-chart-canvas restaurant-chart-canvas--line">
+                    <canvas id="revenueTrendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="restaurant-section__card restaurant-chart-card">
+                <div class="restaurant-analytics-chart__header">
+                    <div>
+                        <h2>Top 5 món bán chạy</h2>
+                        <p>Biểu đồ tròn theo số lượng bán ra để nhìn nhanh món đang chạy nhất.</p>
+                    </div>
+                    <div class="restaurant-analytics-chart__tools">
+                        <label class="restaurant-analytics-chart__select">
+                            <span>Top món</span>
+                            <select data-chart-period="top">
+                                <option value="day" {% if filters.top_period == 'day' %}selected{% endif %}>Theo ngày</option>
+                                <option value="week" {% if filters.top_period == 'week' %}selected{% endif %}>Theo tuần</option>
+                                <option value="month" {% if filters.top_period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                <option value="year" {% if filters.top_period == 'year' %}selected{% endif %}>Theo năm</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                <div class="restaurant-chart-canvas restaurant-chart-canvas--doughnut">
+                    <canvas id="topFoodChart"></canvas>
+                </div>
+                        {% if top_dishes_chart.details %}
+                        <div class="restaurant-analytics-topfood">
+                            {% for item in top_dishes_chart.details %}
+                            <div class="restaurant-analytics-topfood__row">
+                                <span class="restaurant-analytics-topfood__dot" data-dot-color="{{ item.color }}"></span>
+                                <div class="restaurant-analytics-topfood__meta">
+                                    <strong>#{{ item.rank }} {{ item.name }}</strong>
+                                    <small>{{ item.quantity_text }} - {{ item.percentage_text }}</small>
+                                </div>
+                            </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="restaurant-section__card">
+                <div class="restaurant-analytics-charts-grid">
+                    <div class="restaurant-analytics-chart restaurant-analytics-chart--line">
+                        <div class="restaurant-analytics-chart__header">
+                            <div>
+                                <h2>{{ chart.title }}</h2>
+                                <p>{{ chart.subtitle }}</p>
+                            </div>
+                            <div class="restaurant-analytics-chart__tools">
+                                <label class="restaurant-analytics-chart__select">
+                                    <span>Biểu đồ</span>
+                                    <select data-chart-period="trend">
+                                <option value="week" {% if filters.trend_period == 'week' %}selected{% endif %}>Theo tuần</option>
+                                <option value="month" {% if filters.trend_period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                <option value="year" {% if filters.trend_period == 'year' %}selected{% endif %}>Theo năm</option>
+                                    </select>
+                                </label>
+                                <div class="restaurant-analytics-chart__legend">
+                                    <span><i></i> Doanh thu thực nhận</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="restaurant-analytics-line">
+                            <div class="restaurant-analytics-line__plot">
+                                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                    <polyline points="{{ chart.svg_points }}" />
+                                    {% for point in chart.points %}
+                                    <g>
+                                        <circle cx="{{ point.x_percent }}" cy="{{ point.y_percent }}" r="1.65" />
+                                        <text x="{{ point.x_percent }}" y="{{ point.y_percent + 0.2 }}" text-anchor="middle" dominant-baseline="middle">{{ point.orders }}</text>
+                                    </g>
+                                    {% endfor %}
+                                </svg>
+                            </div>
+                            <div class="restaurant-analytics-line__axis">
+                                {% for point in chart.points %}
+                                <div class="restaurant-analytics-line__tick">
+                                    <strong>{{ point.label }}</strong>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="restaurant-analytics-topdishes">
+                        <div class="restaurant-analytics-chart__header">
+                            <div>
+                                <h2>Top 5 món theo doanh thu</h2>
+                                <p>So sánh 5 món tạo doanh thu cao nhất trong khoảng thời gian đã chọn.</p>
+                            </div>
+                            <div class="restaurant-analytics-chart__tools">
+                                <label class="restaurant-analytics-chart__select">
+                                    <span>Top món</span>
+                                    <select data-chart-period="top">
+                                        <option value="day" {% if filters.top_period == 'day' %}selected{% endif %}>Theo ngày</option>
+                                        <option value="week" {% if filters.top_period == 'week' %}selected{% endif %}>Theo tuần</option>
+                                        <option value="month" {% if filters.top_period == 'month' %}selected{% endif %}>Theo tháng</option>
+                                        <option value="year" {% if filters.top_period == 'year' %}selected{% endif %}>Theo năm</option>
+                                    </select>
+                                </label>
+                                <div class="restaurant-analytics-chart__legend">
+                                    <span><i></i> Doanh thu món</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if top_dishes_chart.points %}
+                        <div class="restaurant-analytics-topdishes__list">
+                            {% for dish in top_dishes_chart.points %}
+                            <article class="restaurant-analytics-topdishes__row">
+                                <div class="restaurant-analytics-topdishes__meta">
+                                    <span class="restaurant-analytics-topdishes__rank">#{{ dish.rank }}</span>
+                                    <div>
+                                        <strong>{{ dish.name }}</strong>
+                                        <small>{{ dish.quantity_text }}</small>
+                                    </div>
+                                </div>
+                                <div class="restaurant-analytics-topdishes__bar">
+                                    <span data-bar-width="{{ dish.bar_width }}"></span>
+                                </div>
+                                <div class="restaurant-analytics-topdishes__value">
+                                    <strong>{{ dish.revenue_text }}đ</strong>
+                                </div>
+                            </article>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="restaurant-empty restaurant-empty--orders">
+                            <strong>Chưa có dữ liệu món nổi bật trong khoảng thời gian này.</strong>
+                            <p>Hãy đổi bộ lọc ngày, tháng hoặc năm để xem top món khác.</p>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="application/json" id="restaurant-analytics-trend-data">{{ trend_chart|tojson }}</script>
+<script type="application/json" id="restaurant-analytics-top-data">{{ top_dishes_chart|tojson }}</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const select = document.querySelector("[data-analytics-period]");
+    const label = document.querySelector("[data-analytics-period-label]");
+    const input = document.querySelector("[data-analytics-period-input]");
+    const chartSelects = document.querySelectorAll("[data-chart-period]");
+
+    const parseJson = (elementId) => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            return {};
+        }
+
+        try {
+            return JSON.parse(element.textContent || "{}");
+        } catch (error) {
+            return {};
+        }
+    };
+
+    const trendChartData = parseJson("restaurant-analytics-trend-data");
+    const topFoodChartData = parseJson("restaurant-analytics-top-data");
+
+    const formatMoney = (value) => new Intl.NumberFormat("vi-VN").format(Math.round(value || 0)) + "đ";
+
+    document.querySelectorAll("[data-bar-width]").forEach((bar) => {
+        const width = Number(bar.dataset.barWidth || 0);
+        bar.style.width = `${Number.isFinite(width) ? width : 0}%`;
+    });
+
+    document.querySelectorAll("[data-dot-color]").forEach((dot) => {
+        const color = dot.dataset.dotColor;
+        if (color) {
+            dot.style.background = color;
+        }
+    });
+
+    const syncField = () => {
+        const value = select ? select.value : "month";
+        if (!label || !input) return;
+
+        if (input.name === "date") {
+            input.dataset.dayValue = input.value;
+        } else if (input.name === "month") {
+            input.dataset.monthValue = input.value;
+        } else if (input.name === "year") {
+            input.dataset.yearValue = input.value;
+        }
+
+        const configs = {
+            day: {
+                label: "Ngày",
+                type: "date",
+                name: "date",
+                value: input.dataset.dayValue || "",
+                min: null,
+                max: null,
+            },
+            month: {
+                label: "Tháng",
+                type: "month",
+                name: "month",
+                value: input.dataset.monthValue || "",
+                min: null,
+                max: null,
+            },
+            year: {
+                label: "Năm",
+                type: "number",
+                name: "year",
+                value: input.dataset.yearValue || "",
+                min: "2020",
+                max: "2100",
+            },
+        };
+
+        const config = configs[value] || configs.month;
+        label.textContent = config.label;
+        input.type = config.type;
+        input.name = config.name;
+        input.value = config.value;
+
+        if (config.min) {
+            input.min = config.min;
+        } else {
+            input.removeAttribute("min");
+        }
+
+        if (config.max) {
+            input.max = config.max;
+        } else {
+            input.removeAttribute("max");
+        }
+    };
+
+    if (select) {
+        select.addEventListener("change", syncField);
+        syncField();
+    }
+
+    const revenueTrendCanvas = document.getElementById("revenueTrendChart");
+    if (revenueTrendCanvas && window.Chart) {
+        new Chart(revenueTrendCanvas, {
+            data: {
+                labels: trendChartData.labels || [],
+                datasets: [
+                    {
+                        type: "bar",
+                        label: "Số đơn",
+                        data: trendChartData.order_values || [],
+                        backgroundColor: "rgba(79, 116, 184, 0.22)",
+                        borderColor: "rgba(79, 116, 184, 0.55)",
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        borderRadius: 4,
+                        barThickness: 7,
+                        yAxisID: "yOrders",
+                    },
+                    {
+                        type: "line",
+                        label: "Doanh thu thực nhận",
+                        data: trendChartData.revenue_values || [],
+                        borderColor: "#64748b",
+                        backgroundColor: "rgba(79, 116, 184, 0.05)",
+                        pointBackgroundColor: "#4f74b8",
+                        pointBorderColor: "#ffffff",
+                        pointBorderWidth: 1,
+                        pointRadius: 2.5,
+                        pointHoverRadius: 4,
+                        borderWidth: 1.3,
+                        tension: 0.28,
+                        fill: false,
+                        yAxisID: "yRevenue",
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                if (context.dataset.yAxisID === "yOrders") {
+                                    return `${context.parsed.y} đơn`;
+                                }
+                                return formatMoney(context.parsed.y);
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: "#64748b", font: { size: 11 } },
+                    },
+                    yOrders: {
+                        beginAtZero: true,
+                        position: "left",
+                        ticks: { precision: 0, color: "#64748b", font: { size: 11 } },
+                        grid: { color: "rgba(148, 163, 184, 0.14)" },
+                        title: {
+                            display: true,
+                            text: "Số đơn",
+                            color: "#64748b",
+                            font: { size: 11, weight: "600" },
+                        },
+                    },
+                    yRevenue: {
+                        beginAtZero: true,
+                        position: "right",
+                        grid: { drawOnChartArea: false },
+                        ticks: {
+                            color: "#64748b",
+                            font: { size: 11 },
+                            callback: (value) => formatMoney(value),
+                        },
+                        title: {
+                            display: true,
+                            text: "Doanh thu",
+                            color: "#64748b",
+                            font: { size: 11, weight: "600" },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    const topFoodCanvas = document.getElementById("topFoodChart");
+    if (topFoodCanvas && window.Chart) {
+        const total = (topFoodChartData.values || []).reduce((sum, value) => sum + Number(value || 0), 0) || 1;
+        new Chart(topFoodCanvas, {
+            type: "doughnut",
+            data: {
+                labels: topFoodChartData.labels || [],
+                datasets: [{
+                    data: topFoodChartData.values || [],
+                    backgroundColor: topFoodChartData.colors || [],
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "64%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            color: "#475569",
+                            usePointStyle: true,
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            padding: 14,
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const value = Number(context.parsed || 0);
+                                const percent = total ? ((value / total) * 100).toFixed(1) : "0.0";
+                                return `${context.label}: ${value} món (${percent}%)`;
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    chartSelects.forEach((chartSelect) => {
+        chartSelect.addEventListener("change", () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set(chartSelect.dataset.chartPeriod === "top" ? "top_period" : "trend_period", chartSelect.value);
+            window.location.href = url.toString();
+        });
+    });
+});
+</script>
+{% endblock %}
+
+
+

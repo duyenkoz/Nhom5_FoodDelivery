@@ -141,6 +141,58 @@ def build_order_confirmed_notification(order, restaurant_name=""):
     }
 
 
+def build_order_shipping_notification(order, restaurant_name=""):
+    if not order or not order.customer_id:
+        return None
+
+    return {
+        "user_id": order.customer_id,
+        "type": "customer_order_shipping",
+        "title": f"Đơn #{order.order_id} đang được giao",
+        "message": f"{restaurant_name or 'Nhà hàng'} đã chuyển đơn của bạn sang trạng thái đang giao hàng.",
+        "link": url_for("auth.order_detail", order_id=order.order_id),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_name": restaurant_name,
+        },
+    }
+
+
+def build_order_completed_notification(order, restaurant_name=""):
+    if not order or not order.customer_id:
+        return None
+
+    return {
+        "user_id": order.customer_id,
+        "type": "customer_order_completed",
+        "title": f"Đơn #{order.order_id} đã giao thành công",
+        "message": f"{restaurant_name or 'Nhà hàng'} đã giao xong đơn của bạn. Mời bạn đánh giá món và dịch vụ.",
+        "link": url_for("auth.order_detail", order_id=order.order_id),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_name": restaurant_name,
+        },
+    }
+
+
+def build_restaurant_order_completed_notification(order, customer_name=""):
+    if not order or not order.restaurant_id:
+        return None
+
+    return {
+        "user_id": order.restaurant_id,
+        "type": "restaurant_order_completed",
+        "title": f"Đơn #{order.order_id} đã giao thành công",
+        "message": f"Đơn của {customer_name or 'khách hàng'} vừa hoàn tất và sẵn sàng cho đánh giá.",
+        "link": url_for("restaurant.orders", focus=order.order_id),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_id": order.restaurant_id,
+            "customer_name": customer_name,
+        },
+    }
+
+
 def build_order_cancelled_notification(order, cancel_reason="", restaurant_name=""):
     if not order or not order.customer_id:
         return None
@@ -171,3 +223,94 @@ def emit_structured_notification(notification_data):
         type=notification_data.get("type", "general"),
         payload=notification_data.get("payload", {}),
     )
+
+
+def emit_structured_notifications_to_users(notification_data, user_ids):
+    if not notification_data:
+        return []
+
+    created_notifications = []
+    unique_user_ids = []
+    for user_id in user_ids or []:
+        try:
+            normalized_id = int(user_id)
+        except (TypeError, ValueError):
+            continue
+        if normalized_id not in unique_user_ids:
+            unique_user_ids.append(normalized_id)
+
+    for user_id in unique_user_ids:
+        created = create_notification(
+            user_id,
+            notification_data.get("title", "Thông báo"),
+            notification_data.get("message", ""),
+            link=notification_data.get("link", ""),
+            type=notification_data.get("type", "general"),
+            payload=notification_data.get("payload", {}),
+        )
+        if created:
+            created_notifications.append(created)
+
+    return created_notifications
+
+
+def build_restaurant_cancel_request_notification(order, restaurant_name="", reason=""):
+    if not order or not order.restaurant_id:
+        return None
+
+    return {
+        "type": "admin_order_cancel_request",
+        "title": f"Yêu cầu hủy đơn #{order.order_id}",
+        "message": f"{restaurant_name or 'Nhà hàng'} gửi yêu cầu hủy đơn cần admin duyệt.",
+        "link": url_for("admin.disputes"),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_name": restaurant_name,
+            "request_reason": reason,
+        },
+    }
+
+
+def build_restaurant_cancel_request_result_notification(order, restaurant_name="", approved=True, admin_note=""):
+    if not order or not order.restaurant_id:
+        return None
+
+    approved = bool(approved)
+    title = f"Yêu cầu hủy đơn #{order.order_id} đã được duyệt" if approved else f"Yêu cầu hủy đơn #{order.order_id} bị từ chối"
+    message = (
+        f"Yêu cầu hủy đơn của {restaurant_name or 'nhà hàng'} đã được admin duyệt."
+        if approved
+        else f"Yêu cầu hủy đơn của {restaurant_name or 'nhà hàng'} đã bị admin từ chối."
+    )
+    return {
+        "user_id": order.restaurant_id,
+        "type": "restaurant_order_cancel_request_result",
+        "title": title,
+        "message": message,
+        "link": url_for("restaurant.orders", focus=order.order_id),
+        "payload": {
+            "order_id": order.order_id,
+            "restaurant_name": restaurant_name,
+            "approved": approved,
+            "admin_note": admin_note,
+        },
+    }
+
+
+def build_restaurant_review_report_notification(review, restaurant_name="", reason=""):
+    if not review or not review.review_id or not review.restaurant_id:
+        return None
+
+    rating_text = f"{review.rating or 0}/5"
+    return {
+        "type": "admin_review_report",
+        "title": f"Báo cáo đánh giá #{review.review_id}",
+        "message": f"{restaurant_name or 'Nhà hàng'} vừa báo cáo một đánh giá {rating_text}.",
+        "link": url_for("admin.review_reports"),
+        "payload": {
+            "review_id": review.review_id,
+            "restaurant_name": restaurant_name,
+            "reason": reason,
+            "rating": review.rating or 0,
+        },
+    }

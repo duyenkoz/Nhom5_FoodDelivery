@@ -55,7 +55,7 @@
             <h2>Thông tin đơn hàng</h2>
             <div class="checkout-momo__row"><span>Nhà hàng</span><strong>{{ checkout_data.restaurant_name }}</strong></div>
             <div class="checkout-momo__row"><span>Tạm tính</span><strong>{{ "{:,}".format(checkout_data.subtotal or 0) }}đ</strong></div>
-            <div class="checkout-momo__row"><span>Phí giao hàng</span><strong>{{ "{:,}".format(checkout_data.delivery_fee or 0) }}đ</strong></div>
+            <div class="checkout-momo__row"><span>Phí áp dụng</span><strong>{{ "{:,}".format(checkout_data.delivery_fee or 0) }}đ</strong></div>
             <div class="checkout-momo__row"><span>Giảm voucher</span><strong>{{ '-' ~ checkout_data.discount_text if checkout_data.discount_value else '0đ' }}</strong></div>
             <div class="checkout-momo__divider"></div>
             <div class="checkout-momo__row checkout-momo__row--total"><span>Tổng tiền</span><strong>{{ "{:,}".format(checkout_data.total_amount or 0) }}đ</strong></div>

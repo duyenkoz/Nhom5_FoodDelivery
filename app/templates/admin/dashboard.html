@@ -17,6 +17,18 @@
 {% set total_pages = page_info.total_pages %}
 {% set current_page = page_info.page %}
 <div class="admin-pagination">
+    <div class="admin-pagination__summary">
+        Hiển thị {{ page_info.start_item or 0 }}-{{ page_info.end_item or 0 }} trên {{ page_info.total_items or 0 }} {{ page_info.item_label or 'mục' }}
+    </div>
+    <label class="admin-pagination__select" for="{{ select_id }}">
+        <span>Trang</span>
+        <select id="{{ select_id }}" data-admin-pagination-jump>
+            {% for page_num in range(1, total_pages + 1) %}
+            <option value="{{ admin_page_url(endpoint, params, page_num) }}" {% if page_num == current_page %}selected{% endif %}>{{ page_num }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
     <div class="admin-pagination__links">
         <a class="admin-pagination__nav {% if not page_info.has_prev %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page - 1) }}" data-admin-pagination-jump>Trước</a>
         {% if total_pages <= 7 %}
@@ -54,15 +66,6 @@
         {% endif %}
         <a class="admin-pagination__nav {% if not page_info.has_next %}is-disabled{% endif %}" href="{{ admin_page_url(endpoint, params, current_page + 1) }}" data-admin-pagination-jump>Sau</a>
     </div>
-
-    <label class="admin-pagination__select" for="{{ select_id }}">
-        <span>Trang</span>
-        <select id="{{ select_id }}" data-admin-pagination-jump>
-            {% for page_num in range(1, total_pages + 1) %}
-            <option value="{{ admin_page_url(endpoint, params, page_num) }}" {% if page_num == current_page %}selected{% endif %}>{{ page_num }}</option>
-            {% endfor %}
-        </select>
-    </label>
 </div>
 {% endif %}
 {%- endmacro %}
@@ -73,6 +76,9 @@
 {% set admin_voucher_form_values = admin_voucher_form_values|default({}) %}
 {% set admin_voucher_form_errors = admin_voucher_form_errors|default({}) %}
 {% set open_admin_voucher_modal = admin_voucher_form_errors %}
+{% set report_data = report_data|default({}) %}
+{% set report_filters = report_filters|default({}) %}
+{% set report_pagination_params = {'period': report_filters.period|default('month'), 'date': report_filters.date|default(''), 'month': report_filters.month|default(''), 'year': report_filters.year|default('')} %}
 
 <div class="admin-page">
     <aside class="admin-sidebar">
@@ -88,6 +94,7 @@
             <a href="{{ url_for('admin.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
             <a href="{{ url_for('admin.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Đánh giá</a>
             <a href="{{ url_for('admin.review_reports') }}" class="{% if section_name == 'review_reports' %}is-active{% endif %}">Báo cáo đánh giá</a>
+            <a href="{{ url_for('admin.reports') }}" class="{% if section_name == 'reports' %}is-active{% endif %}">Báo cáo doanh thu</a>
             <a href="{{ url_for('admin.complaints') }}" class="{% if section_name == 'complaints' %}is-active{% endif %}">Khiếu nại</a>
             <a href="{{ url_for('admin.disputes') }}" class="{% if section_name == 'disputes' %}is-active{% endif %}">Tranh chấp / hủy đơn</a>
             <a href="{{ url_for('admin.search_settings') }}" class="{% if section_name == 'search_settings' %}is-active{% endif %}">Cài đặt tìm kiếm</a>
@@ -113,7 +120,13 @@
                 {% for stat in hero_stats or [] %}
                 <div class="admin-stat">
                     <span>{{ stat.label }}</span>
-                    <strong>{{ stat.value }}{% if stat.suffix %}{{ stat.suffix }}{% endif %}</strong>
+                    <strong>
+                        {% if stat.suffix == 'đ' %}
+                        {{ "{:,}".format(stat.value) }}{{ stat.suffix }}
+                        {% else %}
+                        {{ stat.value }}{% if stat.suffix %}{{ stat.suffix }}{% endif %}
+                        {% endif %}
+                    </strong>
                 </div>
                 {% endfor %}
             </div>
@@ -149,6 +162,135 @@
         </section>
         {% endif %}
 
+        {% if section_name == 'reports' %}
+        <section class="admin-card admin-panel admin-report-panel">
+            <div class="admin-panel__header">
+                <div>
+                    <h2>Báo cáo doanh thu</h2>
+                    <p>Theo dõi doanh thu phí xử lý 3.000, phí sàn nhà hàng và ảnh hưởng của voucher.</p>
+                </div>
+            </div>
+
+            <div class="admin-report-summary">
+                <div class="admin-stat">
+                    <span>Đơn hoàn thành</span>
+                    <strong>{{ stats.completed_orders or 0 }}</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Phí xử lý 3.000</span>
+                    <strong>{{ "{:,}".format(stats.processing_fee_total or 0) }}đ</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Phí sàn nhà hàng</span>
+                    <strong>{{ "{:,}".format(stats.restaurant_platform_fee_total or 0) }}đ</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Giảm voucher hệ thống</span>
+                    <strong>{{ "{:,}".format(stats.system_voucher_discount_total or 0) }}đ</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Doanh thu gộp</span>
+                    <strong>{{ "{:,}".format(stats.gross_platform_income_total or 0) }}đ</strong>
+                </div>
+                <div class="admin-stat">
+                    <span>Doanh thu ròng</span>
+                    <strong class="{% if (stats.net_admin_revenue_total or 0) < 0 %}admin-money--negative{% endif %}">{{ "{:,}".format(stats.net_admin_revenue_total or 0) }}đ</strong>
+                </div>
+            </div>
+
+            <div class="admin-toolbar admin-toolbar--report-filters">
+                <form method="get" action="{{ url_for('admin.reports') }}" class="admin-report-filter-form">
+                    <label class="admin-filter-group">
+                        <span>Kiểu xem</span>
+                        <select name="period" data-admin-report-period class="admin-select">
+                            <option value="day" {% if report_filters.period == 'day' %}selected{% endif %}>Theo ngày</option>
+                            <option value="month" {% if report_filters.period == 'month' %}selected{% endif %}>Theo tháng</option>
+                            <option value="year" {% if report_filters.period == 'year' %}selected{% endif %}>Theo năm</option>
+                        </select>
+                    </label>
+                    <label class="admin-filter-group">
+                        <span data-admin-report-label>
+                            {% if report_filters.period == 'year' %}Năm{% elif report_filters.period == 'day' %}Ngày{% else %}Tháng{% endif %}
+                        </span>
+                        <input
+                            class="admin-input"
+                            data-admin-report-input
+                            type="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}number{% else %}month{% endif %}"
+                            name="{% if report_filters.period == 'day' %}date{% elif report_filters.period == 'year' %}year{% else %}month{% endif %}"
+                            value="{% if report_filters.period == 'day' %}{{ report_filters.date }}{% elif report_filters.period == 'year' %}{{ report_filters.year }}{% else %}{{ report_filters.month }}{% endif %}"
+                            {% if report_filters.period == 'year' %}min="2020" max="2100"{% endif %}
+                            data-day-value="{{ report_filters.date }}"
+                            data-month-value="{{ report_filters.month }}"
+                            data-year-value="{{ report_filters.year }}"
+                        >
+                    </label>
+                    <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                    <a class="admin-btn admin-btn--soft" href="{{ url_for('admin.reports') }}">Xóa lọc</a>
+                </form>
+            </div>
+
+            <div class="admin-table admin-table--reports" style="margin-top: 18px;">
+                <div class="admin-table__head">
+                    <div>Đơn</div>
+                    <div>Ngày</div>
+                    <div>Nhà hàng</div>
+                    <div>Phí xử lý</div>
+                    <div>Phí sàn</div>
+                    <div>Voucher HT</div>
+                    <div>Voucher NH</div>
+                    <div>Ròng</div>
+                </div>
+                {% if page_items %}
+                    {% for item in page_items %}
+                    <div class="admin-table__row">
+                        <div class="admin-table__cell--strong">#{{ item.order_id }}</div>
+                        <div>{{ item.order_date_text }}</div>
+                        <div>{{ item.restaurant_name }}</div>
+                        <div>{{ item.processing_fee_text }}</div>
+                        <div>{{ item.restaurant_platform_fee_text }}</div>
+                        <div>{{ item.system_voucher_discount_text }}</div>
+                        <div>{{ item.merchant_voucher_discount_text }}</div>
+                        <div class="admin-table__cell--strong {% if item.net_admin_revenue_value is not none and item.net_admin_revenue_value < 0 %}admin-money--negative{% endif %}">{{ item.net_admin_revenue_text }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="admin-table__row">
+                        <div style="grid-column: 1 / -1; color: #64748b;">Không có đơn hoàn thành nào trong khoảng thời gian đã lọc.</div>
+                    </div>
+                {% endif %}
+            </div>
+            {{ render_admin_pagination('admin.reports', page_info, report_pagination_params, 'adminReportsPageSelect') }}
+
+            <div class="admin-report-charts">
+                <article class="admin-report-chart-card">
+                    <div class="admin-report-chart-card__header">
+                        <div>
+                            <h3>Cấu thành doanh thu</h3>
+                            <p>Phí xử lý và phí sàn tạo doanh thu, voucher hệ thống làm giảm doanh thu ròng.</p>
+                        </div>
+                    </div>
+                    <div class="admin-report-chart-wrap">
+                        <canvas id="adminRevenueChart"></canvas>
+                    </div>
+                </article>
+
+                <article class="admin-report-chart-card">
+                    <div class="admin-report-chart-card__header">
+                        <div>
+                            <h3>Ghi chú tính doanh thu</h3>
+                            <p>Voucher nhà hàng không trừ vào doanh thu admin, vì đó là chi phí của nhà hàng.</p>
+                        </div>
+                    </div>
+                    <div class="admin-dispute-detail__block">
+                        <p>Doanh thu ròng = Phí xử lý 3.000 + Phí sàn nhà hàng - Giảm voucher hệ thống.</p>
+                        <p style="margin-top: 10px;">Tổng giảm voucher: {{ "{:,}".format(stats.voucher_discount_total or 0) }}đ</p>
+                        <p>Voucher nhà hàng: {{ "{:,}".format(stats.merchant_voucher_discount_total or 0) }}đ</p>
+                    </div>
+                </article>
+            </div>
+        </section>
+        {% endif %}
+
         {% if section_name == 'accounts' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
@@ -172,7 +314,7 @@
             </div>
 
             <div id="admin-accounts-results">
-            <div class="admin-table">
+            <div class="admin-table admin-table--accounts">
                 <div class="admin-table__head">
                     <div>Tài khoản</div>
                     <div>Vai trò</div>
@@ -208,6 +350,7 @@
             </div>
             {% set accounts_pagination_params = {'q': search_query, 'role': role_filter} %}
             {{ render_admin_pagination('admin.accounts', page_info, accounts_pagination_params, 'adminAccountsPageSelect') }}
+            </div>
             </div>
         </section>
         {% elif section_name == 'vouchers' %}
@@ -261,6 +404,7 @@
             </div>
             {% set vouchers_pagination_params = {'q': search_query} %}
             {{ render_admin_pagination('admin.vouchers', page_info, vouchers_pagination_params, 'adminVouchersPageSelect') }}
+            </div>
             </div>
         </section>
         <div class="admin-modal {% if open_admin_voucher_modal %}is-open{% endif %}" id="adminVoucherModal" aria-hidden="{% if open_admin_voucher_modal %}false{% else %}true{% endif %}">
@@ -378,6 +522,7 @@
             {% set reviews_pagination_params = {'q': search_query} %}
             {{ render_admin_pagination('admin.reviews', page_info, reviews_pagination_params, 'adminReviewsPageSelect') }}
             </div>
+            </div>
         </section>
         {% elif section_name == 'review_reports' %}
         <section class="admin-card admin-panel">
@@ -429,6 +574,7 @@
             {% set review_reports_pagination_params = {'q': search_query} %}
             {{ render_admin_pagination('admin.review_reports', page_info, review_reports_pagination_params, 'adminReviewReportsPageSelect') }}
             </div>
+            </div>
         </section>
         {% elif section_name == 'complaints' %}
         <section class="admin-card admin-panel">
@@ -466,29 +612,42 @@
             {% set complaints_pagination_params = {'q': search_query} %}
             {{ render_admin_pagination('admin.complaints', page_info, complaints_pagination_params, 'adminComplaintsPageSelect') }}
             </div>
+            </div>
         </section>
         {% elif section_name == 'disputes' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
                 <div>
                     <h2>Hỗ trợ tranh chấp / hủy đơn</h2>
-                    <p>Theo dõi các đơn có trạng thái hủy, tranh chấp hoặc cần hỗ trợ.</p>
+                    <p>Theo dõi các đơn đang chờ duyệt hủy, chờ hoàn tiền hoặc đã xử lý.</p>
                 </div>
                 <form method="get" action="{{ url_for('admin.disputes') }}" data-live-search-form data-live-search-target="#admin-disputes-results" autocomplete="off">
+                    <select name="type" class="admin-select" onchange="this.form.submit()">
+                        <option value="all" {% if type_filter == 'all' %}selected{% endif %}>Tất cả loại</option>
+                        <option value="refund_pending" {% if type_filter == 'refund_pending' %}selected{% endif %}>Hoàn tiền</option>
+                        <option value="pending_cancel" {% if type_filter == 'pending_cancel' %}selected{% endif %}>Duyệt hủy</option>
+                    </select>
+                    <select name="state" class="admin-select" onchange="this.form.submit()">
+                        <option value="all" {% if state_filter == 'all' %}selected{% endif %}>Tất cả trạng thái</option>
+                        <option value="processed" {% if state_filter == 'processed' %}selected{% endif %}>Đã xử lý</option>
+                        <option value="unprocessed" {% if state_filter == 'unprocessed' %}selected{% endif %}>Chưa xử lý</option>
+                    </select>
                     <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm theo địa chỉ, trạng thái, khách, nhà hàng" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
                 </form>
             </div>
 
             <div id="admin-disputes-results">
-            <div class="admin-table">
+            <div class="admin-table admin-table--disputes">
                 <div class="admin-table__head">
                     <div>Đơn</div>
                     <div>Khách hàng</div>
                     <div>Nhà hàng</div>
-                    <div>Trạng thái</div>
+                    <div>Loại</div>
                     <div>Ngày</div>
-                    <div>Ghi chú</div>
+                    <div>Lý do</div>
+                    <div>Chi tiết</div>
+                    <div>Trạng thái</div>
                 </div>
                 {% if page_items %}
                 {% for item in page_items %}
@@ -497,19 +656,86 @@
                     <div class="admin-table__cell--strong">#{{ order.order_id }}</div>
                     <div>{{ item.customer_name }}</div>
                     <div>{{ item.restaurant_name }}</div>
-                    <div><span class="admin-badge is-warning">{{ item.status_label }}</span></div>
+                    <div><span class="admin-badge {% if item.status_key == 'refund_pending' %}is-info{% else %}is-warning{% endif %}">{{ item.type_label }}</span></div>
                     <div>{{ item.created_at }}</div>
-                    <div>{{ order.delivery_address or 'Không có địa chỉ' }}</div>
+                    <div>{{ item.reason_text or 'Không có lý do' }}</div>
+                    <div>
+                        <button
+                            type="button"
+                            class="admin-icon-btn"
+                            data-dispute-detail='{{ item.detail_payload | tojson }}'
+                            aria-label="Xem chi tiết đơn #{{ order.order_id }}"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                    <div>
+                        {% if item.request_pending %}
+                        <div class="admin-actions">
+                            <form method="post" action="{{ url_for('admin.approve_cancel_request', order_id=order.order_id, q=search_query, type=type_filter, state=state_filter, page=page_info.page) }}">
+                                <input type="hidden" name="note" value="">
+                                <button class="admin-btn admin-btn--primary" type="submit">Duyệt hủy</button>
+                            </form>
+                            <form method="post" action="{{ url_for('admin.reject_cancel_request', order_id=order.order_id, q=search_query, type=type_filter, state=state_filter, page=page_info.page) }}">
+                                <input type="hidden" name="note" value="">
+                                <button class="admin-btn admin-btn--ghost" type="submit">Từ chối</button>
+                            </form>
+                        </div>
+                        {% elif item.status_key == 'refund_pending' %}
+                        <span class="admin-badge is-info">Chờ hoàn tiền</span>
+                        {% else %}
+                        <span class="admin-badge is-muted">Đã xử lý</span>
+                        {% endif %}
+                    </div>
                 </div>
-                {% endfor %}
-                {% else %}
+            {% endfor %}
+            {% else %}
                 <div class="admin-empty">Chưa có đơn tranh chấp hoặc hủy đơn.</div>
                 {% endif %}
             </div>
-            {% set disputes_pagination_params = {'q': search_query} %}
+            {% set disputes_pagination_params = {'q': search_query, 'type': type_filter, 'state': state_filter} %}
             {{ render_admin_pagination('admin.disputes', page_info, disputes_pagination_params, 'adminDisputesPageSelect') }}
             </div>
+            </div>
         </section>
+        <div class="admin-modal" id="adminDisputeModal" aria-hidden="true">
+            <div class="admin-modal__backdrop" data-close-admin-dispute-modal></div>
+            <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="adminDisputeModalTitle">
+                <div class="admin-modal__header">
+                    <div>
+                        <h2 id="adminDisputeModalTitle">Chi tiết hỗ trợ tranh chấp</h2>
+                        <p>Xem đầy đủ lý do, ghi chú và trạng thái xử lý của đơn.</p>
+                    </div>
+                    <button type="button" class="admin-modal__close" data-close-admin-dispute-modal aria-label="Đóng">&times;</button>
+                </div>
+
+                <div class="admin-dispute-detail">
+                    <div class="admin-dispute-detail__meta">
+                        <div><span>Mã đơn</span><strong data-dispute-detail-order></strong></div>
+                        <div><span>Khách hàng</span><strong data-dispute-detail-customer></strong></div>
+                        <div><span>Nhà hàng</span><strong data-dispute-detail-restaurant></strong></div>
+                        <div><span>Loại</span><strong data-dispute-detail-status></strong></div>
+                        <div><span>Ngày tạo</span><strong data-dispute-detail-created></strong></div>
+                        <div><span>Địa chỉ giao</span><strong data-dispute-detail-address></strong></div>
+                        <div><span>Thanh toán</span><strong data-dispute-detail-payment></strong></div>
+                        <div><span>Tổng tiền</span><strong data-dispute-detail-total></strong></div>
+                    </div>
+
+                    <div class="admin-dispute-detail__block admin-dispute-detail__block--wide">
+                        <h3>Lý do</h3>
+                        <p data-dispute-detail-reason></p>
+                    </div>
+
+                    <div class="admin-dispute-detail__block">
+                        <h3>Thông tin xử lý</h3>
+                        <p data-dispute-detail-handled></p>
+                    </div>
+                </div>
+            </div>
+        </div>
         {% elif section_name == 'shipping_rules' %}
         <section class="admin-card admin-panel">
             <div class="admin-panel__header">
@@ -655,6 +881,7 @@
                 {% set shipping_fees_pagination_params = {'q': search_query} %}
                 {{ render_admin_pagination('admin.shipping_fees', page_info, shipping_fees_pagination_params, 'adminShippingFeesPageSelect') }}
 
+                </div>
                 <div class="admin-actions admin-actions--sticky">
                     <button class="admin-btn admin-btn--primary" type="submit">Lưu phí sàn</button>
                 </div>
@@ -663,6 +890,123 @@
         {% endif %}
     </main>
 </div>
+{% if section_name == 'reports' %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="application/json" id="admin-report-data">{{ report_data|tojson }}</script>
+<script>
+(function () {
+    const reportDataElement = document.getElementById("admin-report-data");
+    const reportData = reportDataElement ? JSON.parse(reportDataElement.textContent || "{}") : {};
+    const periodSelect = document.querySelector("[data-admin-report-period]");
+    const periodLabel = document.querySelector("[data-admin-report-label]");
+    const periodInput = document.querySelector("[data-admin-report-input]");
+
+    function syncReportField() {
+        if (!periodSelect || !periodLabel || !periodInput) return;
+
+        if (periodInput.name === "date") {
+            periodInput.dataset.dayValue = periodInput.value;
+        } else if (periodInput.name === "month") {
+            periodInput.dataset.monthValue = periodInput.value;
+        } else if (periodInput.name === "year") {
+            periodInput.dataset.yearValue = periodInput.value;
+        }
+
+        const configs = {
+            day: {
+                label: "Ngày",
+                type: "date",
+                name: "date",
+                value: periodInput.dataset.dayValue || "",
+                min: null,
+                max: null,
+            },
+            month: {
+                label: "Tháng",
+                type: "month",
+                name: "month",
+                value: periodInput.dataset.monthValue || "",
+                min: null,
+                max: null,
+            },
+            year: {
+                label: "Năm",
+                type: "number",
+                name: "year",
+                value: periodInput.dataset.yearValue || "",
+                min: "2020",
+                max: "2100",
+            },
+        };
+
+        const config = configs[periodSelect.value] || configs.month;
+        periodLabel.textContent = config.label;
+        periodInput.type = config.type;
+        periodInput.name = config.name;
+        periodInput.value = config.value;
+
+        if (config.min) {
+            periodInput.min = config.min;
+        } else {
+            periodInput.removeAttribute("min");
+        }
+
+        if (config.max) {
+            periodInput.max = config.max;
+        } else {
+            periodInput.removeAttribute("max");
+        }
+    }
+
+    if (periodSelect) {
+        periodSelect.addEventListener("change", syncReportField);
+        syncReportField();
+    }
+
+    const revenueCanvas = document.getElementById("adminRevenueChart");
+    if (revenueCanvas && window.Chart && reportData.revenue_chart) {
+        const chart = reportData.revenue_chart;
+        new Chart(revenueCanvas, {
+            type: "doughnut",
+            data: {
+                labels: chart.labels || [],
+                datasets: [{
+                    data: chart.values || [],
+                    backgroundColor: chart.colors || [],
+                    borderWidth: 0,
+                    hoverOffset: 10,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "64%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: "circle",
+                            padding: 16,
+                            boxWidth: 10,
+                            color: "#22324a",
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(context) {
+                                const value = Number(context.raw || 0);
+                                return `${context.label}: ${value.toLocaleString("vi-VN")}đ`;
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+})();
+</script>
+{% endif %}
 <script>
 (function () {
     const scrollKey = "admin-dashboard-scroll-y";
@@ -671,6 +1015,19 @@
     const modal = document.getElementById("adminVoucherModal");
     const openButtons = document.querySelectorAll("[data-open-admin-voucher-modal]");
     const closeButtons = document.querySelectorAll("[data-close-admin-voucher-modal]");
+    const disputeModal = document.getElementById("adminDisputeModal");
+    const disputeButtons = document.querySelectorAll("[data-dispute-detail]");
+    const disputeCloseButtons = document.querySelectorAll("[data-close-admin-dispute-modal]");
+    const disputeOrder = document.querySelector("[data-dispute-detail-order]");
+    const disputeCustomer = document.querySelector("[data-dispute-detail-customer]");
+    const disputeRestaurant = document.querySelector("[data-dispute-detail-restaurant]");
+    const disputeStatus = document.querySelector("[data-dispute-detail-status]");
+    const disputeCreated = document.querySelector("[data-dispute-detail-created]");
+    const disputeAddress = document.querySelector("[data-dispute-detail-address]");
+    const disputePayment = document.querySelector("[data-dispute-detail-payment]");
+    const disputeTotal = document.querySelector("[data-dispute-detail-total]");
+    const disputeReason = document.querySelector("[data-dispute-detail-reason]");
+    const disputeHandled = document.querySelector("[data-dispute-detail-handled]");
 
     function rememberScrollPosition() {
         try {
@@ -708,6 +1065,29 @@
         modal.setAttribute("aria-hidden", "true");
     }
 
+    function openDisputeModal(payload) {
+        if (!disputeModal) return;
+        const data = payload || {};
+        if (disputeOrder) disputeOrder.textContent = data.order_id ? `#${data.order_id}` : "Không có";
+        if (disputeCustomer) disputeCustomer.textContent = data.customer_name || "Không có";
+        if (disputeRestaurant) disputeRestaurant.textContent = data.restaurant_name || "Không có";
+        if (disputeStatus) disputeStatus.textContent = data.type_label || data.status_label || "Không có";
+        if (disputeCreated) disputeCreated.textContent = data.created_at || "Không có";
+        if (disputeAddress) disputeAddress.textContent = data.delivery_address || "Không có";
+        if (disputePayment) disputePayment.textContent = data.payment_method_label || "Không có";
+        if (disputeTotal) disputeTotal.textContent = data.total_amount_text || "0đ";
+        if (disputeReason) disputeReason.textContent = data.reason_text || data.request_reason || "Không có";
+        if (disputeHandled) disputeHandled.textContent = data.handled_at ? `Đã xử lý lúc ${data.handled_at}` : "Đang chờ xử lý";
+        disputeModal.classList.add("is-open");
+        disputeModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeDisputeModal() {
+        if (!disputeModal) return;
+        disputeModal.classList.remove("is-open");
+        disputeModal.setAttribute("aria-hidden", "true");
+    }
+
     paginationControls.forEach((control) => {
         if (control.tagName === "SELECT") {
             control.addEventListener("change", () => {
@@ -728,6 +1108,24 @@
         modal.addEventListener("click", (event) => {
             if (event.target === modal || event.target.closest("[data-close-admin-voucher-modal]")) {
                 closeModal();
+            }
+        });
+    }
+
+    disputeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            try {
+                openDisputeModal(JSON.parse(button.dataset.disputeDetail || "{}"));
+            } catch (error) {
+                openDisputeModal({});
+            }
+        });
+    });
+    disputeCloseButtons.forEach((button) => button.addEventListener("click", closeDisputeModal));
+    if (disputeModal) {
+        disputeModal.addEventListener("click", (event) => {
+            if (event.target === disputeModal || event.target.closest("[data-close-admin-dispute-modal]")) {
+                closeDisputeModal();
             }
         });
     }

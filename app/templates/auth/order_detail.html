@@ -81,6 +81,10 @@
                     <span>{{ payment_method_label or 'Thanh toán' }}</span>
                     <strong>{{ "{:,}".format(order.total_amount or 0) }}đ</strong>
                 </div>
+                <div class="order-detail-summary__line">
+                    <span>Trạng thái thanh toán</span>
+                    <strong>{{ payment_status_label or 'Chưa rõ' }}</strong>
+                </div>
             </div>
 
             <div class="order-detail-summary__card order-detail-summary__card--info">
@@ -182,7 +186,7 @@
             <div class="order-detail-timer order-detail-timer--info">
                 <strong>Đang giao hàng</strong>
                 <span id="shippingCountdown" data-seconds="{{ shipping_remaining_seconds }}">{{ shipping_remaining_seconds }} giây</span>
-                <small>Hệ thống sẽ tự cập nhật sang đã giao sau 2 phút.</small>
+                <small>Hệ thống sẽ tự cập nhật sang đã giao sau 1 phút.</small>
             </div>
             {% endif %}
 
@@ -235,11 +239,21 @@
                     <span>{{ payment_method_label or 'Thanh toán' }}</span>
                     <strong>{{ "{:,}".format(order.total_amount or 0) }}đ</strong>
                 </div>
+                <div class="order-detail-summary__line">
+                    <span>Trạng thái thanh toán</span>
+                    <strong>{{ payment_status_label or 'Chưa rõ' }}</strong>
+                </div>
             </div>
 
             <div class="order-detail-summary__card">
                 <h3>Trạng thái</h3>
                 <p>{{ status_info.description }}</p>
+                {% if cancel_request_status == 'pending' %}
+                <p class="order-detail-summary__reason"><strong>Yêu cầu hủy:</strong><span>Nhà hàng đã gửi yêu cầu hủy và đang chờ admin duyệt.</span></p>
+                {% if cancel_request_reason %}
+                <p class="order-detail-summary__reason"><strong>Lý do từ nhà hàng:</strong><span>{{ cancel_request_reason }}</span></p>
+                {% endif %}
+                {% endif %}
                 {% if status_info.step_key in ['cancelled', 'refund_pending'] and cancel_reason %}
                 <p class="order-detail-summary__reason"><strong>Lý do hủy:</strong><span>{{ cancel_reason }}</span></p>
                 {% endif %}
@@ -252,11 +266,25 @@
 
 <script>
 (function () {
+    const autoReloadScrollKey = "order-detail-auto-reload";
+
+    if ("scrollRestoration" in window.history) {
+        window.history.scrollRestoration = "manual";
+    }
+
+    if (sessionStorage.getItem(autoReloadScrollKey) === "1") {
+        sessionStorage.removeItem(autoReloadScrollKey);
+        window.scrollTo(0, 0);
+    }
+
     function bindCountdown(id, onDone) {
         const el = document.getElementById(id);
         if (!el) return;
         let seconds = Number(el.dataset.seconds || 0);
-        if (!seconds || seconds <= 0) return;
+        if (!seconds || seconds <= 0) {
+            if (typeof onDone === 'function') onDone();
+            return;
+        }
         const render = () => {
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
@@ -274,8 +302,14 @@
         }, 1000);
     }
 
-    bindCountdown('paymentCountdown', () => window.location.reload());
-    bindCountdown('shippingCountdown', () => window.location.reload());
+    bindCountdown('paymentCountdown', () => {
+        sessionStorage.setItem(autoReloadScrollKey, "1");
+        window.location.reload();
+    });
+    bindCountdown('shippingCountdown', () => {
+        sessionStorage.setItem(autoReloadScrollKey, "1");
+        window.location.reload();
+    });
 })();
 </script>
 {% endblock %}

@@ -35,9 +35,9 @@
         <div class="restaurant-card restaurant-sidebar__links">
             <a href="{{ url_for('restaurant.dashboard') }}" class="{% if section_name == 'dashboard' %}is-active{% endif %}">Quản lý thực đơn</a>
             <a href="{{ url_for('restaurant.orders') }}" class="{% if section_name == 'orders' %}is-active{% endif %}">Quản lý đơn hàng</a>
-            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Xem thống kê doanh báo cáo</a>
+            <a href="{{ url_for('restaurant.analytics') }}" class="{% if section_name == 'analytics' %}is-active{% endif %}">Báo cáo thống kê</a>
             <a href="{{ url_for('restaurant.vouchers') }}" class="{% if section_name == 'vouchers' %}is-active{% endif %}">Quản lý voucher</a>
-            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Xem các đánh giá nhà hàng</a>
+            <a href="{{ url_for('restaurant.reviews') }}" class="{% if section_name == 'reviews' %}is-active{% endif %}">Đánh giá nhà hàng</a>
         </div>
 
         <div class="restaurant-card restaurant-sidebar__note">
@@ -55,19 +55,33 @@
         </section>
 
         <section class="restaurant-order-panel">
-            <div class="restaurant-order-stats">
-                <article class="restaurant-order-stat restaurant-card">
-                    <span>Tổng đơn</span>
-                    <strong>{{ stats.total_orders or 0 }}</strong>
-                </article>
-                <article class="restaurant-order-stat restaurant-card">
-                    <span>Chờ xác nhận</span>
-                    <strong>{{ stats.pending_orders or 0 }}</strong>
-                </article>
-                <article class="restaurant-order-stat restaurant-card">
-                    <span>Đang chuẩn bị</span>
-                    <strong>{{ stats.preparing_orders or 0 }}</strong>
-                </article>
+            <div class="restaurant-section__card restaurant-section__card--stats">
+                <div class="restaurant-section__stats restaurant-section__stats--orders">
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Tổng đơn</span>
+                        <strong>{{ stats.total_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Chờ xác nhận</span>
+                        <strong>{{ stats.pending_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Đang chuẩn bị</span>
+                        <strong>{{ stats.preparing_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Đang giao hàng</span>
+                        <strong>{{ stats.shipping_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Hoàn thành</span>
+                        <strong>{{ stats.completed_orders or 0 }}</strong>
+                    </article>
+                    <article class="restaurant-stat restaurant-stat--compact">
+                        <span>Chờ duyệt hủy</span>
+                        <strong>{{ stats.cancel_request_pending_orders or 0 }}</strong>
+                    </article>
+                </div>
             </div>
 
             <div class="restaurant-order-toolbar restaurant-card">
@@ -153,7 +167,16 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="restaurant-order-status {{ item.status_class }}">{{ item.status_label }}</span>
+                                    <div class="restaurant-order-status-wrap">
+                                        {% if item.status_key == 'preparing' and item.cancel_request_pending %}
+                                        <span class="restaurant-order-status restaurant-order-status--cancel-request">Chờ duyệt hủy</span>
+                                        {% else %}
+                                        <span class="restaurant-order-status {{ item.status_class }}">{{ item.status_label }}</span>
+                                        {% endif %}
+                                        {% if item.status_key == 'shipping' and item.shipping_remaining_seconds is not none %}
+                                        <small class="restaurant-order-countdown" data-shipping-countdown="true" data-seconds="{{ item.shipping_remaining_seconds }}">{{ item.shipping_remaining_seconds }} giây</small>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     <button
@@ -171,7 +194,7 @@
                                 </td>
                                 <td>
                                     {% if item.status_key == 'pending' %}
-                                    <div class="restaurant-order-actions">
+                                    <div class="restaurant-order-actions restaurant-order-actions--paired">
                                         <form method="post" action="{{ url_for('restaurant.confirm_order', order_id=item.order.order_id) }}" class="restaurant-order-actions__form">
                                             <input type="hidden" name="q" value="{{ order_filters.q }}">
                                             <input type="hidden" name="status" value="{{ order_filters.status }}">
@@ -204,9 +227,46 @@
                                         Xem lý do
                                     </button>
                                     {% elif item.status_key == 'refund_pending' %}
-                                    
+                                    <button type="button" class="restaurant-order-action restaurant-order-action--complete" disabled>Chờ hoàn tiền</button>
+                                    {% elif item.status_key == 'preparing' %}
+                                    {% if item.cancel_request_pending %}
+                                    <div class="restaurant-order-actions restaurant-order-actions--paired">
+                                        <form method="post" action="{{ url_for('restaurant.withdraw_cancel_request', order_id=item.order.order_id) }}" class="restaurant-order-actions__form">
+                                            <input type="hidden" name="q" value="{{ order_filters.q }}">
+                                            <input type="hidden" name="status" value="{{ order_filters.status }}">
+                                            <input type="hidden" name="sort" value="{{ order_filters.sort }}">
+                                            <input type="hidden" name="start" value="{{ order_filters.date_from }}">
+                                            <input type="hidden" name="end" value="{{ order_filters.date_to }}">
+                                            <input type="hidden" name="focus" value="{{ order_filters.focus_order_id or '' }}">
+                                            <input type="hidden" name="page" value="{{ pagination.page or 1 }}">
+                                            <button type="submit" class="restaurant-order-action restaurant-order-action--cancel restaurant-order-action--cancel-withdraw">Hủy yêu cầu</button>
+                                        </form>
+                                    </div>
                                     {% else %}
-                                    <button type="button" class="restaurant-order-action restaurant-order-action--complete" disabled>Hoàn thành</button>
+                                    <div class="restaurant-order-actions restaurant-order-actions--paired">
+                                        <form method="post" action="{{ url_for('restaurant.complete_order', order_id=item.order.order_id) }}" class="restaurant-order-actions__form">
+                                            <input type="hidden" name="q" value="{{ order_filters.q }}">
+                                            <input type="hidden" name="status" value="{{ order_filters.status }}">
+                                            <input type="hidden" name="sort" value="{{ order_filters.sort }}">
+                                            <input type="hidden" name="start" value="{{ order_filters.date_from }}">
+                                            <input type="hidden" name="end" value="{{ order_filters.date_to }}">
+                                            <input type="hidden" name="focus" value="{{ order_filters.focus_order_id or '' }}">
+                                            <input type="hidden" name="page" value="{{ pagination.page or 1 }}">
+                                            <button type="submit" class="restaurant-order-action restaurant-order-action--complete">Hoàn thành</button>
+                                        </form>
+                                        <button
+                                            type="button"
+                                            class="restaurant-order-action restaurant-order-action--cancel"
+                                            data-open-cancel-modal
+                                            data-order-id="{{ item.order.order_id }}"
+                                            data-order-code="{{ item.order_code }}"
+                                            data-cancel-mode="request"
+                                            data-cancel-url="{{ url_for('restaurant.request_cancel_order', order_id=item.order.order_id) }}"
+                                        >
+                                            Hủy
+                                        </button>
+                                    </div>
+                                    {% endif %}
                                     {% endif %}
                                 </td>
                             </tr>
@@ -217,18 +277,33 @@
                 <div class="restaurant-table-footer restaurant-order-table__footer">
                     <span>Hiển thị {{ pagination.start_item }}-{{ pagination.end_item }} trên {{ pagination.total_items }} đơn</span>
                     <nav class="restaurant-pagination" aria-label="Phân trang đơn hàng">
+                        <label class="restaurant-pagination__select">
+                            <span>Trang</span>
+                            <select onchange="if (this.value) window.location.href = this.value">
+                                {% for page_num in range(1, pagination.total_pages + 1) %}
+                                <option value="{{ url_for('restaurant.orders', q=order_filters.q, status=order_filters.status, sort=order_filters.sort, start=order_filters.date_from, end=order_filters.date_to, focus=order_filters.focus_order_id or '', page=page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
+                                    {{ page_num }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+
                         <a
                             class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}"
                             href="{{ url_for('restaurant.orders', q=order_filters.q, status=order_filters.status, sort=order_filters.sort, start=order_filters.date_from, end=order_filters.date_to, focus=order_filters.focus_order_id or '', page=(pagination.page - 1)) if pagination.has_prev else '#' }}"
                             aria-disabled="{{ 'true' if not pagination.has_prev else 'false' }}"
                             tabindex="{{ '-1' if not pagination.has_prev else '0' }}"
                         >Trước</a>
-                        {% for page_num in range(1, pagination.total_pages + 1) %}
+                        {% for page_item in pagination.pages or [] %}
+                        {% if page_item == '...' %}
+                        <span class="restaurant-pagination__ellipsis">...</span>
+                        {% else %}
                         <a
-                            class="restaurant-pagination__page {% if page_num == pagination.page %}is-active{% endif %}"
-                            href="{{ url_for('restaurant.orders', q=order_filters.q, status=order_filters.status, sort=order_filters.sort, start=order_filters.date_from, end=order_filters.date_to, focus=order_filters.focus_order_id or '', page=page_num) }}"
-                            {% if page_num == pagination.page %}aria-current="page"{% endif %}
-                        >{{ page_num }}</a>
+                            class="restaurant-pagination__page {% if page_item == pagination.page %}is-active{% endif %}"
+                            href="{{ url_for('restaurant.orders', q=order_filters.q, status=order_filters.status, sort=order_filters.sort, start=order_filters.date_from, end=order_filters.date_to, focus=order_filters.focus_order_id or '', page=page_item) }}"
+                            {% if page_item == pagination.page %}aria-current="page"{% endif %}
+                        >{{ page_item }}</a>
+                        {% endif %}
                         {% endfor %}
                         <a
                             class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}"
@@ -337,7 +412,7 @@
             </label>
             <div class="restaurant-order-cancel-form__actions">
                 <button type="button" class="restaurant-order-cancel-form__button restaurant-order-cancel-form__button--soft" data-close-order-cancel="true">Đóng</button>
-                <button type="submit" class="restaurant-order-cancel-form__button restaurant-order-cancel-form__button--danger">Xác nhận hủy</button>
+                <button type="submit" class="restaurant-order-cancel-form__button restaurant-order-cancel-form__button--danger" data-order-cancel-submit>Xác nhận hủy</button>
             </div>
         </form>
     </div>
@@ -347,6 +422,15 @@
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+    const autoReloadScrollKey = "restaurant-orders-auto-reload";
+    if ("scrollRestoration" in window.history) {
+        window.history.scrollRestoration = "manual";
+    }
+    if (sessionStorage.getItem(autoReloadScrollKey) === "1") {
+        sessionStorage.removeItem(autoReloadScrollKey);
+        window.scrollTo(0, 0);
+    }
+
     const detailModal = document.querySelector("[data-order-detail-modal]");
     const cancelModal = document.querySelector("[data-order-cancel-modal]");
     const detailTitle = document.getElementById("orderDetailTitle");
@@ -368,6 +452,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const reasonText = document.querySelector("[data-order-reason-text]");
     const cancelForm = document.querySelector("[data-order-cancel-form]");
     const cancelCaption = document.querySelector("[data-order-cancel-caption]");
+    const cancelSubmit = document.querySelector("[data-order-cancel-submit]");
     const pageRoot = document.querySelector(".restaurant-orders-page");
     const focusId = pageRoot?.dataset.orderFocusId || "";
     const removeFocusFromCurrentUrl = () => {
@@ -399,6 +484,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         removeFocusFromCurrentUrl();
     };
+
+    const countdowns = document.querySelectorAll("[data-shipping-countdown='true']");
+
+    countdowns.forEach((el) => {
+        let seconds = Number(el.dataset.seconds || 0);
+        if (!Number.isFinite(seconds) || seconds <= 0) {
+            sessionStorage.setItem(autoReloadScrollKey, "1");
+            window.location.reload();
+            return;
+        }
+
+        const render = () => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            el.textContent = `Còn ${mins}:${String(secs).padStart(2, "0")}`;
+        };
+
+        render();
+        const timer = setInterval(() => {
+            seconds -= 1;
+            if (seconds <= 0) {
+                clearInterval(timer);
+                sessionStorage.setItem(autoReloadScrollKey, "1");
+                window.location.reload();
+                return;
+            }
+            render();
+        }, 1000);
+    });
 
     const openModal = (modal) => {
         if (!modal) return;
@@ -504,7 +618,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 cancelForm.action = button.dataset.cancelUrl || cancelForm.action;
             }
             if (cancelCaption) {
-                cancelCaption.textContent = `Bạn đang hủy ${button.dataset.orderCode || "đơn hàng"}.`;
+                cancelCaption.textContent = button.dataset.cancelMode === "request"
+                    ? `Bạn đang gửi yêu cầu hủy ${button.dataset.orderCode || "đơn hàng"} để admin duyệt.`
+                    : `Bạn đang hủy ${button.dataset.orderCode || "đơn hàng"}.`;
+            }
+            if (cancelSubmit) {
+                cancelSubmit.textContent = button.dataset.cancelMode === "request" ? "Gửi yêu cầu" : "Xác nhận hủy";
             }
             openModal(cancelModal);
         });

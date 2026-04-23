@@ -7,6 +7,7 @@ Create Date: 2026-04-21 00:00:00.000000
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -18,9 +19,9 @@ depends_on = None
 
 def upgrade():
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    columns = {column["name"] for column in inspector.get_columns("orders")}
-    if "cancel_reason" not in columns:
+    inspector = inspect(bind)
+    existing_columns = {column["name"] for column in inspector.get_columns("orders")}
+    if "cancel_reason" not in existing_columns:
         op.add_column("orders", sa.Column("cancel_reason", sa.String(length=300), nullable=True))
 
 

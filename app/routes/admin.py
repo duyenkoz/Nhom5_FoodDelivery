@@ -8,6 +8,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.services.admin_service import build_admin_context, save_voucher_for_admin
+from app.services.restaurant_service import process_cancel_request_for_admin
 from app.services.shipping_service import get_shipping_fee_settings, save_shipping_fee_settings
 from app.services.system_setting_service import set_setting
 
@@ -29,8 +30,25 @@ def _render_admin(section_name):
 
     query = request.args.get("q", "").strip()
     role_filter = request.args.get("role", "all").strip() or "all"
+    type_filter = request.args.get("type", "all").strip() or "all"
+    state_filter = request.args.get("state", "all").strip() or "all"
+    period = request.args.get("period", "month").strip() or "month"
+    report_date = request.args.get("date", "").strip()
+    report_month = request.args.get("month", "").strip()
+    report_year = request.args.get("year", "").strip()
     page = request.args.get("page", default=1, type=int)
-    context = build_admin_context(section_name, query=query, role_filter=role_filter, page=page)
+    context = build_admin_context(
+        section_name,
+        query=query,
+        role_filter=role_filter,
+        type_filter=type_filter,
+        state_filter=state_filter,
+        period=period,
+        report_date=report_date,
+        report_month=report_month,
+        report_year=report_year,
+        page=page,
+    )
     return render_template(
         "admin/dashboard.html",
         show_search=False,
@@ -106,6 +124,11 @@ def review_reports():
 @bp.route("/disputes")
 def disputes():
     return _render_admin("disputes")
+
+
+@bp.route("/reports")
+def reports():
+    return _render_admin("reports")
 
 
 @bp.route("/search-settings", methods=["GET", "POST", "PUT"])
@@ -320,6 +343,54 @@ def delete_reported_review(review_id):
     db.session.commit()
     flash("Đã xoá đánh giá khỏi hệ thống.", "success")
     return redirect(url_for("admin.review_reports", **request.args))
+
+
+@bp.route("/cancel-requests/<int:order_id>/approve", methods=["POST"])
+def approve_cancel_request(order_id):
+    if not _require_admin():
+        return _login_redirect()
+
+    note = _clean_text(request.form.get("note"))
+    order, status, _ = process_cancel_request_for_admin(
+        order_id,
+        approved=True,
+        admin_user_id=session.get("user_id"),
+        admin_note=note,
+    )
+    if not order:
+        flash("Không tìm thấy đơn hàng có yêu cầu hủy.", "error")
+    elif status == "no_pending_request":
+        flash("Đơn hàng này không còn yêu cầu hủy đang chờ duyệt.", "warning")
+    elif status in {"refund_pending", "cancelled"}:
+        flash(f"Đã duyệt yêu cầu hủy đơn #{order.order_id}.", "success")
+    else:
+        flash("Không thể duyệt yêu cầu hủy lúc này.", "error")
+
+    return redirect(url_for("admin.disputes", **request.args))
+
+
+@bp.route("/cancel-requests/<int:order_id>/reject", methods=["POST"])
+def reject_cancel_request(order_id):
+    if not _require_admin():
+        return _login_redirect()
+
+    note = _clean_text(request.form.get("note"))
+    order, status, _ = process_cancel_request_for_admin(
+        order_id,
+        approved=False,
+        admin_user_id=session.get("user_id"),
+        admin_note=note,
+    )
+    if not order:
+        flash("Không tìm thấy đơn hàng có yêu cầu hủy.", "error")
+    elif status == "no_pending_request":
+        flash("Đơn hàng này không còn yêu cầu hủy đang chờ duyệt.", "warning")
+    elif status == "rejected":
+        flash(f"Đã từ chối yêu cầu hủy đơn #{order.order_id}.", "success")
+    else:
+        flash("Không thể từ chối yêu cầu hủy lúc này.", "error")
+
+    return redirect(url_for("admin.disputes", **request.args))
 
 
 def _clean_text(value):
