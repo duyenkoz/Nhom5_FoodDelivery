@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.datetime_types import VietnamDateTime
+from app.utils.time_utils import vietnam_now
 
 
 class Order(db.Model):
@@ -9,8 +9,8 @@ class Order(db.Model):
     order_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.customer_id"), nullable=True)
     voucher_id = db.Column(db.Integer, db.ForeignKey("vouchers.voucher_id"), nullable=True)
-    order_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
-    shipping_at = db.Column(db.DateTime, nullable=True)
+    order_date = db.Column(VietnamDateTime(), default=vietnam_now, nullable=True)
+    shipping_at = db.Column(VietnamDateTime(), nullable=True)
     total_amount = db.Column(db.Integer, nullable=True)
     delivery_fee = db.Column(db.Integer, nullable=True)
     delivery_address = db.Column(db.String(200), nullable=True)
@@ -30,3 +30,4 @@ class Order(db.Model):
     restaurant = db.relationship("Restaurant", back_populates="orders")
     items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     payment = db.relationship("Payment", back_populates="order", uselist=False)
+    review = db.relationship("Review", back_populates="order", uselist=False)

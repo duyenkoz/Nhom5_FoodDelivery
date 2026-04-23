@@ -9,6 +9,7 @@ class Review(db.Model):
     review_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.customer_id"), nullable=True)
     restaurant_id = db.Column(db.Integer, db.ForeignKey("restaurants.restaurant_id"), nullable=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.order_id"), nullable=True, unique=True)
     rating = db.Column(db.Integer, nullable=True)
     comment = db.Column(db.String(500), nullable=True)
     sentiment = db.Column(db.String(50), nullable=True)
@@ -23,3 +24,4 @@ class Review(db.Model):
 
     customer = db.relationship("Customer", back_populates="reviews")
     restaurant = db.relationship("Restaurant", back_populates="reviews")
+    order = db.relationship("Order", back_populates="review", uselist=False)

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from flask import redirect, session, url_for
 from sqlalchemy import inspect, text
@@ -18,7 +18,7 @@ from app.services.shipping_service import (
     get_shipping_fee_quote,
 )
 from app.services.restaurant_service import infer_category, infer_image_path
-from app.utils.time_utils import vietnam_today
+from app.utils.time_utils import vietnam_now, vietnam_today
 
 DEFAULT_DELIVERY_FEE = 15000
 DEFAULT_DEMO_ITEM_COUNT = 3
@@ -370,6 +370,8 @@ def _session_payload_expired(pending_checkout):
         expiry = datetime.fromisoformat(expires_at)
     except ValueError:
         return False
+    if expiry.tzinfo is not None:
+        expiry = expiry.astimezone(timezone.utc).replace(tzinfo=None)
     return datetime.utcnow() >= expiry
 
 
@@ -412,7 +414,7 @@ def _expire_pending_momo_order(order_id):
         return None
     if (order.status or "").lower() not in {"pending_payment", "chờ thanh toán"}:
         return order
-    if order.order_date and datetime.utcnow() > order.order_date + timedelta(minutes=10):
+    if order.order_date and vietnam_now() > order.order_date + timedelta(minutes=10):
         order.status = "cancelled"
         if order.payment:
             order.payment.status = "cancelled"
@@ -895,7 +897,7 @@ def create_order_from_snapshot(
     order = Order(
         customer_id=customer.user_id,
         voucher_id=voucher.voucher_id if voucher else None,
-        order_date=datetime.utcnow(),
+        order_date=vietnam_now(),
         total_amount=total_amount,
         delivery_fee=delivery_fee,
         delivery_address=delivery_address,

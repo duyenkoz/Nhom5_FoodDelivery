@@ -6,6 +6,7 @@ from app.services.notification_service import (
     build_restaurant_order_completed_notification,
     emit_structured_notification,
 )
+from app.utils.time_utils import vietnam_now
 
 
 def refresh_simulated_order_state(order):
@@ -13,7 +14,7 @@ def refresh_simulated_order_state(order):
         return order
 
     raw_status = (order.status or "").strip().lower()
-    now = datetime.utcnow()
+    now = vietnam_now()
     changed = False
     shipping_started_at = getattr(order, "shipping_at", None) or order.order_date
 
