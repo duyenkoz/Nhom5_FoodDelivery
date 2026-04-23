@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
@@ -647,6 +647,8 @@ def checkout_momo():
         try:
             expiry = datetime.fromisoformat(pending_checkout.get("expires_at")) if pending_checkout.get("expires_at") else None
             if expiry:
+                if expiry.tzinfo is not None:
+                    expiry = expiry.astimezone(timezone.utc).replace(tzinfo=None)
                 remaining_seconds = max(0, int((expiry - datetime.utcnow()).total_seconds()))
         except ValueError:
             remaining_seconds = 0

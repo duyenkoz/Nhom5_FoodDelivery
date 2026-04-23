@@ -27,7 +27,7 @@ from app.services.notification_service import (
     emit_structured_notification,
     emit_structured_notifications_to_users,
 )
-from app.utils.time_utils import format_vietnam_date, format_vietnam_datetime, to_vietnam_datetime, vietnam_today
+from app.utils.time_utils import format_vietnam_date, format_vietnam_datetime, to_vietnam_datetime, vietnam_now, vietnam_today
 
 
 CATEGORY_RULES = [
@@ -206,7 +206,7 @@ def _build_restaurant_order_view(order, note_map=None):
     shipping_started_at = getattr(order, "shipping_at", None) or order.order_date
     shipping_remaining_seconds = 0
     if status_info["key"] == "shipping" and shipping_started_at:
-        shipping_remaining_seconds = max(0, int((shipping_started_at + timedelta(minutes=1) - datetime.utcnow()).total_seconds()))
+        shipping_remaining_seconds = max(0, int((shipping_started_at + timedelta(minutes=1) - vietnam_now()).total_seconds()))
     return {
         "order": order,
         "order_code": _format_order_code(order.order_id),
@@ -1913,7 +1913,7 @@ def _mark_cancel_request_pending(order, reason=""):
     resolved_reason = _clean(reason)
     order.cancel_request_status = "pending"
     order.cancel_request_reason = resolved_reason or "Nhà hàng đề nghị hủy đơn."
-    order.cancel_request_date = datetime.utcnow()
+    order.cancel_request_date = vietnam_now()
     order.cancel_request_handled_at = None
     order.cancel_request_handled_by = None
     order.cancel_request_admin_note = None
@@ -1937,8 +1937,8 @@ def _apply_order_cancellation(order, reason="", handled_by=None, admin_note=""):
     order.cancel_reason = resolved_reason or order.cancel_reason or "Không có lý do cụ thể."
     order.cancel_request_status = "approved"
     order.cancel_request_reason = resolved_reason or order.cancel_request_reason
-    order.cancel_request_date = order.cancel_request_date or datetime.utcnow()
-    order.cancel_request_handled_at = datetime.utcnow()
+    order.cancel_request_date = order.cancel_request_date or vietnam_now()
+    order.cancel_request_handled_at = vietnam_now()
     order.cancel_request_handled_by = handled_by
     order.cancel_request_admin_note = _clean(admin_note) or None
     return next_status, resolved_reason
@@ -1962,7 +1962,7 @@ def complete_order_for_restaurant(user_id, order_id):
         return order, current_status or "invalid"
 
     order.status = "shipping"
-    order.shipping_at = datetime.utcnow()
+    order.shipping_at = vietnam_now()
     db.session.commit()
     return order, "shipping"
 
@@ -2119,7 +2119,7 @@ def process_cancel_request_for_admin(order_id, approved, admin_user_id, admin_no
 
     if not approved:
         order.cancel_request_status = "rejected"
-        order.cancel_request_handled_at = datetime.utcnow()
+        order.cancel_request_handled_at = vietnam_now()
         order.cancel_request_handled_by = admin_user_id
         order.cancel_request_admin_note = _clean(admin_note) or "Admin đã từ chối yêu cầu hủy."
         db.session.commit()

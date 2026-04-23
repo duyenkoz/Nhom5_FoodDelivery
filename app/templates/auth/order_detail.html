@@ -8,6 +8,8 @@
 {% endblock %}
 
 {% block content %}
+{% set review_preview_items = item_rows[:1] %}
+{% set review_extra_items = item_rows[1:] %}
 <div class="checkout-page order-detail-page">
     <div class="checkout-page__heading order-detail-page__heading">
         <a class="order-detail-page__back" href="{{ url_for('auth.orders') }}">
@@ -119,7 +121,11 @@
             <div class="order-detail-summary__card order-detail-summary__card--review">
                 <h3>Đánh giá và đặt lại</h3>
                 <div class="order-detail-summary__actions">
-                    <button type="button" class="order-detail-review-btn">Đánh giá</button>
+                    {% if review_exists %}
+                    <button type="button" class="order-detail-review-btn order-detail-review-btn--done" disabled aria-disabled="true">Đã đánh giá</button>
+                    {% elif can_review %}
+                    <button type="button" class="order-detail-review-btn" data-open-order-review-modal>Đánh giá</button>
+                    {% endif %}
                     <form method="post" action="{{ url_for('auth.reorder_order', order_id=order.order_id) }}">
                         <button type="submit" class="order-detail-review-btn order-detail-review-btn--secondary">Đặt lại</button>
                     </form>
@@ -127,6 +133,108 @@
             </div>
         </aside>
     </div>
+
+    {% if can_review %}
+    <div
+        class="order-review-modal"
+        id="orderReviewModal"
+        data-open-on-load="{% if open_review_modal %}true{% else %}false{% endif %}"
+        aria-hidden="{% if open_review_modal %}false{% else %}true{% endif %}"
+        {% if not open_review_modal %}hidden{% endif %}
+    >
+        <div class="order-review-modal__backdrop" data-close-order-review-modal></div>
+        <div class="order-review-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="orderReviewModalTitle">
+            <button type="button" class="order-review-modal__close" data-close-order-review-modal aria-label="Đóng">×</button>
+            <div class="order-review-modal__header">
+                <div class="order-review-modal__header-copy">
+                    <h2 id="orderReviewModalTitle">Đánh giá đơn hàng</h2>
+                    <p>Mã đơn hàng #{{ order.order_id }}</p>
+                </div>
+                <div class="order-review-modal__restaurant">
+                    <div class="order-review-modal__restaurant-meta">
+                        <strong>{{ restaurant_name }}</strong>
+                        <span>{{ restaurant_address or 'Chưa có địa chỉ nhà hàng' }}</span>
+                    </div>
+                    <div class="order-review-modal__restaurant-image">
+                        {% if restaurant_image_url %}
+                        <img src="{{ restaurant_image_url }}" alt="{{ restaurant_name }}">
+                        {% else %}
+                        <div class="order-review-modal__restaurant-image-fallback">{{ restaurant_name[:1] if restaurant_name else 'R' }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-review-modal__body">
+                <section class="order-review-modal__items-card" aria-labelledby="orderReviewItemsTitle">
+                    <div class="order-review-modal__items-card-header">
+                        <div>
+                            <h3 id="orderReviewItemsTitle">Món đã đặt</h3>
+                        </div>
+                        {% if review_extra_items %}
+                        <button
+                            type="button"
+                            class="order-review-modal__more"
+                            data-review-more-toggle
+                            aria-expanded="false"
+                            aria-controls="reviewExtraItems"
+                        >Xem thêm</button>
+                        {% endif %}
+                    </div>
+
+                    <div class="order-review-modal__items-stack">
+                        <div class="order-review-modal__items-list">
+                            {% for item in review_preview_items %}
+                            <div class="order-review-modal__item order-review-modal__item--preview">
+                                <span class="order-review-modal__item-name">{{ item.name }} x{{ item.quantity }}</span>
+                                <strong>{{ "{:,}".format(item.price or 0) }}đ</strong>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        {% if review_extra_items %}
+                        <div class="order-review-modal__extra-items" id="reviewExtraItems" hidden data-review-extra-items>
+                            {% for item in review_extra_items %}
+                            <div class="order-review-modal__item">
+                                <span class="order-review-modal__item-name">{{ item.name }} x{{ item.quantity }}</span>
+                                <strong>{{ "{:,}".format(item.price or 0) }}đ</strong>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <form method="post" action="{{ url_for('auth.submit_order_review', order_id=order.order_id) }}" class="order-review-modal__form">
+                    <div class="order-review-modal__section">
+                        <h3>Chất lượng món ăn &amp; dịch vụ</h3>
+                        <div class="order-review-modal__rating" data-order-review-rating>
+                            <input type="hidden" name="rating" value="5" data-order-review-rating-input>
+                            {% for rating_value in [1, 2, 3, 4, 5] %}
+                            <button
+                                type="button"
+                                class="order-review-modal__star"
+                                data-review-rating-value="{{ rating_value }}"
+                                aria-label="{{ rating_value }} sao"
+                            >★</button>
+                            {% endfor %}
+                        </div>
+                        <small class="order-review-modal__hint">Vui lòng chọn số sao</small>
+                    </div>
+
+                    <div class="order-review-modal__section">
+                        <h3>Viết đánh giá</h3>
+                        <textarea name="comment" rows="6" maxlength="500" placeholder="Chia sẻ trải nghiệm của bạn về món ăn và dịch vụ tại đây...."></textarea>
+                    </div>
+
+                    <div class="order-review-modal__footer">
+                        <button type="submit" class="order-review-modal__submit">Gửi đánh giá</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% else %}
     <div class="order-detail-layout">
         <section class="order-detail-card">
@@ -310,6 +418,115 @@
         sessionStorage.setItem(autoReloadScrollKey, "1");
         window.location.reload();
     });
+})();
+
+(function () {
+    const modal = document.getElementById("orderReviewModal");
+    if (!modal) {
+        return;
+    }
+
+    const openButtons = document.querySelectorAll("[data-open-order-review-modal]");
+    const closeButtons = modal.querySelectorAll("[data-close-order-review-modal]");
+    const ratingWrap = modal.querySelector("[data-order-review-rating]");
+    const ratingInput = modal.querySelector("[data-order-review-rating-input]");
+    const ratingButtons = modal.querySelectorAll("[data-review-rating-value]");
+    const moreToggle = modal.querySelector("[data-review-more-toggle]");
+    const extraItems = modal.querySelector("[data-review-extra-items]");
+
+    function setRating(value) {
+        const nextValue = Number(value) || 5;
+        if (ratingInput) {
+            ratingInput.value = String(nextValue);
+        }
+        ratingButtons.forEach((button) => {
+            const buttonValue = Number(button.dataset.reviewRatingValue || 0);
+            button.classList.toggle("is-active", buttonValue <= nextValue);
+            button.setAttribute("aria-pressed", buttonValue === nextValue ? "true" : "false");
+        });
+        if (ratingWrap) {
+            ratingWrap.dataset.selectedRating = String(nextValue);
+        }
+    }
+
+    function openModal() {
+        modal.hidden = false;
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("is-modal-open");
+        setRating(ratingInput ? ratingInput.value : 5);
+    }
+
+    function closeModal() {
+        modal.hidden = true;
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("is-modal-open");
+    }
+
+    function toggleExtraItems() {
+        if (!extraItems || !moreToggle) {
+            return;
+        }
+
+        const isExpanded = extraItems.classList.contains("is-open");
+        if (isExpanded) {
+            extraItems.classList.remove("is-open");
+            moreToggle.setAttribute("aria-expanded", "false");
+            moreToggle.textContent = "Xem thêm";
+            window.setTimeout(() => {
+                if (!extraItems.classList.contains("is-open")) {
+                    extraItems.hidden = true;
+                }
+            }, 220);
+            return;
+        }
+
+        extraItems.hidden = false;
+        requestAnimationFrame(() => {
+            extraItems.classList.add("is-open");
+        });
+        moreToggle.setAttribute("aria-expanded", "true");
+        moreToggle.textContent = "Thu gọn";
+    }
+
+    openButtons.forEach((button) => {
+        button.addEventListener("click", openModal);
+    });
+
+    closeButtons.forEach((button) => {
+        button.addEventListener("click", closeModal);
+    });
+
+    ratingButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            setRating(button.dataset.reviewRatingValue);
+        });
+    });
+
+    if (moreToggle) {
+        moreToggle.addEventListener("click", toggleExtraItems);
+    }
+
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal || event.target.closest("[data-close-order-review-modal]")) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !modal.hidden) {
+            closeModal();
+        }
+    });
+
+    if (modal.dataset.openOnLoad === "true") {
+        openModal();
+    } else {
+        setRating(ratingInput ? ratingInput.value : 5);
+    }
+
+    if (extraItems) {
+        extraItems.hidden = true;
+    }
 })();
 </script>
 {% endblock %}

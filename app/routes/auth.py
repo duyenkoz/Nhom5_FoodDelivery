@@ -18,6 +18,7 @@ from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
+from app.models.review import Review
 from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.models.voucher import Voucher
@@ -63,7 +64,7 @@ from app.services.password_reset_service_fixed import RESEND_COOLDOWN_SECONDS
 from app.services.location_service import resolve_address
 from app.services.restaurant_service import infer_category, infer_image_path
 from app.services.order_state_service import refresh_simulated_order_state
-from app.utils.time_utils import format_vietnam_datetime
+from app.utils.time_utils import format_vietnam_datetime, vietnam_now
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 oauth_bp = Blueprint("oauth", __name__)
@@ -406,8 +407,54 @@ def _countdown_seconds(order, minutes, reference_time=None):
     reference_time = reference_time or (order.order_date if order else None)
     if not order or not reference_time:
         return 0
-    remaining = int((reference_time + timedelta(minutes=minutes) - datetime.utcnow()).total_seconds())
+    remaining = int((reference_time + timedelta(minutes=minutes) - vietnam_now()).total_seconds())
     return max(0, remaining)
+
+
+def _review_sentiment_from_rating(rating):
+    if rating >= 4:
+        return "positive"
+    if rating <= 2:
+        return "negative"
+    return "neutral"
+
+
+def _order_review_deadline(order):
+    shipping_at = getattr(order, "shipping_at", None)
+    if not order or not shipping_at:
+        return None
+    return shipping_at + timedelta(hours=24)
+
+
+def _is_review_allowed_for_order(order):
+    if not order:
+        return False
+
+    if (order.status or "").strip().lower() != "completed":
+        return False
+
+    if not getattr(order, "shipping_at", None):
+        return False
+
+    deadline = _order_review_deadline(order)
+    return bool(deadline and vietnam_now() <= deadline)
+
+
+def _build_order_review_state(order):
+    review = getattr(order, "review", None) if order else None
+    if order and review is None:
+        review = Review.query.filter_by(order_id=order.order_id).one_or_none()
+
+    deadline = _order_review_deadline(order)
+    review_expired = bool(not deadline or vietnam_now() > deadline)
+
+    return {
+        "review": review,
+        "review_exists": bool(review),
+        "can_review": bool(order and not review and _is_review_allowed_for_order(order)),
+        "review_expired": review_expired,
+        "review_deadline": deadline,
+    }
 
 
 def _order_card_view(order):
@@ -893,6 +940,7 @@ def order_detail(order_id):
             selectinload(Order.restaurant).selectinload(Restaurant.user),
             selectinload(Order.voucher),
             selectinload(Order.customer).selectinload(Customer.user),
+            selectinload(Order.review),
         )
         .filter_by(order_id=order_id, customer_id=customer_id)
         .one_or_none()
@@ -903,6 +951,7 @@ def order_detail(order_id):
 
     _refresh_simulated_order_state(order)
     status_info = _normalize_order_status(order)
+    review_state = _build_order_review_state(order)
     payment_remaining_seconds = _countdown_seconds(order, 10) if status_info["step_key"] == "payment" else 0
     shipping_started_at = getattr(order, "shipping_at", None) or order.order_date
     shipping_remaining_seconds = _countdown_seconds(order, 1, reference_time=shipping_started_at) if status_info["step_key"] == "shipping" else 0
@@ -1016,9 +1065,83 @@ def order_detail(order_id):
         shipper_name="Shipper" if status_info["step_key"] in {"preparing", "shipping", "delivered"} else "",
         payment_remaining_seconds=payment_remaining_seconds,
         shipping_remaining_seconds=shipping_remaining_seconds,
+        restaurant_image_url=_image_url(order.restaurant.image if order.restaurant else ""),
+        review=review_state["review"],
+        review_exists=review_state["review_exists"],
+        can_review=review_state["can_review"],
+        review_expired=review_state["review_expired"],
+        review_deadline=review_state["review_deadline"],
+        open_review_modal=request.args.get("review") == "1",
         show_search=True,
         show_auth=False,
     )
+
+
+@bp.route("/orders/<int:order_id>/review", methods=["POST"])
+def submit_order_review(order_id):
+    access_redirect = _require_customer_access()
+    if access_redirect:
+        return access_redirect
+
+    order = (
+        Order.query.options(
+            selectinload(Order.review),
+            selectinload(Order.restaurant).selectinload(Restaurant.user),
+        )
+        .filter_by(order_id=order_id, customer_id=session.get("user_id"))
+        .one_or_none()
+    )
+    if not order:
+        flash("Không tìm thấy đơn hàng để đánh giá.", "warning")
+        return redirect(url_for("auth.orders"))
+
+    _refresh_simulated_order_state(order)
+    review_state = _build_order_review_state(order)
+    if review_state["review_exists"]:
+        flash("Đơn hàng này đã được đánh giá trước đó.", "warning")
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
+
+    if not review_state["can_review"]:
+        flash("Đơn hàng chỉ có thể đánh giá trong vòng 24 giờ sau khi giao thành công.", "warning")
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
+
+    rating_raw = request.form.get("rating")
+    comment = (request.form.get("comment") or "").strip()
+    form_errors = {}
+
+    try:
+        rating = int(rating_raw)
+    except (TypeError, ValueError):
+        rating = 0
+
+    if rating < 1 or rating > 5:
+        form_errors["rating"] = "Vui lòng chọn số sao từ 1 đến 5."
+    if comment and len(comment) > 500:
+        form_errors["comment"] = "Nội dung đánh giá không được vượt quá 500 ký tự."
+
+    if form_errors:
+        flash("Vui lòng kiểm tra lại thông tin đánh giá.", "warning")
+        return redirect(url_for("auth.order_detail", order_id=order.order_id, review=1))
+
+    existing_review = Review.query.filter_by(order_id=order.order_id).one_or_none()
+    if existing_review:
+        flash("Đơn hàng này đã được đánh giá trước đó.", "warning")
+        return redirect(url_for("auth.order_detail", order_id=order.order_id))
+
+    review = Review(
+        customer_id=order.customer_id,
+        restaurant_id=order.restaurant_id,
+        order_id=order.order_id,
+        rating=rating,
+        comment=comment or None,
+        sentiment=_review_sentiment_from_rating(rating),
+        review_date=vietnam_now(),
+    )
+    db.session.add(review)
+    db.session.commit()
+
+    flash("Đã gửi đánh giá thành công.", "success")
+    return redirect(url_for("auth.order_detail", order_id=order.order_id))
 
 
 def _build_reorder_checkout_payload(order):
