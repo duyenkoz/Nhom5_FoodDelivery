@@ -20,7 +20,7 @@
 {% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
 {% set open_modal = edit_dish or form_errors %}
 
-<div class="restaurant-page">
+<div class="restaurant-page restaurant-menu-page">
     <aside class="restaurant-page__sidebar">
         <div class="restaurant-card restaurant-profile">
             <div class="restaurant-profile__cover">
@@ -52,7 +52,7 @@
     </aside>
 
     <main class="restaurant-page__content">
-        <section class="restaurant-top-panel">
+        <div class="restaurant-menu-panel">
             <section class="restaurant-hero">
                 <div class="restaurant-hero__copy">
                     <h1>Thực đơn nhà hàng</h1>
@@ -60,32 +60,32 @@
                 </div>
             </section>
 
-            <section class="restaurant-section">
-                <div class="restaurant-section__stats">
-                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+            <section class="restaurant-section__card restaurant-section__card--stats restaurant-menu-stats-card">
+                <div class="restaurant-section__stats restaurant-menu-stats">
+                    <article class="restaurant-stat restaurant-stat--compact">
                         <span>Tổng món</span>
                         <strong>{{ stats.total or 0 }}</strong>
                     </article>
-                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                    <article class="restaurant-stat restaurant-stat--compact">
                         <span>Đang bán</span>
                         <strong>{{ stats.active or 0 }}</strong>
                     </article>
-                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                    <article class="restaurant-stat restaurant-stat--compact">
                         <span>Hết món</span>
                         <strong>{{ stats.inactive or 0 }}</strong>
                     </article>
-                    <article class="restaurant-section__card restaurant-section__card--stats restaurant-stat--compact">
+                    <article class="restaurant-stat restaurant-stat--compact">
                         <span>Danh mục</span>
                         <strong>{{ stats.categories or 0 }}</strong>
                     </article>
                 </div>
-                <div class="restaurant-order-table__summary">
+            </section>
+
+            <section class="restaurant-toolbar restaurant-menu-toolbar" id="menu-toolbar">
+                <div class="restaurant-menu-toolbar__summary">
                     <span>Đang hiển thị {{ stats.filtered or 0 }} món theo bộ lọc hiện tại</span>
                     <span>Tổng kho món của nhà hàng: {{ stats.total or 0 }} món</span>
                 </div>
-            </section>
-
-            <section class="restaurant-toolbar" id="menu-toolbar">
                 <form class="restaurant-toolbar__main-form" method="get" action="{{ url_for('restaurant.dashboard') }}" id="toolbarForm" data-live-search-form data-live-search-target="#menu-results" autocomplete="off">
                     <div class="restaurant-toolbar__search">
                         <span class="restaurant-toolbar__icon" aria-hidden="true">
@@ -121,9 +121,9 @@
                     <input type="hidden" name="page" value="1">
                 </form>
 
-                <button type="button" class="restaurant-btn restaurant-btn--primary" data-open-form>+ Thêm món</button>
+                <button type="button" class="restaurant-btn restaurant-btn--primary restaurant-menu-toolbar__add" data-open-form>+ Thêm món</button>
             </section>
-        </section>
+        </div>
 
         <section class="restaurant-table-card" id="menu-results">
             <div class="restaurant-table-wrap">

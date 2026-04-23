@@ -183,6 +183,7 @@ def _build_order_item_preview(order_item, note_map=None):
 def _build_restaurant_order_view(order, note_map=None):
     status_info = _normalize_restaurant_order_status(order)
     items = [_build_order_item_preview(item, note_map=note_map) for item in (order.items or [])]
+    order_note = _clean(getattr(order, "note", "") or "")
     payment_method = order.payment.payment_method if order.payment else ""
     payment_method_label = {
         "cash": "Tiền mặt",
@@ -214,6 +215,7 @@ def _build_restaurant_order_view(order, note_map=None):
         "order_date_value": _format_date_input(order.order_date),
         "customer_name": customer_name,
         "delivery_address": order.delivery_address or "",
+        "order_note": order_note,
         "subtotal_amount_text": _format_money_vn(subtotal_amount),
         "delivery_fee_text": _format_money_vn(delivery_fee_amount),
         "discount_amount_text": discount_summary,
@@ -239,6 +241,7 @@ def _build_restaurant_order_view(order, note_map=None):
             "order_date_text": _format_order_datetime(order.order_date),
             "customer_name": customer_name,
             "delivery_address": order.delivery_address or "",
+            "order_note": order_note,
             "subtotal_amount_text": _format_money_vn(subtotal_amount),
             "delivery_fee_text": _format_money_vn(delivery_fee_amount),
             "discount_amount_text": discount_summary,
