@@ -80,6 +80,8 @@
 {% set open_admin_voucher_modal = admin_voucher_form_errors %}
 {% set report_data = report_data|default({}) %}
 {% set report_filters = report_filters|default({}) %}
+{% set review_filters = review_filters|default({}) %}
+{% set review_report_filters = review_report_filters|default({}) %}
 {% set dashboard_chart_data = dashboard_chart_data|default({}) %}
 {% set dashboard_alert_cards = dashboard_alert_cards|default([]) %}
 {% set top_restaurants = top_restaurants|default([]) %}
@@ -558,14 +560,48 @@
         </div>
         {% elif section_name == 'reviews' %}
         <section class="admin-card admin-panel">
-            <div class="admin-panel__header">
+            <div class="admin-panel__header admin-panel__header--filters">
                 <div>
                     <h2>Đánh giá</h2>
                     <p>Duyệt nhanh phản hồi từ khách hàng.</p>
                 </div>
-                <form method="get" action="{{ url_for('admin.reviews') }}" data-live-search-form data-live-search-target="#admin-reviews-results" autocomplete="off">
-                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                <form method="get" action="{{ url_for('admin.reviews') }}" class="admin-review-filter-form" data-live-search-form data-live-search-target="#admin-reviews-results" autocomplete="off">
+                    <div class="admin-filter-group admin-filter-group--search">
+                        <span class="admin-filter-group__label--sr-only">Tìm kiếm</span>
+                        <div class="admin-review-search-row">
+                            <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                            <button class="admin-btn admin-btn--primary admin-review-search-btn" type="submit">Tìm</button>
+                        </div>
+                    </div>
+                    <label class="admin-filter-group">
+                        <span>Từ ngày</span>
+                        <input type="date" name="date_from" value="{{ review_filters.date_from|default('') }}" class="admin-input">
+                    </label>
+                    <label class="admin-filter-group">
+                        <span>Đến ngày</span>
+                        <input type="date" name="date_to" value="{{ review_filters.date_to|default('') }}" class="admin-input">
+                    </label>
+                    <label class="admin-filter-group admin-filter-group--compact">
+                        <span>Cảm xúc</span>
+                        <select name="sentiment" class="admin-select">
+                            <option value="all" {% if review_filters.sentiment|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                            <option value="positive" {% if review_filters.sentiment|default('all') == 'positive' %}selected{% endif %}>Tích cực</option>
+                            <option value="negative" {% if review_filters.sentiment|default('all') == 'negative' %}selected{% endif %}>Tiêu cực</option>
+                        </select>
+                    </label>
+                    <label class="admin-filter-group admin-filter-group--compact">
+                        <span>Số sao</span>
+                        <select name="rating" class="admin-select">
+                            <option value="all" {% if review_filters.rating|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                            {% for star in range(1, 6) %}
+                            <option value="{{ star }}" {% if review_filters.rating|default('all') == star|string %}selected{% endif %}>{{ star }} sao</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div class="admin-actions admin-review-filter-actions">
+                        <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                        <a class="admin-btn admin-btn--ghost" href="{{ url_for('admin.reviews') }}">Xóa lọc</a>
+                    </div>
                 </form>
             </div>
 
@@ -594,21 +630,55 @@
                 <div class="admin-empty">Chưa có đánh giá nào phù hợp.</div>
                 {% endif %}
             </div>
-            {% set reviews_pagination_params = {'q': search_query} %}
+            {% set reviews_pagination_params = {'q': search_query, 'date_from': review_filters.date_from|default(''), 'date_to': review_filters.date_to|default(''), 'sentiment': review_filters.sentiment|default('all'), 'rating': review_filters.rating|default('all')} %}
             {{ render_admin_pagination('admin.reviews', page_info, reviews_pagination_params, 'adminReviewsPageSelect') }}
             </div>
             </div>
         </section>
         {% elif section_name == 'review_reports' %}
         <section class="admin-card admin-panel">
-            <div class="admin-panel__header">
+            <div class="admin-panel__header admin-panel__header--filters">
                 <div>
                     <h2>Báo cáo đánh giá</h2>
                     <p>Các đánh giá bị nhà hàng báo cáo để admin xem xét và xử lý.</p>
                 </div>
-                <form method="get" action="{{ url_for('admin.review_reports') }}" data-live-search-form data-live-search-target="#admin-review-reports-results" autocomplete="off">
-                    <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung báo cáo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <button class="admin-btn admin-btn--primary" type="submit">Tìm</button>
+                <form method="get" action="{{ url_for('admin.review_reports') }}" class="admin-review-filter-form" data-live-search-form data-live-search-target="#admin-review-reports-results" autocomplete="off">
+                    <div class="admin-filter-group admin-filter-group--search">
+                        <span class="admin-filter-group__label--sr-only">Tìm kiếm</span>
+                        <div class="admin-review-search-row">
+                            <input type="search" name="q" class="admin-input" value="{{ search_query }}" placeholder="Tìm nhà hàng, khách, nội dung báo cáo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                            <button class="admin-btn admin-btn--primary admin-review-search-btn" type="submit">Tìm</button>
+                        </div>
+                    </div>
+                    <label class="admin-filter-group">
+                        <span>Từ ngày báo cáo</span>
+                        <input type="date" name="date_from" value="{{ review_report_filters.date_from|default('') }}" class="admin-input">
+                    </label>
+                    <label class="admin-filter-group">
+                        <span>Đến ngày báo cáo</span>
+                        <input type="date" name="date_to" value="{{ review_report_filters.date_to|default('') }}" class="admin-input">
+                    </label>
+                    <label class="admin-filter-group admin-filter-group--compact">
+                        <span>Cảm xúc</span>
+                        <select name="sentiment" class="admin-select">
+                            <option value="all" {% if review_report_filters.sentiment|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                            <option value="positive" {% if review_report_filters.sentiment|default('all') == 'positive' %}selected{% endif %}>Tích cực</option>
+                            <option value="negative" {% if review_report_filters.sentiment|default('all') == 'negative' %}selected{% endif %}>Tiêu cực</option>
+                        </select>
+                    </label>
+                    <label class="admin-filter-group admin-filter-group--compact">
+                        <span>Số sao</span>
+                        <select name="rating" class="admin-select">
+                            <option value="all" {% if review_report_filters.rating|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                            {% for star in range(1, 6) %}
+                            <option value="{{ star }}" {% if review_report_filters.rating|default('all') == star|string %}selected{% endif %}>{{ star }} sao</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div class="admin-actions admin-review-filter-actions">
+                        <button class="admin-btn admin-btn--primary" type="submit">Lọc</button>
+                        <a class="admin-btn admin-btn--ghost" href="{{ url_for('admin.review_reports') }}">Xóa lọc</a>
+                    </div>
                 </form>
             </div>
 
@@ -633,10 +703,10 @@
                         <strong>Ghi chú:</strong> {{ item.report_note }}
                     </div>
                     <div class="admin-actions" style="margin-top: 12px;">
-                        <form method="post" action="{{ url_for('admin.dismiss_review_report', review_id=review.review_id, q=search_query, page=page_info.page) }}">
+                        <form method="post" action="{{ url_for('admin.dismiss_review_report', review_id=review.review_id, q=search_query, date_from=review_report_filters.date_from|default(''), date_to=review_report_filters.date_to|default(''), sentiment=review_report_filters.sentiment|default('all'), rating=review_report_filters.rating|default('all'), page=page_info.page) }}">
                             <button class="admin-btn admin-btn--ghost" type="submit">Bỏ qua báo cáo</button>
                         </form>
-                        <form method="post" action="{{ url_for('admin.delete_reported_review', review_id=review.review_id, q=search_query, page=page_info.page) }}">
+                        <form method="post" action="{{ url_for('admin.delete_reported_review', review_id=review.review_id, q=search_query, date_from=review_report_filters.date_from|default(''), date_to=review_report_filters.date_to|default(''), sentiment=review_report_filters.sentiment|default('all'), rating=review_report_filters.rating|default('all'), page=page_info.page) }}">
                             <button class="admin-btn admin-btn--primary" type="submit">Xoá đánh giá</button>
                         </form>
                     </div>
@@ -646,7 +716,7 @@
                 <div class="admin-empty">Chưa có báo cáo đánh giá nào đang chờ xử lý.</div>
                 {% endif %}
             </div>
-            {% set review_reports_pagination_params = {'q': search_query} %}
+            {% set review_reports_pagination_params = {'q': search_query, 'date_from': review_report_filters.date_from|default(''), 'date_to': review_report_filters.date_to|default(''), 'sentiment': review_report_filters.sentiment|default('all'), 'rating': review_report_filters.rating|default('all')} %}
             {{ render_admin_pagination('admin.review_reports', page_info, review_reports_pagination_params, 'adminReviewReportsPageSelect') }}
             </div>
             </div>

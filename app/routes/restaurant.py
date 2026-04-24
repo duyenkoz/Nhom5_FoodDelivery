@@ -42,8 +42,10 @@ def _render_section(section_name):
         query=request.args.get("q", "").strip(),
         order_status=request.args.get("status", "all").strip() or "all",
         sort=request.args.get("sort", "desc").strip() or "desc",
-        date_from=request.args.get("start", "").strip(),
-        date_to=request.args.get("end", "").strip(),
+        date_from=request.args.get("date_from", request.args.get("start", "")).strip(),
+        date_to=request.args.get("date_to", request.args.get("end", "")).strip(),
+        review_sentiment=request.args.get("sentiment", "all").strip() or "all",
+        review_rating=request.args.get("rating", "all").strip() or "all",
         focus_order_id=request.args.get("focus", type=int),
         page=request.args.get("page", default=1, type=int),
         analytics_period=request.args.get("period", "month").strip() or "month",
@@ -392,6 +394,11 @@ def reviews():
     context = build_section_context(
         session.get("user_id"),
         "reviews",
+        query=request.args.get("q", "").strip(),
+        date_from=request.args.get("date_from", "").strip(),
+        date_to=request.args.get("date_to", "").strip(),
+        review_sentiment=request.args.get("sentiment", "all").strip() or "all",
+        review_rating=request.args.get("rating", "all").strip() or "all",
         page=request.args.get("page", default=1, type=int),
     )
     if context["restaurant"] is None:

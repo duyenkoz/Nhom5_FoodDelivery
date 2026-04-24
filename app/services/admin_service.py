@@ -75,6 +75,10 @@ def _format_datetime(value):
     return format_vietnam_datetime(value) if value else ""
 
 
+def _format_db_datetime(value, fmt="%d/%m/%Y %H:%M"):
+    return value.strftime(fmt) if value else ""
+
+
 def _format_date(value):
     return format_vietnam_date(value) if value else ""
 
@@ -486,7 +490,7 @@ def _build_review_item(review):
         "review": review,
         "restaurant_name": restaurant_name,
         "customer_name": customer_name,
-        "created_at": _format_datetime(review.review_date),
+        "created_at": _format_db_datetime(review.review_date),
         "rating_label": f"{review.rating or 0}/5",
         "report_status": review.report_status or "none",
         "report_reason": review.report_reason or "",
@@ -494,12 +498,93 @@ def _build_review_item(review):
     }
 
 
-def _build_reviews(query="", page=1, per_page=10):
-    reviews = Review.query.order_by(Review.review_date.desc()).all()
+def _normalize_review_sentiment_filter(value):
+    normalized = _clean(value).lower() or "all"
+    return normalized if normalized in {"all", "positive", "negative"} else "all"
+
+
+def _normalize_review_rating_filter(value):
+    normalized = _clean(value)
+    if not normalized:
+        return "all"
+    try:
+        rating = int(normalized)
+    except (TypeError, ValueError):
+        return "all"
+    return str(rating) if 1 <= rating <= 5 else "all"
+
+
+def _normalize_review_date_range(date_from="", date_to=""):
+    start_date = _parse_iso_date(date_from)
+    end_date = _parse_iso_date(date_to)
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
+def _effective_review_sentiment(review):
+    sentiment = _clean(getattr(review, "sentiment", "")).lower()
+    if sentiment in {"positive", "negative", "neutral"}:
+        return sentiment
+
+    rating = review.rating or 0
+    if rating >= 4:
+        return "positive"
+    if rating <= 2:
+        return "negative"
+    return "neutral"
+
+
+def _review_passes_filters(review, query_values, query="", start_date=None, end_date=None, sentiment="all", rating="all", date_field="review_date"):
+    if not _match_query(*query_values, query=query):
+        return False
+
+    review_date = getattr(review, date_field, None)
+    if start_date or end_date:
+        if not review_date:
+            return False
+        review_day = review_date.date()
+        if start_date and review_day < start_date:
+            return False
+        if end_date and review_day > end_date:
+            return False
+
+    normalized_sentiment = _effective_review_sentiment(review)
+    normalized_sentiment_filter = _normalize_review_sentiment_filter(sentiment)
+    if normalized_sentiment_filter != "all" and normalized_sentiment != normalized_sentiment_filter:
+        return False
+
+    normalized_rating_filter = _normalize_review_rating_filter(rating)
+    if normalized_rating_filter != "all" and (review.rating or 0) != int(normalized_rating_filter):
+        return False
+
+    return True
+
+
+def _build_reviews(query="", date_from="", date_to="", sentiment="all", rating="all", page=1, per_page=10):
+    start_date, end_date = _normalize_review_date_range(date_from, date_to)
+    normalized_sentiment = _normalize_review_sentiment_filter(sentiment)
+    normalized_rating = _normalize_review_rating_filter(rating)
+    reviews = (
+        Review.query.options(
+            selectinload(Review.restaurant).selectinload(Restaurant.user),
+            selectinload(Review.customer).selectinload(Customer.user),
+        )
+        .order_by(Review.review_date.desc(), Review.review_id.desc())
+        .all()
+    )
     items = []
     for review in reviews:
         item = _build_review_item(review)
-        if _match_query(review.comment, review.sentiment, item["restaurant_name"], item["customer_name"], query=query):
+        if _review_passes_filters(
+            review,
+            (review.comment, review.sentiment, item["restaurant_name"], item["customer_name"]),
+            query=query,
+            start_date=start_date,
+            end_date=end_date,
+            sentiment=normalized_sentiment,
+            rating=normalized_rating,
+        ):
             items.append(item)
 
     stats = {
@@ -511,6 +596,12 @@ def _build_reviews(query="", page=1, per_page=10):
         "records": _paginate(items, page=page, per_page=per_page, item_label="đánh giá"),
         "stats": stats,
         "search_query": query,
+        "review_filters": {
+            "date_from": start_date.isoformat() if start_date else "",
+            "date_to": end_date.isoformat() if end_date else "",
+            "sentiment": normalized_sentiment,
+            "rating": normalized_rating,
+        },
         "section_title": 'Quản lý đánh giá',
         "section_subtitle": 'Duyệt nhanh các đánh giá gần đây từ khách hàng.',
     }
@@ -523,12 +614,32 @@ def _build_report_item(review):
     return item
 
 
-def _build_review_reports(query="", page=1, per_page=10):
-    reviews = Review.query.filter(Review.report_status == "pending").order_by(Review.report_date.desc(), Review.review_date.desc()).all()
+def _build_review_reports(query="", date_from="", date_to="", sentiment="all", rating="all", page=1, per_page=10):
+    start_date, end_date = _normalize_review_date_range(date_from, date_to)
+    normalized_sentiment = _normalize_review_sentiment_filter(sentiment)
+    normalized_rating = _normalize_review_rating_filter(rating)
+    reviews = (
+        Review.query.options(
+            selectinload(Review.restaurant).selectinload(Restaurant.user),
+            selectinload(Review.customer).selectinload(Customer.user),
+        )
+        .filter(Review.report_status == "pending")
+        .order_by(Review.report_date.desc(), Review.review_date.desc(), Review.review_id.desc())
+        .all()
+    )
     items = []
     for review in reviews:
         item = _build_report_item(review)
-        if _match_query(review.comment, review.report_reason, item["restaurant_name"], item["customer_name"], query=query):
+        if _review_passes_filters(
+            review,
+            (review.comment, review.report_reason, item["restaurant_name"], item["customer_name"]),
+            query=query,
+            start_date=start_date,
+            end_date=end_date,
+            sentiment=normalized_sentiment,
+            rating=normalized_rating,
+            date_field="report_date",
+        ):
             items.append(item)
 
     stats = {
@@ -539,6 +650,12 @@ def _build_review_reports(query="", page=1, per_page=10):
         "records": _paginate(items, page=page, per_page=per_page, item_label="báo cáo"),
         "stats": stats,
         "search_query": query,
+        "review_report_filters": {
+            "date_from": start_date.isoformat() if start_date else "",
+            "date_to": end_date.isoformat() if end_date else "",
+            "sentiment": normalized_sentiment,
+            "rating": normalized_rating,
+        },
         "section_title": 'Báo cáo đánh giá',
         "section_subtitle": 'Các đánh giá bị nhà hàng báo cáo cần admin xem xét.',
     }
@@ -1258,7 +1375,7 @@ def _build_hero_stats(section_name, dashboard_stats, context):
     return []
 
 
-def build_admin_context(section_name="dashboard", query="", role_filter="all", type_filter="all", state_filter="all", period="month", report_date="", report_month="", report_year="", page=1, per_page=10):
+def build_admin_context(section_name="dashboard", query="", role_filter="all", type_filter="all", state_filter="all", period="month", report_date="", report_month="", report_year="", date_from="", date_to="", sentiment="all", rating="all", page=1, per_page=10):
     section_name = section_name or "dashboard"
     page_size = _page_size_for(section_name, per_page)
     pending_review_reports = Review.query.filter(Review.report_status == "pending").count()
@@ -1283,11 +1400,11 @@ def build_admin_context(section_name="dashboard", query="", role_filter="all", t
     elif section_name == "vouchers":
         context = _build_vouchers(query=query, page=page, per_page=page_size)
     elif section_name == "reviews":
-        context = _build_reviews(query=query, page=page, per_page=page_size)
+        context = _build_reviews(query=query, date_from=date_from, date_to=date_to, sentiment=sentiment, rating=rating, page=page, per_page=page_size)
     elif section_name == "complaints":
         context = _build_complaints(query=query, page=page, per_page=page_size)
     elif section_name == "review_reports":
-        context = _build_review_reports(query=query, page=page, per_page=page_size)
+        context = _build_review_reports(query=query, date_from=date_from, date_to=date_to, sentiment=sentiment, rating=rating, page=page, per_page=page_size)
     elif section_name == "disputes":
         context = _build_disputes(query=query, page=page, per_page=page_size, type_filter=type_filter, state_filter=state_filter)
     elif section_name == "shipping_fees":

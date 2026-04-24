@@ -245,6 +245,20 @@
     justify-content: flex-end;
 }
 
+.admin-review-filter-form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    width: 100%;
+    flex: 1 1 100%;
+}
+
+.admin-review-filter-actions {
+    margin-top: 0;
+}
+
 .admin-filter-group {
     display: flex;
     flex-direction: column;
@@ -255,6 +269,26 @@
 
 .admin-filter-group .admin-input {
     min-width: 180px;
+}
+
+.admin-filter-group--search {
+    flex: 1 1 260px;
+}
+
+.admin-review-search-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.admin-filter-group--search .admin-input {
+    min-width: 240px;
+    flex: 1 1 auto;
+}
+
+.admin-review-search-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .admin-filter-group--compact {
