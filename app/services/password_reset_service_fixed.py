@@ -14,8 +14,8 @@ from app.services.auth_service import EMAIL_PATTERN, PASSWORD_MIN_LENGTH, hash_p
 
 
 OTP_LENGTH = 4
-OTP_EXPIRY_SECONDS = 1 * 60
-RESEND_COOLDOWN_SECONDS = 20
+OTP_EXPIRY_SECONDS = 5 * 60
+RESEND_COOLDOWN_SECONDS = 30
 
 _OTP_STORE = {}
 _OTP_LOCK = threading.RLock()
@@ -90,7 +90,7 @@ def send_otp_email(email, otp):
     message = Message(
         subject="Mã OTP đặt lại mật khẩu",
         recipients=[email],
-        body=f"Mã OTP của bạn là {otp}. Mã này hết hạn sau 1 phút. Vui lòng không chia sẻ mã này.",
+        body=f"Mã OTP của bạn là {otp}. Mã này hết hạn sau 5 phút. Vui lòng không chia sẻ mã này.",
     )
     mail.send(message)
 
