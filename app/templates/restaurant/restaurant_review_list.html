@@ -14,6 +14,7 @@
 {% set restaurant_name = restaurant.user.display_name if restaurant and restaurant.user and restaurant.user.display_name else (restaurant.user.username if restaurant and restaurant.user else 'Nhà hàng') %}
 {% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
 {% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
+{% set review_filters = review_filters|default({}) %}
 
 <div class="restaurant-page restaurant-review-page">
     <aside class="restaurant-page__sidebar">
@@ -72,7 +73,56 @@
                 </div>
             </div>
 
-            <div class="restaurant-section__card">
+            <div class="restaurant-order-toolbar restaurant-card restaurant-review-toolbar">
+                <form class="restaurant-order-toolbar__form restaurant-review-toolbar__form" method="get" action="{{ url_for('restaurant.reviews') }}" data-live-search-form data-live-search-target="#restaurant-reviews-results" autocomplete="off">
+                    <input type="hidden" name="page" value="1">
+                    <div class="restaurant-review-toolbar__search-row">
+                        <label class="restaurant-order-search restaurant-review-toolbar__search">
+                            <span class="restaurant-order-search__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <path d="m20 20-3.5-3.5"></path>
+                                </svg>
+                            </span>
+                            <input type="search" name="q" value="{{ review_filters.q|default(search_query|default('')) }}" placeholder="Tìm khách hàng, số điện thoại, nội dung..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                        </label>
+                        <button type="submit" class="restaurant-btn restaurant-btn--primary restaurant-review-toolbar__search-submit">Tìm</button>
+                    </div>
+                    <div class="restaurant-order-toolbar__top restaurant-review-toolbar__top">
+                        <label class="restaurant-order-date">
+                            <span>Từ ngày</span>
+                            <input type="date" name="date_from" value="{{ review_filters.date_from|default('') }}">
+                        </label>
+                        <label class="restaurant-order-date">
+                            <span>Đến ngày</span>
+                            <input type="date" name="date_to" value="{{ review_filters.date_to|default('') }}">
+                        </label>
+                        <label class="restaurant-order-sort">
+                            <span>Cảm xúc</span>
+                            <select name="sentiment">
+                                <option value="all" {% if review_filters.sentiment|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                                <option value="positive" {% if review_filters.sentiment|default('all') == 'positive' %}selected{% endif %}>Tích cực</option>
+                                <option value="negative" {% if review_filters.sentiment|default('all') == 'negative' %}selected{% endif %}>Tiêu cực</option>
+                            </select>
+                        </label>
+                        <label class="restaurant-order-status-filter">
+                            <span>Số sao</span>
+                            <select name="rating">
+                                <option value="all" {% if review_filters.rating|default('all') == 'all' %}selected{% endif %}>Tất cả</option>
+                                {% for star in range(1, 6) %}
+                                <option value="{{ star }}" {% if review_filters.rating|default('all') == star|string %}selected{% endif %}>{{ star }} sao</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <div class="restaurant-order-toolbar__actions restaurant-review-toolbar__actions">
+                            <button type="submit" class="restaurant-btn restaurant-btn--primary restaurant-order-toolbar__submit">Lọc</button>
+                            <a href="{{ url_for('restaurant.reviews') }}" class="restaurant-btn restaurant-btn--ghost restaurant-order-toolbar__reset">Xóa lọc</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div id="restaurant-reviews-results" class="restaurant-section__card">
                 <div class="restaurant-section__header">
                     <h2>Danh sách đánh giá</h2>
                 </div>
@@ -94,7 +144,7 @@
                             <p>{{ review.comment or 'Chưa có nội dung đánh giá.' }}</p>
                             <div class="restaurant-review-item__meta">
                                 <span>{{ review.sentiment or 'neutral' }}</span>
-                                <span>{{ review.review_date | vn_datetime if review.review_date else '' }}</span>
+                                <span>{{ item.review_date_text }}</span>
                                 {% if item.report_status == 'pending' %}
                                 <span class="restaurant-review-item__report-badge">Đã báo cáo cho admin</span>
                                 {% endif %}
@@ -123,16 +173,15 @@
                             <span>Trang</span>
                             <select onchange="if (this.value) window.location.href = this.value">
                                 {% for page_num in range(1, pagination.total_pages + 1) %}
-                                <option value="{{ url_for('restaurant.reviews', page=page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
+                                <option value="{{ url_for('restaurant.reviews', q=review_filters.q|default(search_query|default('')), date_from=review_filters.date_from|default(''), date_to=review_filters.date_to|default(''), sentiment=review_filters.sentiment|default('all'), rating=review_filters.rating|default('all'), page=page_num) }}" {% if page_num == pagination.page %}selected{% endif %}>
                                     {{ page_num }}
                                 </option>
                                 {% endfor %}
                             </select>
                         </label>
-
                         <a
                             class="restaurant-pagination__btn {% if not pagination.has_prev %}is-disabled{% endif %}"
-                            href="{{ url_for('restaurant.reviews', page=(pagination.page - 1)) if pagination.has_prev else '#' }}"
+                            href="{{ url_for('restaurant.reviews', q=review_filters.q|default(search_query|default('')), date_from=review_filters.date_from|default(''), date_to=review_filters.date_to|default(''), sentiment=review_filters.sentiment|default('all'), rating=review_filters.rating|default('all'), page=(pagination.page - 1)) if pagination.has_prev else '#' }}"
                             aria-disabled="{{ 'true' if not pagination.has_prev else 'false' }}"
                             tabindex="{{ '-1' if not pagination.has_prev else '0' }}"
                         >Trước</a>
@@ -143,7 +192,7 @@
                         {% else %}
                         <a
                             class="restaurant-pagination__page {% if page_item == pagination.page %}is-active{% endif %}"
-                            href="{{ url_for('restaurant.reviews', page=page_item) }}"
+                            href="{{ url_for('restaurant.reviews', q=review_filters.q|default(search_query|default('')), date_from=review_filters.date_from|default(''), date_to=review_filters.date_to|default(''), sentiment=review_filters.sentiment|default('all'), rating=review_filters.rating|default('all'), page=page_item) }}"
                             {% if page_item == pagination.page %}aria-current="page"{% endif %}
                         >{{ page_item }}</a>
                         {% endif %}
@@ -151,7 +200,7 @@
 
                         <a
                             class="restaurant-pagination__btn {% if not pagination.has_next %}is-disabled{% endif %}"
-                            href="{{ url_for('restaurant.reviews', page=(pagination.page + 1)) if pagination.has_next else '#' }}"
+                            href="{{ url_for('restaurant.reviews', q=review_filters.q|default(search_query|default('')), date_from=review_filters.date_from|default(''), date_to=review_filters.date_to|default(''), sentiment=review_filters.sentiment|default('all'), rating=review_filters.rating|default('all'), page=(pagination.page + 1)) if pagination.has_next else '#' }}"
                             aria-disabled="{{ 'true' if not pagination.has_next else 'false' }}"
                             tabindex="{{ '-1' if not pagination.has_next else '0' }}"
                         >Sau</a>
@@ -161,7 +210,7 @@
                 {% else %}
                 <div class="restaurant-empty">
                     <strong>Chưa có đánh giá nào.</strong>
-                    <p>Hãy thêm dữ liệu mẫu trong file SQL để kiểm tra hiển thị.</p>
+                    <p>Danh sách đánh giá sẽ xuất hiện khi có khách hàng gửi nhận xét.</p>
                 </div>
                 {% endif %}
             </div>

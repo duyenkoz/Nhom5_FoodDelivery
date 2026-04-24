@@ -36,6 +36,10 @@ def _render_admin(section_name):
     report_date = request.args.get("date", "").strip()
     report_month = request.args.get("month", "").strip()
     report_year = request.args.get("year", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    sentiment = request.args.get("sentiment", "all").strip() or "all"
+    rating = request.args.get("rating", "all").strip() or "all"
     page = request.args.get("page", default=1, type=int)
     context = build_admin_context(
         section_name,
@@ -47,6 +51,10 @@ def _render_admin(section_name):
         report_date=report_date,
         report_month=report_month,
         report_year=report_year,
+        date_from=date_from,
+        date_to=date_to,
+        sentiment=sentiment,
+        rating=rating,
         page=page,
     )
     return render_template(

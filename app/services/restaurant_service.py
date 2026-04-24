@@ -58,6 +58,7 @@ VOUCHER_DISCOUNT_LABELS = {
 
 EXCLUDED_ORDER_STATUSES = {"cancel", "canceled", "cancelled", "failed", "refund", "refund_pending", "pending_refund", "refunded", "rejected"}
 COMPLETED_ORDER_STATUSES = {"completed", "delivered", "done"}
+REVIEW_PAGE_SIZE = 5
 
 
 def _clean(value):
@@ -157,6 +158,96 @@ def _format_order_datetime(value):
     if not value:
         return ""
     return format_vietnam_date(value, "%d/%m/%Y %H:%M")
+
+
+def _format_review_datetime_raw(value):
+    if not value:
+        return ""
+    return value.strftime("%d/%m/%Y %H:%M") if hasattr(value, "strftime") else str(value)
+
+
+def _normalize_review_sentiment_filter(value):
+    normalized = _clean(value).lower() or "all"
+    return normalized if normalized in {"all", "positive", "negative"} else "all"
+
+
+def _normalize_review_rating_filter(value):
+    normalized = _clean(value)
+    if not normalized:
+        return "all"
+    try:
+        rating = int(normalized)
+    except (TypeError, ValueError):
+        return "all"
+    return str(rating) if 1 <= rating <= 5 else "all"
+
+
+def _normalize_review_date_range(date_from="", date_to=""):
+    start_date = None
+    end_date = None
+    if _clean(date_from):
+        try:
+            start_date = date.fromisoformat(_clean(date_from))
+        except ValueError:
+            start_date = None
+    if _clean(date_to):
+        try:
+            end_date = date.fromisoformat(_clean(date_to))
+        except ValueError:
+            end_date = None
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
+def _effective_review_sentiment(review):
+    sentiment = _clean(getattr(review, "sentiment", "")).lower()
+    if sentiment in {"positive", "negative", "neutral"}:
+        return sentiment
+
+    rating = review.rating or 0
+    if rating >= 4:
+        return "positive"
+    if rating <= 2:
+        return "negative"
+    return "neutral"
+
+
+def _review_matches_filters(review, query="", start_date=None, end_date=None, sentiment="all", rating="all", customer_name="", customer_phone=""):
+    query_slug = _clean(query).lower()
+    if query_slug:
+        searchable = " ".join(
+            [
+                customer_name or "",
+                customer_phone or "",
+                review.comment or "",
+                review.sentiment or "",
+                str(review.rating or ""),
+            ]
+        ).lower()
+        if query_slug not in searchable:
+            return False
+
+    review_date = getattr(review, "review_date", None)
+    if start_date or end_date:
+        if not review_date:
+            return False
+        review_day = review_date.date()
+        if start_date and review_day < start_date:
+            return False
+        if end_date and review_day > end_date:
+            return False
+
+    normalized_sentiment = _effective_review_sentiment(review)
+    normalized_sentiment_filter = _normalize_review_sentiment_filter(sentiment)
+    if normalized_sentiment_filter != "all" and normalized_sentiment != normalized_sentiment_filter:
+        return False
+
+    normalized_rating_filter = _normalize_review_rating_filter(rating)
+    if normalized_rating_filter != "all" and (review.rating or 0) != int(normalized_rating_filter):
+        return False
+
+    return True
 
 
 def _format_date_input(value):
@@ -1472,6 +1563,8 @@ def build_section_context(
     sort="desc",
     date_from="",
     date_to="",
+    review_sentiment="all",
+    review_rating="all",
     focus_order_id=None,
     page=1,
     per_page=10,
@@ -1495,9 +1588,16 @@ def build_section_context(
 
     section_name = section_name or "orders"
     if section_name == "reviews":
+        per_page = REVIEW_PAGE_SIZE
+        normalized_start_date, normalized_end_date = _normalize_review_date_range(date_from, date_to)
+        normalized_sentiment = _normalize_review_sentiment_filter(review_sentiment)
+        normalized_rating = _normalize_review_rating_filter(review_rating)
         reviews = (
-            Review.query.filter_by(restaurant_id=restaurant.restaurant_id)
-            .order_by(Review.review_date.desc())
+            Review.query.options(
+                selectinload(Review.customer).selectinload(Customer.user),
+            )
+            .filter_by(restaurant_id=restaurant.restaurant_id)
+            .order_by(Review.review_date.desc(), Review.review_id.desc())
             .all()
         )
         items = []
@@ -1508,11 +1608,23 @@ def build_section_context(
             if review.customer and review.customer.user:
                 customer_name = _safe_user_name(review.customer.user)
                 customer_phone = review.customer.user.phone or ""
+            if not _review_matches_filters(
+                review,
+                query=query,
+                start_date=normalized_start_date,
+                end_date=normalized_end_date,
+                sentiment=normalized_sentiment,
+                rating=normalized_rating,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+            ):
+                continue
             items.append(
                 {
                     "review": review,
                     "customer_name": customer_name,
                     "customer_phone": customer_phone,
+                    "review_date_text": _format_review_datetime_raw(review.review_date),
                     "report_status": review.report_status or "none",
                     "report_reason": review.report_reason or "",
                 }
@@ -1539,6 +1651,14 @@ def build_section_context(
             "section_title": "Xem các đánh giá nhà hàng",
             "section_subtitle": "Theo dõi nhận xét của khách hàng và phản hồi kịp thời.",
             "items": paged_items,
+            "search_query": query,
+            "review_filters": {
+                "q": query,
+                "date_from": normalized_start_date.isoformat() if normalized_start_date else "",
+                "date_to": normalized_end_date.isoformat() if normalized_end_date else "",
+                "sentiment": normalized_sentiment,
+                "rating": normalized_rating,
+            },
             "stats": stats,
             "pagination": {
                 "page": current_page,
