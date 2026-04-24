@@ -62,6 +62,7 @@ from app.services.checkout_service import (
 from app.services.momo_service import create_momo_payment
 from app.services.password_reset_service_fixed import RESEND_COOLDOWN_SECONDS
 from app.services.location_service import resolve_address
+from app.services.public_restaurant_service import migrate_guest_carts_to_logged_in_customer
 from app.services.restaurant_service import infer_category, infer_image_path
 from app.services.order_state_service import refresh_simulated_order_state
 from app.utils.time_utils import format_vietnam_datetime, vietnam_now
@@ -247,6 +248,8 @@ def _log_in_user_session(user, remember=False):
     session["user_display_name"] = user.display_name or user.username
     session.pop("auth_provider", None)
     session.permanent = remember
+    if user.role == "customer":
+        migrate_guest_carts_to_logged_in_customer(session)
 
 
 def _set_registration_pending_session(user):

@@ -405,6 +405,100 @@ def clear_restaurant_cart(session, restaurant_id):
     return cleared
 
 
+def migrate_guest_carts_to_logged_in_customer(session):
+    if not _is_logged_in_customer(session):
+        return False
+
+    carts = session.get(CART_SESSION_KEY)
+    if not isinstance(carts, dict) or not carts:
+        return False
+
+    customer_id = _session_user_id(session)
+    if customer_id is None:
+        return False
+
+    migrated = False
+    restaurant_ids_to_clear = []
+
+    for restaurant_key, cart_state in list(carts.items()):
+        if not isinstance(cart_state, dict):
+            continue
+
+        items = cart_state.get("items")
+        if not isinstance(items, dict):
+            continue
+
+        try:
+            restaurant_id = int(restaurant_key)
+        except (TypeError, ValueError):
+            continue
+
+        migrated = True
+        db_cart = _get_db_cart(session, restaurant_id)
+        restaurant_migrated = False
+        for raw_dish_id, item_state in items.items():
+            try:
+                dish_id = int(raw_dish_id)
+            except (TypeError, ValueError):
+                continue
+
+            dish = get_public_dish(restaurant_id, dish_id)
+            if not dish:
+                continue
+
+            try:
+                quantity = int((item_state or {}).get("quantity") or 0)
+            except (TypeError, ValueError):
+                continue
+
+            if quantity <= 0:
+                continue
+
+            note = _clean((item_state or {}).get("note"))
+            if not db_cart:
+                db_cart = Cart(customer_id=customer_id, restaurant_id=restaurant_id, total_amount=0)
+                db.session.add(db_cart)
+                db.session.flush()
+            cart_item = CartItem.query.filter_by(cart_id=db_cart.cart_id, dish_id=dish.dish_id).one_or_none()
+
+            if not cart_item:
+                cart_item = CartItem(
+                    cart_id=db_cart.cart_id,
+                    dish_id=dish.dish_id,
+                    quantity=quantity,
+                    price=int(dish.price or 0),
+                    note=note or None,
+                )
+                db.session.add(cart_item)
+            else:
+                cart_item.quantity = max(0, int(cart_item.quantity or 0) + quantity)
+                cart_item.price = int(dish.price or 0)
+                if note:
+                    cart_item.note = note
+
+            migrated = True
+            restaurant_migrated = True
+
+        if restaurant_migrated:
+            db_cart.total_amount = sum(
+                int(item.price or item.dish.price or 0) * max(1, int(item.quantity or 1))
+                for item in db_cart.items
+                if item.dish and item.quantity and int(item.quantity or 0) > 0
+            )
+            if not db_cart.items:
+                db.session.delete(db_cart)
+        restaurant_ids_to_clear.append(restaurant_key)
+
+    if not migrated:
+        return False
+
+    for restaurant_key in restaurant_ids_to_clear:
+        carts.pop(restaurant_key, None)
+    session.modified = True
+    db.session.commit()
+    return True
+
+
 def _clear_expired_successful_order_cart(session, restaurant_id):
     if not _is_logged_in_customer(session):
         return False
