@@ -180,6 +180,10 @@
     border-radius: 0;
 }
 
+.auth-page .input-group .form-control:last-child {
+    border-radius: 0 14px 14px 0;
+}
+
 .auth-page .form-control,
 .auth-page select,
 .auth-page textarea {

@@ -18,7 +18,6 @@
     const passwordEye = document.getElementById("passwordEye");
     const loginSubmitBtn = document.getElementById("loginSubmitBtn");
     const googleLoginBtn = document.getElementById("googleLoginBtn");
-    const facebookLoginBtn = document.getElementById("facebookLoginBtn");
     const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
     const forgotPasswordModal = document.getElementById("forgotPasswordModal");
     const forgotPasswordClose = document.getElementById("forgotPasswordClose");
@@ -729,11 +728,6 @@
     on(googleLoginBtn, "click", (event) => {
         event.preventDefault();
         window.location.href = googleLoginUrl;
-    });
-    on(facebookLoginBtn, "click", () => {
-        if (window.AppToast && typeof window.AppToast.warning === "function") {
-            window.AppToast.warning("Đăng nhập Facebook đang được phát triển.");
-        }
     });
     on(googlePhoneClose, "click", closeGooglePhoneModal);
     on(googlePhoneDismiss, "click", closeGooglePhoneModal);
