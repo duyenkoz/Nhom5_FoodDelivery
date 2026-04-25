@@ -1,6 +1,7 @@
 import calendar
 import os
 import re
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from flask import current_app, url_for
@@ -19,6 +20,7 @@ from app.models.user import User
 from app.models.voucher import Voucher
 from app.models.restaurant import Restaurant
 from app.services.order_state_service import refresh_simulated_order_state
+from app.services.ai_review_summary_service import get_ai_review_summary_settings
 from app.services.notification_service import (
     build_order_cancelled_notification,
     build_restaurant_cancel_request_notification,
@@ -211,6 +213,154 @@ def _effective_review_sentiment(review):
     if rating <= 2:
         return "negative"
     return "neutral"
+
+
+def _review_sentiment_bucket(review):
+    rating = _safe_int(getattr(review, "rating", None), 0)
+    if rating >= 4:
+        return "positive"
+    if 1 <= rating <= 2:
+        return "negative"
+    return "neutral"
+
+
+def _review_local_datetime(review):
+    return to_vietnam_datetime(getattr(review, "review_date", None))
+
+
+def _month_key_for_datetime(value):
+    if not value:
+        return None
+    return value.year, value.month
+
+
+def _previous_month_key(year, month):
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1
+
+
+def _format_month_label(year, month):
+    return f"Tháng {month}/{year}"
+
+
+def _count_reviews_by_bucket(reviews):
+    counts = {"positive": 0, "negative": 0}
+    for review in reviews:
+        bucket = _review_sentiment_bucket(review)
+        if bucket in counts:
+            counts[bucket] += 1
+    return counts
+
+
+def _build_reviewed_top_dishes(reviews, limit=3):
+    dish_totals = {}
+
+    for review in reviews:
+        order = getattr(review, "order", None)
+        if not order or not getattr(order, "items", None):
+            continue
+
+        per_order_totals = defaultdict(int)
+        dish_names = {}
+
+        for order_item in order.items or []:
+            dish = getattr(order_item, "dish", None)
+            dish_id = getattr(order_item, "dish_id", None) or getattr(dish, "dish_id", None)
+            dish_name = _clean(getattr(dish, "dish_name", "")) or "Món ăn"
+            key = dish_id if dish_id is not None else f"name:{dish_name}"
+            quantity = max(1, _safe_int(getattr(order_item, "quantity", 1), 1))
+            per_order_totals[key] += quantity
+            dish_names[key] = dish_name
+
+        for key, total_quantity in per_order_totals.items():
+            record = dish_totals.setdefault(
+                key,
+                {
+                    "name": dish_names.get(key, "Món ăn"),
+                    "reviewed_order_count": 0,
+                    "total_quantity": 0,
+                },
+            )
+            record["reviewed_order_count"] += 1
+            record["total_quantity"] += total_quantity
+
+    ranked = sorted(
+        dish_totals.values(),
+        key=lambda item: (
+            -item["reviewed_order_count"],
+            -item["total_quantity"],
+            _slugify(item["name"]),
+        ),
+    )
+    return ranked[: max(1, limit)]
+
+
+def _build_review_dashboard(restaurant, reviews):
+    today = vietnam_today()
+    current_year, current_month = today.year, today.month
+    previous_year, previous_month = _previous_month_key(current_year, current_month)
+
+    current_month_reviews = []
+    previous_month_reviews = []
+    current_positive_reviews = []
+    current_negative_reviews = []
+
+    for review in reviews:
+        local_dt = _review_local_datetime(review)
+        if not local_dt:
+            continue
+        review_month_key = _month_key_for_datetime(local_dt)
+        if review_month_key == (current_year, current_month):
+            current_month_reviews.append(review)
+            bucket = _review_sentiment_bucket(review)
+            if bucket == "positive":
+                current_positive_reviews.append(review)
+            elif bucket == "negative":
+                current_negative_reviews.append(review)
+        elif review_month_key == (previous_year, previous_month):
+            previous_month_reviews.append(review)
+
+    current_counts = _count_reviews_by_bucket(current_month_reviews)
+    previous_counts = _count_reviews_by_bucket(previous_month_reviews)
+    settings = get_ai_review_summary_settings()
+    eligible_negative_count = len(current_negative_reviews)
+
+    ai_reason = ""
+    if not settings["enabled"]:
+        ai_reason = "Tính năng AI hiện chưa được cấu hình đầy đủ."
+    elif eligible_negative_count < settings["min_reviews"]:
+        ai_reason = f"Cần ít nhất {settings['min_reviews']} đánh giá xấu trong tháng này để tạo gợi ý AI."
+
+    return {
+        "current_month_label": _format_month_label(current_year, current_month),
+        "chart_data": {
+            "labels": ["Đánh giá tốt", "Đánh giá xấu"],
+            "values": [current_counts["positive"], current_counts["negative"]],
+            "colors": ["#22c55e", "#ef4444"],
+        },
+        "month_over_month": {
+            "positive": {
+                "current_count": current_counts["positive"],
+                "previous_count": previous_counts["positive"],
+                "delta": current_counts["positive"] - previous_counts["positive"],
+            },
+            "negative": {
+                "current_count": current_counts["negative"],
+                "previous_count": previous_counts["negative"],
+                "delta": current_counts["negative"] - previous_counts["negative"],
+            },
+        },
+        "top_dishes_positive": _build_reviewed_top_dishes(current_positive_reviews, limit=3),
+        "top_dishes_negative": _build_reviewed_top_dishes(current_negative_reviews, limit=3),
+        "ai_insights": {
+            "enabled": bool(settings["enabled"] and eligible_negative_count >= settings["min_reviews"]),
+            "reason": ai_reason,
+            "endpoint_url": url_for("restaurant.review_ai_insights"),
+            "threshold": settings["min_reviews"],
+            "eligible_negative_review_count": eligible_negative_count,
+        },
+    }
 
 
 def _review_matches_filters(review, query="", start_date=None, end_date=None, sentiment="all", rating="all", customer_name="", customer_phone=""):
@@ -1595,11 +1745,13 @@ def build_section_context(
         reviews = (
             Review.query.options(
                 selectinload(Review.customer).selectinload(Customer.user),
+                selectinload(Review.order).selectinload(Order.items).selectinload(OrderItem.dish),
             )
             .filter_by(restaurant_id=restaurant.restaurant_id)
             .order_by(Review.review_date.desc(), Review.review_id.desc())
             .all()
         )
+        review_dashboard = _build_review_dashboard(restaurant, reviews)
         items = []
         ratings = []
         for review in reviews:
@@ -1660,6 +1812,7 @@ def build_section_context(
                 "rating": normalized_rating,
             },
             "stats": stats,
+            "review_dashboard": review_dashboard,
             "pagination": {
                 "page": current_page,
                 "per_page": per_page,

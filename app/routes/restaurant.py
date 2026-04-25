@@ -1,5 +1,13 @@
 ﻿from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from flask import jsonify
+from app.services.ai_review_summary_service import (
+    ReviewSummaryConfigError,
+    ReviewSummaryRequestError,
+    generate_restaurant_review_improvement_insights,
+    get_ai_review_summary_settings,
+    query_negative_reviews_for_improvement_insights,
+)
 from app.services.restaurant_service import (
     build_dashboard_context,
     build_section_context,
@@ -15,6 +23,7 @@ from app.services.restaurant_service import (
     save_voucher_for_restaurant,
     toggle_dish_status_for_restaurant,
     toggle_voucher_status_for_restaurant,
+    get_restaurant_by_user_id,
 )
 from app.services.notification_service import (
     build_order_cancelled_notification,
@@ -411,6 +420,51 @@ def reviews():
         show_auth=False,
         **context,
     )
+
+
+@bp.route("/reviews/ai-insights", methods=["POST"])
+def review_ai_insights():
+    if not _require_restaurant():
+        return jsonify({"ok": False, "message": "Vui lòng đăng nhập với tài khoản nhà hàng."}), 401
+
+    restaurant = get_restaurant_by_user_id(session.get("user_id"))
+    if restaurant is None:
+        return jsonify({"ok": False, "message": "Không tìm thấy nhà hàng."}), 404
+
+    settings = get_ai_review_summary_settings()
+    if not settings["enabled"]:
+        return jsonify({"ok": False, "message": "Tính năng AI hiện chưa được cấu hình đầy đủ."}), 503
+
+    negative_reviews = query_negative_reviews_for_improvement_insights(
+        restaurant.restaurant_id,
+        settings["max_reviews"],
+    )
+    if len(negative_reviews) < settings["min_reviews"]:
+        return jsonify(
+            {
+                "ok": False,
+                "message": f"Cần ít nhất {settings['min_reviews']} đánh giá xấu trong tháng này để tạo gợi ý AI.",
+                "threshold": settings["min_reviews"],
+            }
+        ), 400
+
+    restaurant_name = (
+        (restaurant.user.display_name if restaurant.user and restaurant.user.display_name else "")
+        or (restaurant.user.username if restaurant.user and restaurant.user.username else "")
+        or f"Nhà hàng {restaurant.restaurant_id}"
+    )
+
+    try:
+        payload = generate_restaurant_review_improvement_insights(
+            restaurant.restaurant_id,
+            restaurant_name=restaurant_name,
+        )
+    except ReviewSummaryConfigError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 503
+    except ReviewSummaryRequestError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 503
+
+    return jsonify({"ok": True, **payload})
 
 
 @bp.route("/reviews/<int:review_id>/report", methods=["POST"])

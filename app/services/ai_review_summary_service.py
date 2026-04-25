@@ -5,6 +5,7 @@ from flask import current_app
 from sqlalchemy.orm import selectinload
 
 from app.models import Customer, Review
+from app.utils.time_utils import format_vietnam_datetime, to_vietnam_datetime, vietnam_today
 
 try:
     from google import genai
@@ -16,6 +17,7 @@ except ImportError:  # pragma: no cover - optional dependency in local env
 
 SUMMARY_ERROR_MESSAGE = "Chưa thể tạo tóm tắt AI lúc này. Vui lòng thử lại sau."
 SUMMARY_CONFIG_ERROR_MESSAGE = "Tính năng tóm tắt AI hiện chưa được cấu hình đầy đủ."
+IMPROVEMENT_ERROR_MESSAGE = "Chưa thể tạo gợi ý cải thiện bằng AI lúc này. Vui lòng thử lại sau."
 
 
 class ReviewSummaryConfigError(RuntimeError):
@@ -68,6 +70,36 @@ def get_ai_review_summary_settings():
     }
 
 
+def _resolve_customer_name(review):
+    customer_name = "Khách ẩn danh"
+    if review.customer and review.customer.user:
+        customer_name = (
+            _clean(review.customer.user.display_name)
+            or _clean(review.customer.user.username)
+            or customer_name
+        )
+    return customer_name
+
+
+def _serialize_review(review):
+    return {
+        "rating": int(review.rating or 0),
+        "comment": _clean(review.comment),
+        "review_date_text": format_vietnam_datetime(review.review_date, "%H:%M %d/%m/%Y") if review.review_date else "",
+        "customer_name": _resolve_customer_name(review),
+    }
+
+
+def _is_negative_review(review):
+    rating = int(review.rating or 0)
+    return 1 <= rating <= 2
+
+
+def _is_in_month(review, year, month):
+    local_dt = to_vietnam_datetime(getattr(review, "review_date", None))
+    return bool(local_dt and local_dt.year == year and local_dt.month == month)
+
+
 def _query_reviews_for_summary(restaurant_id, limit):
     reviews = (
         Review.query.options(selectinload(Review.customer).selectinload(Customer.user))
@@ -77,25 +109,32 @@ def _query_reviews_for_summary(restaurant_id, limit):
         .limit(limit)
         .all()
     )
+    return [_serialize_review(review) for review in reviews]
+
+
+def query_negative_reviews_for_improvement_insights(restaurant_id, limit, year=None, month=None):
+    reference_today = vietnam_today()
+    target_year = int(year or reference_today.year)
+    target_month = int(month or reference_today.month)
+
+    reviews = (
+        Review.query.options(selectinload(Review.customer).selectinload(Customer.user))
+        .filter(Review.restaurant_id == restaurant_id)
+        .filter(Review.rating.isnot(None))
+        .order_by(Review.review_date.desc(), Review.review_id.desc())
+        .all()
+    )
 
     rows = []
     for review in reviews:
-        customer_name = "Khách ẩn danh"
-        if review.customer and review.customer.user:
-            customer_name = (
-                _clean(review.customer.user.display_name)
-                or _clean(review.customer.user.username)
-                or customer_name
-            )
+        if not _is_negative_review(review):
+            continue
+        if not _is_in_month(review, target_year, target_month):
+            continue
+        rows.append(_serialize_review(review))
+        if len(rows) >= limit:
+            break
 
-        rows.append(
-            {
-                "rating": int(review.rating or 0),
-                "comment": _clean(review.comment),
-                "review_date_text": review.review_date.strftime("%H:%M %d/%m/%Y") if review.review_date else "",
-                "customer_name": customer_name,
-            }
-        )
     return rows
 
 
@@ -117,6 +156,30 @@ def _build_summary_prompt(restaurant_name, review_rows):
             f"Nhà hàng: {restaurant_name or 'Nhà hàng hiện tại'}",
             f"Số lượng đánh giá dùng để tóm tắt: {len(review_rows)}",
             "Dữ liệu đánh giá:",
+            *serialized_reviews,
+        ]
+    )
+
+
+def _build_improvement_prompt(restaurant_name, review_rows, month_label):
+    serialized_reviews = []
+    for index, review in enumerate(review_rows, start=1):
+        comment_text = review["comment"] or "Không có bình luận chi tiết."
+        serialized_reviews.append(
+            (
+                f"{index}. {review['rating']} sao | "
+                f"Khách: {review['customer_name']} | "
+                f"Thời gian: {review['review_date_text'] or 'Không rõ'} | "
+                f"Nhận xét: {comment_text}"
+            )
+        )
+
+    return "\n".join(
+        [
+            f"Nhà hàng: {restaurant_name or 'Nhà hàng hiện tại'}",
+            f"Giai đoạn phân tích: {month_label}",
+            f"Số lượng đánh giá xấu dùng để phân tích: {len(review_rows)}",
+            "Dữ liệu đánh giá xấu:",
             *serialized_reviews,
         ]
     )
@@ -144,13 +207,46 @@ def _normalize_summary_payload(payload: Any):
     normalized_improvements = [_clean(item) for item in improvements if _clean(item)][:3]
 
     if not overview:
-        overview = "Các đánh giá gần đây cho thấy trải nghiệm của khách hàng có cả điểm tích cực lẫn vài góp ý cần lưu ý."
+        overview = "Đánh giá gần đây cho thấy trải nghiệm của khách hàng có cả điểm tích cực lẫn những nội dung cần lưu ý."
 
     return {
         "overview": overview,
         "strengths": normalized_strengths,
         "improvements": normalized_improvements,
     }
+
+
+def _normalize_improvement_payload(payload: Any):
+    if not isinstance(payload, dict):
+        raise ReviewSummaryRequestError(IMPROVEMENT_ERROR_MESSAGE)
+
+    overview = _clean(payload.get("overview"))
+    issues = payload.get("issues") if isinstance(payload.get("issues"), list) else []
+    actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+
+    normalized_issues = [_clean(item) for item in issues if _clean(item)][:3]
+    normalized_actions = [_clean(item) for item in actions if _clean(item)][:3]
+
+    if not overview:
+        overview = "Đánh giá xấu trong tháng này cho thấy nhà hàng cần ưu tiên xử lý một vài vấn đề lặp lại."
+
+    return {
+        "overview": overview,
+        "issues": normalized_issues,
+        "actions": normalized_actions,
+    }
+
+
+def _parse_json_response(response_text, error_message):
+    text = _clean(response_text)
+    if not text:
+        raise ReviewSummaryRequestError(error_message)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        current_app.logger.exception("Gemini review AI returned invalid JSON: %s", exc)
+        raise ReviewSummaryRequestError(error_message) from exc
 
 
 def generate_restaurant_review_summary(restaurant_id, restaurant_name=""):
@@ -171,10 +267,9 @@ def generate_restaurant_review_summary(restaurant_id, restaurant_name=""):
             config=types.GenerateContentConfig(
                 system_instruction=(
                     "Bạn là trợ lý phân tích phản hồi khách hàng cho nhà hàng. "
-                    "Nhiệm vụ của bạn là tóm tắt các đánh giá được cung cấp, chỉ sử dụng dữ liệu trong input, "
-                    "không suy diễn thêm thông tin không có. Viết tiếng Việt ngắn gọn, trung tính, hữu ích cho chủ nhà hàng. "
-                    "Trả về JSON hợp lệ với đúng các khóa: overview, strengths, improvements. "
-                    "overview là chuỗi ngắn 1-2 câu. strengths và improvements là mảng chuỗi ngắn, tối đa 3 ý mỗi mảng. "
+                    "Chỉ sử dụng dữ liệu trong input, không suy diễn thêm thông tin không có. "
+                    "Trả về JSON hợp lệ với các khóa: overview, strengths, improvements. "
+                    "overview là 1-2 câu ngắn. strengths và improvements là mảng chuỗi ngắn, tối đa 3 ý mỗi mảng. "
                     "Nếu chưa đủ dữ liệu cho một mảng thì trả mảng rỗng."
                 ),
                 temperature=0.2,
@@ -185,19 +280,60 @@ def generate_restaurant_review_summary(restaurant_id, restaurant_name=""):
         current_app.logger.exception("Gemini review summary request failed: %s", exc)
         raise ReviewSummaryRequestError(SUMMARY_ERROR_MESSAGE) from exc
 
-    response_text = _clean(getattr(response, "text", ""))
-    if not response_text:
-        raise ReviewSummaryRequestError(SUMMARY_ERROR_MESSAGE)
-
-    try:
-        payload = json.loads(response_text)
-    except json.JSONDecodeError as exc:
-        current_app.logger.exception("Gemini review summary returned invalid JSON: %s", exc)
-        raise ReviewSummaryRequestError(SUMMARY_ERROR_MESSAGE) from exc
-
+    payload = _parse_json_response(getattr(response, "text", ""), SUMMARY_ERROR_MESSAGE)
     return {
         "summary": _normalize_summary_payload(payload),
         "review_count_used": len(reviews),
         "threshold": settings["min_reviews"],
         "model": settings["model"],
+    }
+
+
+def generate_restaurant_review_improvement_insights(restaurant_id, restaurant_name="", year=None, month=None):
+    settings = get_ai_review_summary_settings()
+    review_rows = query_negative_reviews_for_improvement_insights(
+        restaurant_id,
+        settings["max_reviews"],
+        year=year,
+        month=month,
+    )
+    if len(review_rows) < settings["min_reviews"]:
+        raise ReviewSummaryRequestError(
+            f"Cần ít nhất {settings['min_reviews']} đánh giá xấu để tạo gợi ý AI."
+        )
+
+    reference_today = vietnam_today()
+    target_year = int(year or reference_today.year)
+    target_month = int(month or reference_today.month)
+    month_label = f"Tháng {target_month}/{target_year}"
+    prompt = _build_improvement_prompt(restaurant_name, review_rows, month_label)
+    client = _build_client(settings)
+
+    try:
+        response = client.models.generate_content(
+            model=settings["model"],
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "Bạn là trợ lý phân tích đánh giá xấu cho nhà hàng. "
+                    "Chỉ sử dụng dữ liệu trong input, không suy diễn thêm thông tin không có. "
+                    "Trả về JSON hợp lệ với các khóa: overview, issues, actions. "
+                    "overview là 1-2 câu ngắn. issues là tối đa 3 vấn đề nổi bật lặp lại trong đánh giá xấu. "
+                    "actions là tối đa 3 đề xuất cải thiện cụ thể, ưu tiên cách thực hiện rõ ràng cho chủ nhà hàng."
+                ),
+                temperature=0.2,
+                response_mime_type="application/json",
+            ),
+        )
+    except Exception as exc:  # pragma: no cover - network dependent
+        current_app.logger.exception("Gemini review improvement request failed: %s", exc)
+        raise ReviewSummaryRequestError(IMPROVEMENT_ERROR_MESSAGE) from exc
+
+    payload = _parse_json_response(getattr(response, "text", ""), IMPROVEMENT_ERROR_MESSAGE)
+    return {
+        "insights": _normalize_improvement_payload(payload),
+        "review_count_used": len(review_rows),
+        "threshold": settings["min_reviews"],
+        "model": settings["model"],
+        "month": f"{target_year:04d}-{target_month:02d}",
     }
