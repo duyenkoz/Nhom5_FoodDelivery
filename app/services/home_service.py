@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from app.data.home import get_home_page_data
 from app.extensions import db
 from app.models import Restaurant, Review
+from app.services.home_recommendation_service import get_personalized_suggested_restaurant_ids
 from app.services.location_service import area_matches, format_distance_km, haversine_distance_km, location_sort_key, normalize_text
 
 
@@ -242,10 +243,7 @@ def _display_rating(index, review_stats, active_dish_count):
     if review_stats and review_stats.get("review_count"):
         return f"{review_stats['average_rating']:.1f}", _format_review_count(review_stats["review_count"])
 
-    preset = PRESENTATION_PRESETS[index % len(PRESENTATION_PRESETS)]
-    synthetic_rating = min(5.0, 4.1 + min(active_dish_count, 9) * 0.1)
-    synthetic_reviews = max(60, active_dish_count * 35)
-    return f"{synthetic_rating:.1f}", _format_review_count(synthetic_reviews) or preset["reviews"]
+    return "Chưa có đánh giá", ""
 
 
 def _build_card(restaurant, index, distance_km=None, review_stats=None):
@@ -309,6 +307,51 @@ def _sorted_suggested_cards(payloads):
     return [payload["card"] for payload in payloads]
 
 
+def _sorted_personalized_suggested_cards(payloads, customer_id=None):
+    payloads = [payload for payload in payloads if payload["active_dish_count"] > 0]
+    if not customer_id:
+        return _sorted_suggested_cards(payloads)
+
+    ranked_ids = get_personalized_suggested_restaurant_ids(customer_id, payloads, limit=len(payloads))
+    if not ranked_ids:
+        return _sorted_suggested_cards(payloads)
+
+    payload_by_id = {
+        payload["restaurant"].restaurant_id: payload
+        for payload in payloads
+        if payload.get("restaurant")
+    }
+    ordered_payloads = []
+    seen_ids = set()
+    for restaurant_id in ranked_ids:
+        payload = payload_by_id.get(restaurant_id)
+        if payload is None:
+            continue
+        ordered_payloads.append(payload)
+        seen_ids.add(restaurant_id)
+
+    remaining_payloads = [payload for payload in payloads if payload["restaurant"].restaurant_id not in seen_ids]
+    remaining_payloads.sort(
+        key=lambda payload: (
+            -(payload["active_dish_count"]),
+            location_sort_key(payload["distance_km"], payload["restaurant"].restaurant_id),
+        )
+    )
+    ordered_payloads.extend(remaining_payloads)
+
+    cards = []
+    for index, payload in enumerate(ordered_payloads):
+        cards.append(
+            _build_card(
+                payload["restaurant"],
+                index,
+                distance_km=payload["distance_km"],
+                review_stats=payload["review_stats"],
+            )
+        )
+    return cards
+
+
 def _sorted_nearby_cards(payloads):
     payloads.sort(key=lambda payload: location_sort_key(payload["distance_km"], payload["restaurant"].restaurant_id))
     return [payload["card"] for payload in payloads]
@@ -358,22 +401,22 @@ def _paginate_cards(cards, page_number, page_size):
     return page_cards, current_page, total_count, has_more
 
 
-def _cards_for_section(section_key, user_location=None):
+def _cards_for_section(section_key, user_location=None, customer_id=None):
     payloads = _load_restaurant_payloads(user_location=user_location)
     if section_key == SECTION_NEARBY:
         return _sorted_nearby_cards(payloads)
     if section_key == SECTION_TOP_RATED:
         return _sorted_top_rated_cards(payloads)
-    return _sorted_suggested_cards(payloads)
+    return _sorted_personalized_suggested_cards(payloads, customer_id=customer_id)
 
 
-def get_home_page_context(query="", page_number=1, user_location=None, hero_address=""):
+def get_home_page_context(query="", page_number=1, user_location=None, hero_address="", customer_id=None):
     page = get_home_page_data()
     location_params = _build_location_params(user_location)
 
     sections = []
     for section in page["sections"]:
-        cards = _cards_for_section(section["key"], user_location=user_location)
+        cards = _cards_for_section(section["key"], user_location=user_location, customer_id=customer_id)
         preview_cards = cards[:HOME_PREVIEW_SIZE]
         load_more_href = None
         if section["key"] in {SECTION_NEARBY, SECTION_TOP_RATED}:

@@ -74,8 +74,18 @@
             </summary>
             <div class="site-header__notification-menu" role="menu" aria-label="Thông báo">
                 <div class="site-header__notification-title">
-                    <strong>Thông báo</strong>
-                    <span>{{ header_notification_count or 0 }} chưa đọc</span>
+                    <div class="site-header__notification-title-head">
+                        <strong>Thông báo</strong>
+                        <button
+                            class="site-header__notification-mark-all"
+                            type="button"
+                            data-mark-all-read="true"
+                            {% if not header_notification_count %}disabled{% endif %}
+                        >
+                            Đánh dấu đã đọc
+                        </button>
+                    </div>
+                    <span data-notification-unread-text>{{ header_notification_count or 0 }} chưa đọc</span>
                 </div>
                 {% if notifications %}
                 <div class="site-header__notification-list" data-notification-list>

@@ -8,9 +8,27 @@ _HOME_PAGE_DATA = {
     "empty_title": "Không tìm thấy quán phù hợp",
     "empty_description": "Hãy thử tìm bằng tên quán, món ăn hoặc địa chỉ khác.",
     "sections": [
-        {"key": "suggested-dishes", "title": "Gợi ý món ăn", "load_more_label": "Xem thêm", "show_load_more": False},
-        {"key": "nearby-restaurants", "title": "Quán ăn gần bạn", "load_more_label": "Xem thêm", "show_load_more": True, "browse_path": "/collections/nearby-restaurants"},
-        {"key": "top-rated-restaurants", "title": "Nhà hàng đánh giá cao", "load_more_label": "Xem thêm", "show_load_more": True, "browse_path": "/collections/top-rated-restaurants"},
+        {
+            "key": "suggested-dishes",
+            "title": "Gợi ý món ăn",
+            "info_text": "Danh sách này được gợi ý theo thời điểm trong ngày, lịch sử đặt món, độ phổ biến và khuyến mãi của nhà hàng.",
+            "load_more_label": "Xem thêm",
+            "show_load_more": False,
+        },
+        {
+            "key": "nearby-restaurants",
+            "title": "Quán ăn gần bạn",
+            "load_more_label": "Xem thêm",
+            "show_load_more": True,
+            "browse_path": "/collections/nearby-restaurants",
+        },
+        {
+            "key": "top-rated-restaurants",
+            "title": "Nhà hàng đánh giá cao",
+            "load_more_label": "Xem thêm",
+            "show_load_more": True,
+            "browse_path": "/collections/top-rated-restaurants",
+        },
     ],
 }
 

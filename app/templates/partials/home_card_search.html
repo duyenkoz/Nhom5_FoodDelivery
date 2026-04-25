@@ -28,8 +28,11 @@
                         <path d="m12 17.3 6.18 3.74-1.64-7.03L22 8.28l-7.19-.61L12 1 9.19 7.67 2 8.28l5.46 5.73-1.64 7.03L12 17.3Z"></path>
                     </svg>
                 </span>
-                <strong>{{ item.rating }}</strong>
-                <span>{{ item.reviews }}</span>
+                {% if item.reviews %}
+                <span class="dish-card__rating-text">{{ item.rating }} ({{ item.reviews }})</span>
+                {% else %}
+                <span class="dish-card__rating-text dish-card__rating-text--empty">{{ item.rating }}</span>
+                {% endif %}
             </span>
             <span class="dish-card__dot" aria-hidden="true">•</span>
             <span class="dish-card__distance">{{ item.distance }}</span>

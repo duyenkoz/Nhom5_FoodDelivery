@@ -34,6 +34,11 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = _build_database_uri()
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "")
+    AI_REVIEW_SUMMARY_MIN_REVIEWS = int(os.getenv("AI_REVIEW_SUMMARY_MIN_REVIEWS", "5"))
+    AI_REVIEW_SUMMARY_MAX_REVIEWS = int(os.getenv("AI_REVIEW_SUMMARY_MAX_REVIEWS", "30"))
+    AI_REVIEW_SUMMARY_TIMEOUT_SECONDS = float(os.getenv("AI_REVIEW_SUMMARY_TIMEOUT_SECONDS", "15"))
     TRACK_ASIA_MAPS_API_KEY = os.getenv("TRACK_ASIA_MAPS_API_KEY", "")
     TRACK_ASIA_BASE_URL = os.getenv("TRACK_ASIA_BASE_URL", "https://maps.track-asia.com/api/v2/place")
     TRACK_ASIA_TIMEOUT_SECONDS = float(os.getenv("TRACK_ASIA_TIMEOUT_SECONDS", "6"))

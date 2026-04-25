@@ -50,8 +50,22 @@
         const cartConfirmModal = document.querySelector("[data-cart-confirm-modal='true']");
         const similarToggle = root.querySelector("[data-similar-toggle='true']");
         const similarSection = document.getElementById("similarRestaurants");
+        const similarTrack = root.querySelector("[data-similar-track='true']");
+        const similarControls = root.querySelector("[data-similar-controls='true']");
+        const similarPrevButton = root.querySelector("[data-similar-prev='true']");
+        const similarNextButton = root.querySelector("[data-similar-next='true']");
         const reviewOpenButton = root.querySelector("[data-open-restaurant-reviews='true']");
         const reviewModal = document.querySelector("[data-restaurant-review-modal='true']");
+        const reviewAiTrigger = document.querySelector("[data-review-ai-trigger='true']");
+        const reviewAiStatus = document.querySelector("[data-review-ai-status='true']");
+        const reviewAiError = document.querySelector("[data-review-ai-error='true']");
+        const reviewAiSummary = document.querySelector("[data-review-ai-summary='true']");
+        const reviewAiToggle = document.querySelector("[data-review-ai-toggle='true']");
+        const reviewAiBody = document.querySelector("[data-review-ai-body='true']");
+        const reviewAiOverview = document.querySelector("[data-review-ai-overview='true']");
+        const reviewAiStrengths = document.querySelector("[data-review-ai-strengths='true']");
+        const reviewAiImprovements = document.querySelector("[data-review-ai-improvements='true']");
+        const reviewAiMeta = document.querySelector("[data-review-ai-meta='true']");
 
         const dishes = safeParseJson(
             (root.querySelector("[data-restaurant-dishes-json]") || {}).textContent,
@@ -73,12 +87,178 @@
         const dishById = new Map(dishes.map((dish) => [Number(dish.dish_id), dish]));
         const cartAddUrl = root.dataset.cartAddUrl;
         const cartUpdateUrlTemplate = root.dataset.cartUpdateUrlTemplate || "";
+        const reviewAiSummaryUrl = root.dataset.aiReviewSummaryUrl || "";
 
         let activeCategory = categoryTabs.length ? categoryTabs[0].dataset.categoryTab : "";
         let modalDishId = null;
         let modalQuantity = 1;
         let modalMode = "add";
         let pendingZeroQuantitySubmit = null;
+        let syncSimilarSliderState = function () {};
+        let reviewAiSummaryCache = null;
+        let reviewAiSummaryRequest = null;
+        let reviewAiCollapsed = false;
+
+        function getSimilarScrollStep() {
+            if (!similarTrack) {
+                return 0;
+            }
+
+            const firstCard = similarTrack.querySelector(".restaurant-similar__card");
+            if (!firstCard) {
+                return similarTrack.clientWidth;
+            }
+
+            const trackStyles = window.getComputedStyle(similarTrack);
+            const gap = parseFloat(trackStyles.columnGap || trackStyles.gap || "0") || 0;
+            return firstCard.getBoundingClientRect().width + gap;
+        }
+
+        function initSimilarSlider() {
+            if (!similarTrack) {
+                return;
+            }
+
+            if (similarPrevButton) {
+                similarPrevButton.setAttribute("aria-label", "Xem nha hang tuong tu truoc do");
+            }
+
+            if (similarNextButton) {
+                similarNextButton.setAttribute("aria-label", "Xem them nha hang tuong tu");
+            }
+
+            let isPointerDown = false;
+            let startX = 0;
+            let startScrollLeft = 0;
+            let moved = false;
+            let pendingLinkHref = "";
+
+            function updateState() {
+                if (!similarTrack) {
+                    return;
+                }
+
+                const maxScrollLeft = Math.max(0, similarTrack.scrollWidth - similarTrack.clientWidth);
+                const canScroll = maxScrollLeft > 8;
+                const isAtStart = similarTrack.scrollLeft <= 8;
+                const isAtEnd = similarTrack.scrollLeft >= maxScrollLeft - 8;
+
+                if (similarControls) {
+                    similarControls.hidden = !canScroll;
+                }
+
+                if (similarPrevButton) {
+                    similarPrevButton.disabled = !canScroll || isAtStart;
+                }
+
+                if (similarNextButton) {
+                    similarNextButton.disabled = !canScroll || isAtEnd;
+                }
+            }
+
+            function isInteractiveTarget(target) {
+                return Boolean(target.closest("button, input, select, textarea, label"));
+            }
+
+            similarTrack.addEventListener("pointerdown", function (event) {
+                if (event.pointerType === "mouse" && event.button !== 0) {
+                    return;
+                }
+
+                if (isInteractiveTarget(event.target)) {
+                    return;
+                }
+
+                isPointerDown = true;
+                moved = false;
+                startX = event.clientX;
+                startScrollLeft = similarTrack.scrollLeft;
+                pendingLinkHref = "";
+
+                const link = event.target.closest("a[href]");
+                if (link) {
+                    pendingLinkHref = link.href || "";
+                }
+
+                similarTrack.classList.add("is-dragging");
+                similarTrack.setPointerCapture(event.pointerId);
+            });
+
+            similarTrack.addEventListener("pointermove", function (event) {
+                if (!isPointerDown) {
+                    return;
+                }
+
+                const deltaX = event.clientX - startX;
+                if (Math.abs(deltaX) > 4) {
+                    moved = true;
+                }
+
+                similarTrack.scrollLeft = startScrollLeft - deltaX;
+            });
+
+            function stopDragging(event) {
+                if (!isPointerDown) {
+                    return;
+                }
+
+                const shouldFollowLink = !moved && pendingLinkHref;
+                isPointerDown = false;
+                similarTrack.classList.remove("is-dragging");
+
+                if (event && typeof event.pointerId !== "undefined") {
+                    try {
+                        similarTrack.releasePointerCapture(event.pointerId);
+                    } catch (error) {
+                        // Ignore release errors when pointer capture is already cleared.
+                    }
+                }
+
+                if (shouldFollowLink) {
+                    window.location.href = pendingLinkHref;
+                }
+
+                pendingLinkHref = "";
+                moved = false;
+            }
+
+            if (similarPrevButton) {
+                similarPrevButton.addEventListener("click", function () {
+                    similarTrack.scrollBy({
+                        left: -getSimilarScrollStep(),
+                        behavior: "smooth",
+                    });
+                });
+            }
+
+            if (similarNextButton) {
+                similarNextButton.addEventListener("click", function () {
+                    similarTrack.scrollBy({
+                        left: getSimilarScrollStep(),
+                        behavior: "smooth",
+                    });
+                });
+            }
+
+            similarTrack.addEventListener("pointerup", stopDragging);
+            similarTrack.addEventListener("pointercancel", stopDragging);
+            similarTrack.addEventListener("lostpointercapture", stopDragging);
+            similarTrack.addEventListener("scroll", updateState, { passive: true });
+            window.addEventListener("resize", updateState);
+
+            similarTrack.addEventListener("click", function (event) {
+                if (!moved) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                moved = false;
+            }, true);
+
+            syncSimilarSliderState = updateState;
+            updateState();
+        }
 
         function setSimilarOpen(isOpen) {
             if (!similarToggle || !similarSection) {
@@ -88,6 +268,10 @@
             similarSection.hidden = !isOpen;
             similarToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
             similarToggle.classList.toggle("is-open", isOpen);
+
+            if (isOpen) {
+                window.requestAnimationFrame(syncSimilarSliderState);
+            }
         }
 
         function openReviewModal() {
@@ -101,6 +285,159 @@
             if (reviewOpenButton) {
                 reviewOpenButton.setAttribute("aria-expanded", "true");
             }
+        }
+
+        function setReviewAiBusy(isBusy) {
+            if (!reviewAiTrigger) {
+                return;
+            }
+
+            const defaultText = reviewAiTrigger.dataset.defaultText || "Tóm tắt bằng AI";
+            const loadingText = reviewAiTrigger.dataset.loadingText || "Đang tóm tắt...";
+            reviewAiTrigger.disabled = Boolean(isBusy);
+            reviewAiTrigger.setAttribute("aria-busy", isBusy ? "true" : "false");
+            reviewAiTrigger.classList.toggle("is-loading", Boolean(isBusy));
+            reviewAiTrigger.innerHTML = isBusy
+                ? `<span aria-hidden="true">...</span><span>${escapeHtml(loadingText)}</span>`
+                : `<span aria-hidden="true">AI</span><span>${escapeHtml(defaultText)}</span>`;
+        }
+
+        function hideReviewAiFeedback() {
+            if (reviewAiStatus) {
+                reviewAiStatus.hidden = true;
+                reviewAiStatus.textContent = "";
+            }
+            if (reviewAiError) {
+                reviewAiError.hidden = true;
+                reviewAiError.textContent = "";
+            }
+        }
+
+        function renderReviewAiList(target, items, emptyText) {
+            if (!target) {
+                return;
+            }
+
+            if (!Array.isArray(items) || !items.length) {
+                target.innerHTML = `<li class="restaurant-review-ai__empty-item">${escapeHtml(emptyText)}</li>`;
+                return;
+            }
+
+            target.innerHTML = items
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("");
+        }
+
+        function setReviewAiCollapsed(isCollapsed) {
+            reviewAiCollapsed = Boolean(isCollapsed);
+
+            if (reviewAiSummary) {
+                reviewAiSummary.classList.toggle("is-collapsed", reviewAiCollapsed);
+            }
+
+            if (reviewAiBody) {
+                reviewAiBody.hidden = reviewAiCollapsed;
+            }
+
+            if (reviewAiToggle) {
+                reviewAiToggle.setAttribute("aria-expanded", reviewAiCollapsed ? "false" : "true");
+                reviewAiToggle.setAttribute(
+                    "aria-label",
+                    reviewAiCollapsed ? "Mở rộng tóm tắt AI" : "Thu gọn tóm tắt AI"
+                );
+            }
+        }
+
+        function renderReviewAiSummary(payload) {
+            if (!reviewAiSummary) {
+                return;
+            }
+
+            const summary = payload && payload.summary ? payload.summary : {};
+            hideReviewAiFeedback();
+            reviewAiSummary.hidden = false;
+            setReviewAiCollapsed(false);
+
+            if (reviewAiOverview) {
+                reviewAiOverview.textContent = summary.overview || "";
+            }
+
+            renderReviewAiList(
+                reviewAiStrengths,
+                summary.strengths || [],
+                "Chưa có đủ dữ liệu để rút ra điểm nổi bật rõ ràng."
+            );
+            renderReviewAiList(
+                reviewAiImprovements,
+                summary.improvements || [],
+                "Chưa có góp ý nổi bật cần ưu tiên trong nhóm đánh giá này."
+            );
+
+            if (reviewAiMeta) {
+                reviewAiMeta.textContent = `Dựa trên ${payload.review_count_used || 0} đánh giá mới nhất.`;
+            }
+        }
+
+        function showReviewAiError(message) {
+            if (!reviewAiError) {
+                return;
+            }
+
+            if (reviewAiStatus) {
+                reviewAiStatus.hidden = true;
+                reviewAiStatus.textContent = "";
+            }
+            reviewAiError.hidden = false;
+            reviewAiError.textContent = message || "Chưa thể tạo tóm tắt AI lúc này.";
+        }
+
+        function fetchReviewAiSummary() {
+            if (!reviewAiSummaryUrl || !reviewAiTrigger) {
+                return Promise.resolve();
+            }
+
+            if (reviewAiSummaryCache) {
+                renderReviewAiSummary(reviewAiSummaryCache);
+                return Promise.resolve(reviewAiSummaryCache);
+            }
+
+            if (reviewAiSummaryRequest) {
+                return reviewAiSummaryRequest;
+            }
+
+            if (reviewAiStatus) {
+                reviewAiStatus.hidden = false;
+                reviewAiStatus.textContent = "Đang tổng hợp đánh giá từ khách hàng...";
+            }
+            if (reviewAiSummary) {
+                reviewAiSummary.hidden = true;
+            }
+            if (reviewAiError) {
+                reviewAiError.hidden = true;
+                reviewAiError.textContent = "";
+            }
+
+            setReviewAiBusy(true);
+            reviewAiSummaryRequest = requestJson(reviewAiSummaryUrl, {})
+                .then(({ ok, data }) => {
+                    if (!ok || !data.ok) {
+                        throw new Error(data.message || "Chưa thể tạo tóm tắt AI lúc này.");
+                    }
+
+                    reviewAiSummaryCache = data;
+                    renderReviewAiSummary(data);
+                    return data;
+                })
+                .catch((error) => {
+                    showReviewAiError(error.message || "Chưa thể tạo tóm tắt AI lúc này.");
+                    throw error;
+                })
+                .finally(() => {
+                    setReviewAiBusy(false);
+                    reviewAiSummaryRequest = null;
+                });
+
+            return reviewAiSummaryRequest;
         }
 
         function closeReviewModal() {
@@ -426,6 +763,8 @@
             });
         });
 
+        initSimilarSlider();
+
         if (similarToggle && similarSection) {
             setSimilarOpen(false);
             similarToggle.addEventListener("click", () => {
@@ -441,6 +780,18 @@
                 if (event.target.closest("[data-close-restaurant-reviews='true']")) {
                     closeReviewModal();
                 }
+            });
+        }
+
+        if (reviewAiTrigger) {
+            reviewAiTrigger.addEventListener("click", () => {
+                fetchReviewAiSummary().catch(() => {});
+            });
+        }
+
+        if (reviewAiToggle) {
+            reviewAiToggle.addEventListener("click", () => {
+                setReviewAiCollapsed(!reviewAiCollapsed);
             });
         }
 

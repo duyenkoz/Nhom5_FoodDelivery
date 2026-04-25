@@ -106,6 +106,26 @@ def mark_notification_read(user_id, notification_id):
     return notification
 
 
+def mark_all_notifications_read(user_id):
+    if not user_id:
+        return 0
+    if not _notification_table_ready():
+        return 0
+
+    unread_notifications = Notification.query.filter(
+        Notification.user_id == user_id,
+        Notification.is_read.is_(False),
+    ).all()
+    if not unread_notifications:
+        return 0
+
+    for notification in unread_notifications:
+        notification.is_read = True
+
+    db.session.commit()
+    return len(unread_notifications)
+
+
 def build_order_created_notification(order, customer_name="", payment_method_label=""):
     if not order or not order.restaurant_id:
         return None

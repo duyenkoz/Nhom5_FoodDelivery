@@ -9,6 +9,7 @@ from app.models import Customer, Dish, Order, Restaurant, Review
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.models.order_item import OrderItem
+from app.services.ai_review_summary_service import get_ai_review_summary_settings
 from app.services.location_service import normalize_text
 from app.services.restaurant_service import (
     EXCLUDED_ORDER_STATUSES,
@@ -228,6 +229,10 @@ def _build_public_review_items(restaurant_id, limit=10):
             }
         )
     return items
+
+
+def get_public_review_summary(restaurant_id):
+    return _build_public_review_summary(restaurant_id)
 
 
 def get_public_restaurant(restaurant_id, include_reviews=False):
@@ -804,6 +809,12 @@ def build_public_restaurant_context(restaurant_id, include_reviews=False, review
         "review_count_label": "0 Đánh giá",
     }
     review_items = _build_public_review_items(restaurant_id, limit=review_limit) if include_reviews else []
+    ai_review_summary_settings = get_ai_review_summary_settings()
+    ai_review_summary_enabled = bool(ai_review_summary_settings["enabled"])
+    ai_review_summary_available = bool(
+        ai_review_summary_enabled
+        and review_summary["review_count"] >= ai_review_summary_settings["min_reviews"]
+    )
     return {
         "restaurant": restaurant,
         "restaurant_id": restaurant.restaurant_id,
@@ -825,4 +836,8 @@ def build_public_restaurant_context(restaurant_id, include_reviews=False, review
         "review_summary": review_summary,
         "review_items": review_items,
         "review_has_more": review_summary["review_count"] > len(review_items),
+        "ai_review_summary_enabled": ai_review_summary_enabled,
+        "ai_review_summary_min_reviews": ai_review_summary_settings["min_reviews"],
+        "ai_review_summary_available": ai_review_summary_available,
+        "ai_review_summary_url": f"/restaurants/{restaurant.restaurant_id}/reviews/ai-summary",
     }

@@ -619,10 +619,39 @@ a {
     border-bottom: 1px solid #eef2f7;
 }
 
+.site-header__notification-title-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .site-header__notification-title strong {
     color: #f59e0b;
     font-size: 0.96rem;
     line-height: 1.25;
+}
+
+.site-header__notification-mark-all {
+    flex: 0 0 auto;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: #f59e0b;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.site-header__notification-mark-all:hover {
+    color: var(--accent-deep);
+}
+
+.site-header__notification-mark-all:disabled {
+    color: #94a3b8;
+    cursor: default;
+    opacity: 0.7;
 }
 
 .site-header__notification-title span {

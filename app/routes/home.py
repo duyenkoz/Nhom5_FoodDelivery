@@ -3,6 +3,12 @@ from flask import redirect, url_for
 
 from app.extensions import db
 from app.models.customer import Customer
+from app.services.ai_review_summary_service import (
+    ReviewSummaryConfigError,
+    ReviewSummaryRequestError,
+    generate_restaurant_review_summary,
+    get_ai_review_summary_settings,
+)
 from app.services.auth_service import is_customer_profile_complete
 from app.services.home_search_service import build_hot_search_keywords, build_search_suggestions, get_home_page_context
 from app.services.home_service import get_restaurant_collection_context
@@ -10,6 +16,8 @@ from app.services.location_service import resolve_address
 from app.services.public_restaurant_service import (
     add_to_restaurant_cart,
     build_public_restaurant_context,
+    get_public_restaurant,
+    get_public_review_summary,
     get_restaurant_cart_snapshot,
     update_restaurant_cart_item,
 )
@@ -126,7 +134,16 @@ def index():
     }
     user_location = _get_user_location()
     hero_address = user_location["address"] if user_location else ""
-    page = get_home_page_context(query, page_number, user_location=user_location, hero_address=hero_address, tab=tab, filters=search_filters)
+    customer_id = session.get("user_id") if session.get("auth_state") == "logged_in" and session.get("user_role") == "customer" else None
+    page = get_home_page_context(
+        query,
+        page_number,
+        user_location=user_location,
+        hero_address=hero_address,
+        tab=tab,
+        filters=search_filters,
+        customer_id=customer_id,
+    )
     page["location_storage_key"] = _get_location_storage_key()
     page["location_persist"] = True
     clear_location_cookie = request.cookies.get("fivefood_clear_location") == "1"
@@ -225,6 +242,44 @@ def restaurant_detail(restaurant_id):
 
     context["cart"] = get_restaurant_cart_snapshot(session, restaurant_id)
     return render_template("restaurant_detail.html", page=context)
+
+
+@bp.route("/restaurants/<int:restaurant_id>/reviews/ai-summary", methods=["POST"])
+def restaurant_review_ai_summary(restaurant_id):
+    restaurant = get_public_restaurant(restaurant_id)
+    if restaurant is None:
+        return jsonify({"ok": False, "message": "Không tìm thấy nhà hàng."}), 404
+
+    review_summary = get_public_review_summary(restaurant_id)
+    settings = get_ai_review_summary_settings()
+    threshold = settings["min_reviews"]
+
+    if not settings["enabled"]:
+        return jsonify({"ok": False, "message": "Tính năng tóm tắt AI hiện chưa được cấu hình đầy đủ."}), 503
+
+    if review_summary["review_count"] < threshold:
+        return jsonify(
+            {
+                "ok": False,
+                "message": f"Cần ít nhất {threshold} đánh giá để tạo tóm tắt AI.",
+                "threshold": threshold,
+            }
+        ), 400
+
+    restaurant_name = (
+        (restaurant.user.display_name if restaurant.user and restaurant.user.display_name else "")
+        or (restaurant.user.username if restaurant.user and restaurant.user.username else "")
+        or f"Nhà hàng {restaurant.restaurant_id}"
+    )
+
+    try:
+        payload = generate_restaurant_review_summary(restaurant_id, restaurant_name=restaurant_name)
+    except ReviewSummaryConfigError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 503
+    except ReviewSummaryRequestError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 503
+
+    return jsonify({"ok": True, **payload})
 
 
 @bp.route("/restaurants/<int:restaurant_id>/cart")
