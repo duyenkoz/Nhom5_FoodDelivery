@@ -15,6 +15,7 @@
     data-cart-url="{{ url_for('home.restaurant_cart', restaurant_id=page.restaurant_id) }}"
     data-cart-add-url="{{ url_for('home.add_restaurant_cart_item', restaurant_id=page.restaurant_id) }}"
     data-cart-update-url-template="{{ url_for('home.update_restaurant_cart', restaurant_id=page.restaurant_id, dish_id=0) }}"
+    data-ai-review-summary-url="{{ page.ai_review_summary_url or '' }}"
     data-login-url="{{ url_for('auth.login') }}"
 >
     <script type="application/json" data-restaurant-dishes-json>{{ page.dish_views|tojson }}</script>
@@ -79,13 +80,41 @@
     </section>
 
     <section class="restaurant-similar" id="similarRestaurants" aria-labelledby="similarRestaurantsTitle" hidden>
-        <div class="restaurant-similar__header">
+        <div class="restaurant-similar__top">
+            <div class="restaurant-similar__header">
             <h2 id="similarRestaurantsTitle">Nhà hàng tương tự</h2>
             <p>Gợi ý những nhà hàng có món hoặc danh mục gần giống với quán hiện tại.</p>
+            </div>
+
+            {% if page.similar_restaurants|length > 1 %}
+            <div class="restaurant-similar__controls" data-similar-controls="true">
+                <button
+                    type="button"
+                    class="restaurant-similar__nav"
+                    data-similar-prev="true"
+                    aria-label="Xem nhÃ  hÃ ng tÆ°Æ¡ng tá»± trÆ°á»›c Ä‘Ã³"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m15 18-6-6 6-6"></path>
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    class="restaurant-similar__nav"
+                    data-similar-next="true"
+                    aria-label="Xem thÃªm nhÃ  hÃ ng tÆ°Æ¡ng tá»±"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m9 18 6-6-6-6"></path>
+                    </svg>
+                </button>
+            </div>
+            {% endif %}
         </div>
 
         {% if page.similar_restaurants %}
-        <div class="restaurant-similar__grid">
+        <div class="restaurant-similar__viewport">
+            <div class="restaurant-similar__track" data-similar-track="true">
             {% for item in page.similar_restaurants %}
             <a class="restaurant-similar__card" href="{{ url_for('home.restaurant_detail', restaurant_id=item.restaurant_id) }}">
                 <div class="restaurant-similar__image-wrap">
@@ -102,6 +131,7 @@
                 </div>
             </a>
             {% endfor %}
+            </div>
         </div>
         {% else %}
         <div class="restaurant-detail__search-empty">
@@ -298,6 +328,20 @@
         <div class="restaurant-review-modal__header">
             <div class="restaurant-review-modal__header-title">
                 <h2 id="restaurantReviewModalTitle">Đánh giá về nhà hàng</h2>
+                {% if page.ai_review_summary_available %}
+                <div class="restaurant-review-modal__header-actions">
+                    <button
+                        type="button"
+                        class="restaurant-review-ai__trigger"
+                        data-review-ai-trigger="true"
+                        data-default-text="Tóm tắt bằng AI"
+                        data-loading-text="Đang tóm tắt..."
+                    >
+                        <span aria-hidden="true">AI</span>
+                        <span>Tóm tắt bằng AI</span>
+                    </button>
+                </div>
+                {% endif %}
             </div>
             <div class="restaurant-review-modal__header-copy">
                 <p class="restaurant-review-modal__restaurant-name">{{ page.restaurant_name }}</p>
@@ -320,11 +364,53 @@
         </div>
 
         <div class="restaurant-review-modal__content">
+            {% if page.ai_review_summary_available %}
+            <div class="restaurant-review-ai__status" data-review-ai-status="true" hidden aria-live="polite">
+                Đang tổng hợp đánh giá từ khách hàng...
+            </div>
+            <div class="restaurant-review-ai__error" data-review-ai-error="true" hidden aria-live="polite"></div>
+            <section class="restaurant-review-ai" data-review-ai-summary="true" hidden>
+                <div class="restaurant-review-ai__top">
+                    <div class="restaurant-review-ai__heading">
+                        <h3>Tóm tắt bằng AI</h3>
+                        <p data-review-ai-meta="true"></p>
+                    </div>
+                    <button
+                        type="button"
+                        class="restaurant-review-ai__toggle"
+                        data-review-ai-toggle="true"
+                        aria-expanded="true"
+                        aria-controls="restaurantReviewAiBody"
+                        aria-label="Thu gọn tóm tắt AI"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m6 15 6-6 6 6"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="restaurant-review-ai__body" id="restaurantReviewAiBody" data-review-ai-body="true">
+                    <div class="restaurant-review-ai__grid">
+                    <article class="restaurant-review-ai__card">
+                        <h4>Tổng quan</h4>
+                        <p data-review-ai-overview="true"></p>
+                    </article>
+                    <article class="restaurant-review-ai__card">
+                        <h4>Điểm được khen</h4>
+                        <ul data-review-ai-strengths="true"></ul>
+                    </article>
+                    <article class="restaurant-review-ai__card">
+                        <h4>Điểm cần cải thiện</h4>
+                        <ul data-review-ai-improvements="true"></ul>
+                    </article>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
             {% if page.review_items %}
             <div class="restaurant-review-list restaurant-review-modal__list">
                 {% for item in page.review_items %}
                 {% set review = item.review %}
-                <article class="restaurant-review-item">
+                <article class="restaurant-review-item{% if not review.comment %} restaurant-review-item--no-comment{% endif %}">
                     <div class="restaurant-review-item__avatar">{{ item.avatar_text }}</div>
                     <div class="restaurant-review-item__body">
                         <div class="restaurant-review-item__top">

@@ -118,6 +118,7 @@
 .restaurant-review-list {
     display: grid;
     gap: 12px;
+    align-content: start;
 }
 
 .restaurant-review-item {
@@ -207,6 +208,20 @@
     margin: 0;
     color: #334155;
     line-height: 1.65;
+}
+
+.restaurant-review-item--no-comment {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+.restaurant-review-item--no-comment .restaurant-review-item__body {
+    gap: 4px;
+    align-content: start;
+}
+
+.restaurant-review-item--no-comment .restaurant-review-item__rating {
+    min-height: 0;
 }
 
 .restaurant-review-item__report {

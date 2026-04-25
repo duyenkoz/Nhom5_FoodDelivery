@@ -202,10 +202,7 @@ def _display_rating(index, review_stats, active_dish_count):
         rating_value = float(review_stats["average_rating"] or 0)
         return f"{rating_value:.1f}", _format_review_count(review_stats["review_count"]), rating_value
 
-    preset = PRESENTATION_PRESETS[index % len(PRESENTATION_PRESETS)]
-    synthetic_rating = min(5.0, 4.1 + min(active_dish_count, 9) * 0.1)
-    synthetic_reviews = max(60, active_dish_count * 35)
-    return f"{synthetic_rating:.1f}", _format_review_count(synthetic_reviews) or preset["reviews"], synthetic_rating
+    return "Chưa có đánh giá", "", None
 
 
 def _format_address(restaurant):
@@ -767,12 +764,24 @@ def _build_url(params):
     return f"/?{urlencode(params)}" if params else "/"
 
 
-def get_home_page_context(query="", page_number=1, user_location=None, hero_address="", tab="all", filters=None):
+def get_home_page_context(query="", page_number=1, user_location=None, hero_address="", tab="all", filters=None, customer_id=None):
     search_mode = bool(_clean(query))
     if not search_mode:
-        return get_legacy_home_page_context(query, page_number=page_number, user_location=user_location, hero_address=hero_address)
+        return get_legacy_home_page_context(
+            query,
+            page_number=page_number,
+            user_location=user_location,
+            hero_address=hero_address,
+            customer_id=customer_id,
+        )
 
-    base_page = get_legacy_home_page_context("", page_number=page_number, user_location=user_location, hero_address=hero_address)
+    base_page = get_legacy_home_page_context(
+        "",
+        page_number=page_number,
+        user_location=user_location,
+        hero_address=hero_address,
+        customer_id=customer_id,
+    )
     normalized_tab = tab if tab in {SEARCH_TAB_ALL, SEARCH_TAB_RESTAURANT, SEARCH_TAB_DISH} else SEARCH_TAB_ALL
     search_filters = _parse_search_filters(filters)
     search_cards = _build_search_cards(query, normalized_tab, user_location=user_location, filters=search_filters)

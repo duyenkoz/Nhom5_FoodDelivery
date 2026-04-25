@@ -1,6 +1,10 @@
 from flask import Blueprint, jsonify, request, session
 
-from app.services.notification_service import get_user_notifications, mark_notification_read
+from app.services.notification_service import (
+    get_user_notifications,
+    mark_all_notifications_read,
+    mark_notification_read,
+)
 
 bp = Blueprint("notifications", __name__, url_prefix="/notifications")
 
@@ -33,3 +37,12 @@ def read_notification(notification_id):
     if not notification:
         return jsonify({"ok": False, "message": "Không tìm thấy thông báo."}), 404
     return jsonify({"ok": True})
+
+
+@bp.route("/read-all", methods=["POST"])
+def read_all_notifications():
+    if not _require_login():
+        return jsonify({"ok": False, "message": "Vui lòng đăng nhập lại."}), 401
+
+    updated_count = mark_all_notifications_read(session.get("user_id"))
+    return jsonify({"ok": True, "updated_count": updated_count})
