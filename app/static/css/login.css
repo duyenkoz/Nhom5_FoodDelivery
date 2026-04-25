@@ -118,7 +118,7 @@
 
 .auth-page--login .social-login {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
 }
 
@@ -127,12 +127,14 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    min-height: 54px;
+    min-height: 40px;
     border: 1px solid #d1d5db;
-    border-radius: 12px;
+    border-radius: 14px;
     background: #fff;
     color: #374151;
     font-weight: 700;
+    font-size: 0.94rem;
+    line-height: 1.2;
     cursor: pointer;
     box-shadow: 0 8px 20px rgba(17, 24, 39, 0.04);
 }
@@ -158,10 +160,6 @@
 }
 
 .auth-page--login .social-login__button--google .social-login__icon {
-    font-family: Arial, sans-serif;
-}
-
-.auth-page--login .social-login__button--facebook .social-login__icon {
     font-family: Arial, sans-serif;
 }
 
