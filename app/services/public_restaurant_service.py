@@ -198,14 +198,17 @@ def _build_public_review_summary(restaurant_id):
     }
 
 
-def _build_public_review_items(restaurant_id, limit=10):
-    reviews = (
+def _build_public_review_items(restaurant_id, limit=None):
+    query = (
         Review.query.options(selectinload(Review.customer).selectinload(Customer.user))
         .filter(Review.restaurant_id == restaurant_id)
         .order_by(Review.review_date.desc(), Review.review_id.desc())
-        .limit(limit)
-        .all()
     )
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    reviews = query.all()
 
     items = []
     for review in reviews:
@@ -769,7 +772,7 @@ def update_restaurant_cart_item(session, restaurant_id, dish_id, quantity=None, 
     return get_restaurant_cart_snapshot(session, restaurant_id)
 
 
-def build_public_restaurant_context(restaurant_id, include_reviews=False, review_limit=10):
+def build_public_restaurant_context(restaurant_id, include_reviews=False, review_limit=None):
     restaurant = get_public_restaurant(restaurant_id, include_reviews=include_reviews)
     if not restaurant:
         return None

@@ -15,8 +15,14 @@
 {% set restaurant_address = restaurant.address if restaurant else 'Chưa có địa chỉ' %}
 {% set restaurant_area = restaurant.area if restaurant else 'Chưa có khu vực' %}
 {% set review_filters = review_filters|default({}) %}
+{% set review_dashboard = review_dashboard|default({}) %}
+{% set ai_meta = review_dashboard.ai_insights if review_dashboard.ai_insights else {} %}
 
-<div class="restaurant-page restaurant-review-page">
+<div
+    class="restaurant-page restaurant-review-page"
+    data-review-dashboard="true"
+    data-ai-insights-url="{{ ai_meta.endpoint_url|default('') }}"
+>
     <aside class="restaurant-page__sidebar">
         <div class="restaurant-card restaurant-profile">
             <div class="restaurant-profile__cover">
@@ -70,6 +76,150 @@
                         <span>Đánh giá tích cực</span>
                         <strong>{{ stats.positive_reviews }}</strong>
                     </article>
+                </div>
+            </div>
+
+            <div class="restaurant-review-dashboard">
+                <div class="restaurant-section__card restaurant-review-dashboard__card restaurant-review-dashboard__card--chart">
+                    <div class="restaurant-analytics-chart__header">
+                        <div>
+                            <h2>Tổng quan tháng này</h2>
+                            <p>{{ review_dashboard.current_month_label or 'Tháng hiện tại' }}: thống kê đánh giá tốt và đánh giá xấu.</p>
+                        </div>
+                    </div>
+
+                    <div class="restaurant-review-dashboard__chart-grid">
+                        <div class="restaurant-chart-canvas restaurant-chart-canvas--doughnut restaurant-review-dashboard__chart">
+                            <canvas id="restaurantReviewSentimentChart"></canvas>
+                        </div>
+
+                        <div class="restaurant-review-dashboard__delta-list">
+                            {% set positive_change = review_dashboard.month_over_month.positive if review_dashboard.month_over_month else {} %}
+                            {% set negative_change = review_dashboard.month_over_month.negative if review_dashboard.month_over_month else {} %}
+                            {% set positive_delta = positive_change.delta|default(0) %}
+                            {% set negative_delta = negative_change.delta|default(0) %}
+
+                            <article class="restaurant-review-delta-card">
+                                <span class="restaurant-review-delta-card__eyebrow">Đánh giá tốt</span>
+                                <strong>{{ positive_change.current_count|default(0) }}</strong>
+                                <p>
+                                    <span class="restaurant-review-delta-card__delta {% if positive_delta > 0 %}is-up{% elif positive_delta < 0 %}is-down{% else %}is-flat{% endif %}">
+                                        {% if positive_delta > 0 %}+{% endif %}{{ positive_delta }}
+                                    </span>
+                                    so với tháng trước ({{ positive_change.previous_count|default(0) }})
+                                </p>
+                            </article>
+
+                            <article class="restaurant-review-delta-card">
+                                <span class="restaurant-review-delta-card__eyebrow">Đánh giá xấu</span>
+                                <strong>{{ negative_change.current_count|default(0) }}</strong>
+                                <p>
+                                    <span class="restaurant-review-delta-card__delta {% if negative_delta > 0 %}is-up{% elif negative_delta < 0 %}is-down{% else %}is-flat{% endif %}">
+                                        {% if negative_delta > 0 %}+{% endif %}{{ negative_delta }}
+                                    </span>
+                                    so với tháng trước ({{ negative_change.previous_count|default(0) }})
+                                </p>
+                            </article>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="restaurant-review-dashboard__grid">
+                    <div class="restaurant-section__card restaurant-review-dashboard__card">
+                        <div class="restaurant-analytics-chart__header">
+                            <div>
+                                <h2>Top 3 món theo phản hồi</h2>
+                                <p>Lấy từ các đơn hàng có đánh giá trong {{ review_dashboard.current_month_label or 'tháng này' }}.</p>
+                            </div>
+                        </div>
+
+                        <div class="restaurant-review-top-grid">
+                            <section class="restaurant-review-top-card">
+                                <h3>Top 3 món trong đơn được khen</h3>
+                                {% if review_dashboard.top_dishes_positive %}
+                                <div class="restaurant-review-top-list">
+                                    {% for dish in review_dashboard.top_dishes_positive %}
+                                    <article class="restaurant-review-top-item">
+                                        <span class="restaurant-review-top-item__rank">#{{ loop.index }}</span>
+                                        <div class="restaurant-review-top-item__body">
+                                            <strong>{{ dish.name }}</strong>
+                                            <p>{{ dish.reviewed_order_count }} đơn có đánh giá tốt • {{ dish.total_quantity }} suất</p>
+                                        </div>
+                                    </article>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <div class="restaurant-empty restaurant-empty--compact">
+                                    <strong>Chưa có dữ liệu.</strong>
+                                    <p>Tháng này chưa có đơn nào thuộc nhóm đánh giá tốt.</p>
+                                </div>
+                                {% endif %}
+                            </section>
+
+                            <section class="restaurant-review-top-card">
+                                <h3>Top 3 món trong đơn bị chê</h3>
+                                {% if review_dashboard.top_dishes_negative %}
+                                <div class="restaurant-review-top-list">
+                                    {% for dish in review_dashboard.top_dishes_negative %}
+                                    <article class="restaurant-review-top-item">
+                                        <span class="restaurant-review-top-item__rank is-negative">#{{ loop.index }}</span>
+                                        <div class="restaurant-review-top-item__body">
+                                            <strong>{{ dish.name }}</strong>
+                                            <p>{{ dish.reviewed_order_count }} đơn có đánh giá xấu • {{ dish.total_quantity }} suất</p>
+                                        </div>
+                                    </article>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <div class="restaurant-empty restaurant-empty--compact">
+                                    <strong>Chưa có dữ liệu.</strong>
+                                    <p>Tháng này chưa có đơn nào thuộc nhóm đánh giá xấu.</p>
+                                </div>
+                                {% endif %}
+                            </section>
+                        </div>
+                    </div>
+
+                    <div class="restaurant-section__card restaurant-review-dashboard__card restaurant-review-ai-card">
+                        <div class="restaurant-analytics-chart__header">
+                            <div>
+                                <h2>Gợi ý cải thiện bằng AI</h2>
+                                <p>Phân tích các đánh giá xấu mới nhất trong {{ review_dashboard.current_month_label or 'tháng này' }}.</p>
+                            </div>
+                        </div>
+
+                        <div class="restaurant-review-ai-card__actions">
+                            <button
+                                type="button"
+                                class="restaurant-btn restaurant-btn--primary restaurant-review-ai-card__trigger"
+                                data-review-ai-trigger="true"
+                                {% if not ai_meta.enabled %}disabled aria-disabled="true"{% endif %}
+                            >
+                                AI gợi ý cải thiện
+                            </button>
+                            <span class="restaurant-review-ai-card__meta">Có {{ ai_meta.eligible_negative_review_count|default(0) }} đánh giá xấu đủ điều kiện.</span>
+                        </div>
+
+                        <div class="restaurant-review-ai-card__status" data-review-ai-status="true" hidden aria-live="polite"></div>
+                        <div class="restaurant-review-ai-card__error" data-review-ai-error="true" {% if ai_meta.enabled %}hidden{% endif %} aria-live="polite">
+                            {% if not ai_meta.enabled %}{{ ai_meta.reason|default('Chưa đủ điều kiện để phân tích bằng AI.') }}{% endif %}
+                        </div>
+
+                        <section class="restaurant-review-ai-card__result" data-review-ai-result="true" hidden>
+                            <article class="restaurant-review-ai-card__panel">
+                                <h3>Tổng quan</h3>
+                                <p data-review-ai-overview="true"></p>
+                            </article>
+                            <article class="restaurant-review-ai-card__panel">
+                                <h3>Điểm xấu nổi bật</h3>
+                                <ul data-review-ai-issues="true"></ul>
+                            </article>
+                            <article class="restaurant-review-ai-card__panel">
+                                <h3>Gợi ý cải thiện</h3>
+                                <ul data-review-ai-actions="true"></ul>
+                            </article>
+                        </section>
+                    </div>
                 </div>
             </div>
 
@@ -217,4 +367,186 @@
         </section>
     </main>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="application/json" id="restaurant-review-chart-data">{{ review_dashboard.chart_data|default({})|tojson }}</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const parseJson = (elementId) => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            return {};
+        }
+
+        try {
+            return JSON.parse(element.textContent || "{}");
+        } catch (error) {
+            return {};
+        }
+    };
+
+    const reviewChartData = parseJson("restaurant-review-chart-data");
+    const reviewChartCanvas = document.getElementById("restaurantReviewSentimentChart");
+    if (reviewChartCanvas && window.Chart) {
+        const values = reviewChartData.values || [];
+        const total = values.reduce((sum, value) => sum + Number(value || 0), 0) || 1;
+
+        new Chart(reviewChartCanvas, {
+            type: "doughnut",
+            data: {
+                labels: reviewChartData.labels || [],
+                datasets: [{
+                    data: values,
+                    backgroundColor: reviewChartData.colors || ["#22c55e", "#ef4444"],
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "64%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            color: "#475569",
+                            usePointStyle: true,
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            padding: 14,
+                        },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const value = Number(context.parsed || 0);
+                                const percent = total ? ((value / total) * 100).toFixed(1) : "0.0";
+                                return `${context.label}: ${value} (${percent}%)`;
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    const page = document.querySelector("[data-review-dashboard='true']");
+    if (!page) {
+        return;
+    }
+
+    const aiUrl = page.dataset.aiInsightsUrl || "";
+    const aiTrigger = page.querySelector("[data-review-ai-trigger='true']");
+    const aiStatus = page.querySelector("[data-review-ai-status='true']");
+    const aiError = page.querySelector("[data-review-ai-error='true']");
+    const aiResult = page.querySelector("[data-review-ai-result='true']");
+    const aiOverview = page.querySelector("[data-review-ai-overview='true']");
+    const aiIssues = page.querySelector("[data-review-ai-issues='true']");
+    const aiActions = page.querySelector("[data-review-ai-actions='true']");
+
+    let aiCache = null;
+    let aiRequest = null;
+
+    const renderList = (target, values, emptyText) => {
+        if (!target) {
+            return;
+        }
+        const items = Array.isArray(values) ? values.filter(Boolean) : [];
+        if (!items.length) {
+            target.innerHTML = `<li>${emptyText}</li>`;
+            return;
+        }
+        target.innerHTML = items.map((item) => `<li>${item}</li>`).join("");
+    };
+
+    const setBusy = (isBusy) => {
+        if (!aiTrigger) {
+            return;
+        }
+        aiTrigger.disabled = Boolean(isBusy);
+        aiTrigger.setAttribute("aria-busy", isBusy ? "true" : "false");
+        aiTrigger.textContent = "AI gợi ý cải thiện";
+    };
+
+    const clearTransientMessages = () => {
+        if (aiStatus) {
+            aiStatus.hidden = true;
+            aiStatus.textContent = "";
+        }
+        if (aiError && aiError.dataset.locked !== "true") {
+            aiError.hidden = true;
+            aiError.textContent = "";
+        }
+    };
+
+    const renderInsights = (payload) => {
+        if (!aiResult || !payload || !payload.insights) {
+            return;
+        }
+        aiResult.hidden = false;
+        if (aiOverview) {
+            aiOverview.textContent = payload.insights.overview || "";
+        }
+        renderList(aiIssues, payload.insights.issues || [], "Chưa có vấn đề nổi bật.");
+        renderList(aiActions, payload.insights.actions || [], "Chưa có gợi ý cụ thể.");
+    };
+
+    if (aiTrigger && aiUrl) {
+        aiTrigger.addEventListener("click", async () => {
+            if (aiCache) {
+                clearTransientMessages();
+                renderInsights(aiCache);
+                return;
+            }
+            if (aiRequest) {
+                return;
+            }
+
+            if (aiError) {
+                aiError.dataset.locked = "false";
+            }
+            clearTransientMessages();
+            if (aiResult) {
+                aiResult.hidden = true;
+            }
+            setBusy(true);
+
+            aiRequest = fetch(aiUrl, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                credentials: "same-origin",
+            })
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.message || "Chưa thể tạo gợi ý AI lúc này.");
+                    }
+                    aiCache = data;
+                    renderInsights(data);
+                    if (aiStatus) {
+                        aiStatus.hidden = true;
+                        aiStatus.textContent = "";
+                    }
+                })
+                .catch((error) => {
+                    if (aiError) {
+                        aiError.hidden = false;
+                        aiError.textContent = error.message || "Chưa thể tạo gợi ý AI lúc này.";
+                    }
+                })
+                .finally(() => {
+                    aiRequest = null;
+                    setBusy(false);
+                });
+
+            await aiRequest;
+        });
+    }
+});
+</script>
 {% endblock %}

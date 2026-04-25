@@ -57,7 +57,6 @@
         const reviewOpenButton = root.querySelector("[data-open-restaurant-reviews='true']");
         const reviewModal = document.querySelector("[data-restaurant-review-modal='true']");
         const reviewAiTrigger = document.querySelector("[data-review-ai-trigger='true']");
-        const reviewAiStatus = document.querySelector("[data-review-ai-status='true']");
         const reviewAiError = document.querySelector("[data-review-ai-error='true']");
         const reviewAiSummary = document.querySelector("[data-review-ai-summary='true']");
         const reviewAiToggle = document.querySelector("[data-review-ai-toggle='true']");
@@ -303,10 +302,6 @@
         }
 
         function hideReviewAiFeedback() {
-            if (reviewAiStatus) {
-                reviewAiStatus.hidden = true;
-                reviewAiStatus.textContent = "";
-            }
             if (reviewAiError) {
                 reviewAiError.hidden = true;
                 reviewAiError.textContent = "";
@@ -383,10 +378,6 @@
                 return;
             }
 
-            if (reviewAiStatus) {
-                reviewAiStatus.hidden = true;
-                reviewAiStatus.textContent = "";
-            }
             reviewAiError.hidden = false;
             reviewAiError.textContent = message || "Chưa thể tạo tóm tắt AI lúc này.";
         }
@@ -405,10 +396,6 @@
                 return reviewAiSummaryRequest;
             }
 
-            if (reviewAiStatus) {
-                reviewAiStatus.hidden = false;
-                reviewAiStatus.textContent = "Đang tổng hợp đánh giá từ khách hàng...";
-            }
             if (reviewAiSummary) {
                 reviewAiSummary.hidden = true;
             }

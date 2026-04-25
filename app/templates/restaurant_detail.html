@@ -365,9 +365,6 @@
 
         <div class="restaurant-review-modal__content">
             {% if page.ai_review_summary_available %}
-            <div class="restaurant-review-ai__status" data-review-ai-status="true" hidden aria-live="polite">
-                Đang tổng hợp đánh giá từ khách hàng...
-            </div>
             <div class="restaurant-review-ai__error" data-review-ai-error="true" hidden aria-live="polite"></div>
             <section class="restaurant-review-ai" data-review-ai-summary="true" hidden>
                 <div class="restaurant-review-ai__top">
@@ -431,9 +428,6 @@
                 </article>
                 {% endfor %}
             </div>
-            {% if page.review_has_more %}
-            <p class="restaurant-review-modal__note">Hiển thị {{ page.review_items|length }} đánh giá gần nhất trong số {{ page.review_summary.review_count_text }} đánh giá.</p>
-            {% endif %}
             {% else %}
             <div class="restaurant-empty restaurant-review-modal__empty">
                 <strong>Chưa có đánh giá nào.</strong>
